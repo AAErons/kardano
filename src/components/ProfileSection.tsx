@@ -468,15 +468,7 @@ const AdminDashboard = ({ workers, onAdd, onUpdate, onAddBlocked, onAddAppointme
 		return relevantWorkers.flatMap(w => w.appointments.filter(a => a.date === dateStr).map(a => ({ ...a, workerName: w.name })))
 	}
 
-	const getAllSlotsForDay = (day: number) => {
-		const hours = Array.from({ length: 13 }, (_, i) => i + 8) // 08..20
-		const slots = hours.map(h => `${String(h).padStart(2, '0')}:00`)
-		const appts = getDailyAppointments(day)
-		return slots.map(time => {
-			const matching = appts.find(a => a.time === time)
-			return { time, appointment: matching || null }
-		})
-	}
+	// Deprecated helper removed: getAllSlotsForDay
 
 	// Half-hour timeline helpers for richer daily view
 	const generateHalfHourSlots = () => {
@@ -890,19 +882,7 @@ const WorkerDashboard = ({ worker }: { worker: Worker }) => {
 
 	const handleSubmitRequest = () => {
 		if (!request.date || !request.startTime || !request.duration) return
-		// In a real app this would be sent for approval; we mock by adding a blocked slot
-		const blocked: Appointment = {
-			id: Math.floor(Math.random() * 1000000),
-			workerId: worker.id,
-			workerName: worker.name,
-			userName: '—',
-			date: request.date,
-			time: request.startTime,
-			duration: request.duration,
-			subject: 'Brīvs/Atvaļinājums',
-			status: 'blocked',
-			note: request.note,
-		}
+		// In a real app this would be sent for approval.
 		// Since worker is a prop, we'd normally lift state up. For preview, append to selected day visual by using selectedDate setter.
 		// Quick client-side preview: if selected date matches, it will render from getDailyAppointments which is based on worker.appointments.
 		// To actually add visually, mutate a local copy and rely on rerender via state. We can't mutate props, so skip persistent add.
