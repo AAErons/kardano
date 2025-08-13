@@ -305,7 +305,7 @@ const ProfileSection = () => {
 	return (
 		<div className="min-h-screen bg-gray-50 py-8 lg:py-16 px-4">
 			<div className="max-w-7xl mx-auto">
-				<div className="flex items-center justify-between mb-6 lg:mb-10">
+				<div className="flex items-center justify-between gap-2 mb-6 lg:mb-10">
 					<h1 className="text-3xl lg:text-5xl font-bold text-black">
 						MANS <span className="bg-yellow-400 px-2 lg:px-4 py-1 lg:py-2 rounded-lg">PROFILS</span>
 					</h1>
@@ -319,7 +319,7 @@ const ProfileSection = () => {
 				{/* Worker profile info */}
 				{role === 'worker' && loggedInWorker && (
 					<div className="mb-6 lg:mb-10">
-						<div className="bg-white rounded-2xl shadow-xl p-4 lg:p-6 flex items-center gap-4 lg:gap-6">
+					<div className="bg-white rounded-2xl shadow-xl p-4 lg:p-6 flex items-start sm:items-center gap-4 lg:gap-6">
 							<img src={loggedInWorker.image} alt={loggedInWorker.name} className="w-20 h-20 lg:w-24 lg:h-24 rounded-full object-cover border-2 border-yellow-200" />
 							<div className="flex-1">
 								<div className="flex flex-wrap items-center justify-between gap-2">
@@ -342,7 +342,7 @@ const ProfileSection = () => {
 				{/* User profile info */}
 				{role === 'user' && (
 					<div className="mb-6 lg:mb-10">
-						<div className="bg-white rounded-2xl shadow-xl p-4 lg:p-6 flex items-center gap-4 lg:gap-6">
+					<div className="bg-white rounded-2xl shadow-xl p-4 lg:p-6 flex items-start sm:items-center gap-4 lg:gap-6">
 							<div className="w-20 h-20 lg:w-24 lg:h-24 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-700 font-bold text-xl">ES</div>
 							<div className="flex-1">
 								<div className="flex flex-wrap items-center justify-between gap-2">
@@ -363,10 +363,10 @@ const ProfileSection = () => {
 				)}
 
 				{!role && (
-					<div className="max-w-xl mx-auto bg-white rounded-2xl shadow-xl p-6 lg:p-8">
+					<div className="max-w-xl mx-auto bg-white rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8">
 						<h2 className="text-xl lg:text-2xl font-bold text-black mb-4">Pieslēgties</h2>
 						<p className="text-gray-600 mb-6 text-sm">Testa piekļuve: admin/admin, worker/worker, user/user</p>
-						<div className="space-y-4">
+						<div className="space-y-3 sm:space-y-4">
 							<div>
 								<label className="block text-sm font-medium text-gray-700 mb-1">Lietotājvārds</label>
 								<input value={username} onChange={e => setUsername(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="admin | worker | user" />
@@ -614,7 +614,7 @@ const AdminDashboard = ({ workers, onAdd, onUpdate, onAddBlocked, onAddAppointme
 			{activeTab === 'privatstundas' && (
 				<div className="space-y-6">
 					<div className="grid lg:grid-cols-3 gap-6">
-						<div className="lg:col-span-2 bg-white rounded-2xl shadow-xl p-4 lg:p-6">
+						<div className="lg:col-span-2 bg-white rounded-2xl shadow-xl p-4 sm:p-5 lg:p-6">
 							<div className="flex items-center justify-between mb-4 lg:mb-6">
 								<button onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1))} className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-lg lg:text-xl">←</button>
 								<h2 className="text-xl lg:text-2xl font-bold text-black text-center">{getMonthName(selectedDate)} {selectedDate.getFullYear()}</h2>
@@ -655,7 +655,7 @@ const AdminDashboard = ({ workers, onAdd, onUpdate, onAddBlocked, onAddAppointme
 								})}
 							</div>
 						</div>
-						<div className="bg-white rounded-2xl shadow-xl p-4 lg:p-6">
+						<div className="bg-white rounded-2xl shadow-xl p-4 sm:p-5 lg:p-6">
 							<h3 className="text-lg lg:text-xl font-bold text-black mb-4">Statistika ({getMonthName(selectedDate)})</h3>
 							<div className="grid grid-cols-2 gap-3">
 								<div className="bg-gray-50 rounded-lg p-3">
@@ -678,7 +678,7 @@ const AdminDashboard = ({ workers, onAdd, onUpdate, onAddBlocked, onAddAppointme
 						</div>
 					</div>
 
-					<div className="bg-white rounded-2xl shadow-xl p-4 lg:p-6">
+					<div className="bg-white rounded-2xl shadow-xl p-4 sm:p-5 lg:p-6">
 						<h3 className="text-lg lg:text-xl font-bold text-black mb-4">{selectedTutorId === 'all' ? 'Visu pasniedzēju' : 'Pasniedzēja'} dienas grafiks — {new Date(selectedDate).toLocaleDateString('lv-LV')}</h3>
 						{(() => {
 							const day = selectedDate.getDate()
@@ -897,7 +897,7 @@ const WorkerDashboard = ({ worker }: { worker: Worker }) => {
 	return (
 		<div className="grid lg:grid-cols-3 gap-6">
 			<div className="lg:col-span-2 space-y-6">
-				<div className="bg-white rounded-2xl shadow-xl p-4 lg:p-6">
+				<div className="bg-white rounded-2xl shadow-xl p-4 sm:p-5 lg:p-6">
 					<div className="flex items-center justify-between mb-4 lg:mb-6">
 						<button onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1))} className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-lg lg:text-xl">←</button>
 						<h2 className="text-xl lg:text-2xl font-bold text-black text-center">{getMonthName(selectedDate)} {selectedDate.getFullYear()}</h2>
@@ -923,12 +923,12 @@ const WorkerDashboard = ({ worker }: { worker: Worker }) => {
 						</div>
 					)}
 
-					<div className="grid grid-cols-7 gap-1 mb-2">
+				<div className="grid grid-cols-7 gap-1 mb-2 text-xs sm:text-sm">
 						{getWeekdayNames().map((d, i) => (
 							<div key={i} className="text-center font-semibold text-gray-600 py-2 text-sm lg:text-base">{d}</div>
 						))}
 					</div>
-					<div className="grid grid-cols-7 gap-1">
+				<div className="grid grid-cols-7 gap-1">
 						{Array.from({ length: startingDay }, (_, index) => (
 							<div key={`empty-${index}`} className="h-16 lg:h-20"></div>
 						))}
@@ -995,7 +995,7 @@ const WorkerDashboard = ({ worker }: { worker: Worker }) => {
 					})()}
 				</div>
 			</div>
-			<div className="bg-white rounded-2xl shadow-xl p-6 lg:p-8">
+			<div className="bg-white rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8">
 				<h2 className="text-2xl font-bold text-black mb-4">Manas atsauksmes</h2>
 				<div className="space-y-3">
 					{worker.reviews.length > 0 ? worker.reviews.map(r => (
@@ -1030,8 +1030,8 @@ const UserDashboard = ({ workers, userAppointments, onBook, onAddReview }: { wor
 	const isHistory = (a: Appointment) => !isUpcoming(a)
 
 	return (
-		<div className="grid lg:grid-cols-3 gap-6">
-			<div className="lg:col-span-2 bg-white rounded-2xl shadow-xl p-6 lg:p-8">
+				<div className="grid lg:grid-cols-3 gap-6">
+					<div className="lg:col-span-2 bg-white rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8">
 				<div className="flex items-center justify-between mb-4">
 					<h2 className="text-2xl font-bold text-black">Mani pieraksti</h2>
 					<button onClick={() => setIsBooking(v => !v)} className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg transition-colors">
@@ -1103,7 +1103,7 @@ const UserDashboard = ({ workers, userAppointments, onBook, onAddReview }: { wor
 					</div>
 				</div>
 			</div>
-			<div className="bg-white rounded-2xl shadow-xl p-6 lg:p-8">
+				<div className="bg-white rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8">
 				<h2 className="text-2xl font-bold text-black mb-4">Pasniedzēji</h2>
 				<div className="space-y-3 max-h-[28rem] overflow-auto pr-1">
 					{workers.map(w => (
