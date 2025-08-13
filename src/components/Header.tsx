@@ -61,6 +61,16 @@ const Header = ({ activeSection, setActiveSection }: HeaderProps) => {
 						>
 							Kalendārs
 						</button>
+					<button
+						onClick={() => setActiveSection('profile')}
+						className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+							activeSection === 'profile'
+								? 'bg-yellow-400 text-black'
+								: 'text-gray-700 hover:bg-yellow-100 hover:text-black'
+						}`}
+					>
+						Mans profils
+					</button>
 					</nav>
 
 					{/* Contact Info - Desktop */}
@@ -138,6 +148,16 @@ const Header = ({ activeSection, setActiveSection }: HeaderProps) => {
 							}`}
 						>
 							Kalendārs
+						</button>
+						<button
+							onClick={() => handleSectionChange('profile')}
+							className={`block w-full text-left px-3 py-2 rounded-md text-base font-medium transition-colors ${
+								activeSection === 'profile'
+									? 'bg-yellow-400 text-black'
+									: 'text-gray-700 hover:bg-yellow-100 hover:text-black'
+							}`}
+						>
+							Mans profils
 						</button>
 						
 						{/* Mobile Contact Info */}

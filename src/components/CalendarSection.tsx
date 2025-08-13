@@ -81,7 +81,8 @@ const CalendarSection = () => {
 		const firstDay = new Date(year, month, 1)
 		const lastDay = new Date(year, month + 1, 0)
 		const daysInMonth = lastDay.getDate()
-		const startingDay = firstDay.getDay()
+		// Convert Sunday=0..Saturday=6 to Monday=0..Sunday=6
+		const startingDay = (firstDay.getDay() + 6) % 7
 		
 		return { daysInMonth, startingDay }
 	}
@@ -95,7 +96,7 @@ const CalendarSection = () => {
 	}
 
 	const getWeekdayNames = () => {
-		return ["Sv", "P", "O", "T", "C", "Pk", "S"]
+		return ["P", "O", "T", "C", "Pk", "S", "Sv"]
 	}
 
 	const isToday = (day: number) => {

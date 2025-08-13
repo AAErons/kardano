@@ -4,6 +4,7 @@ import LandingPage from './components/LandingPage'
 import TutorsSection from './components/TutorsSection'
 import CalendarSection from './components/CalendarSection'
 import Footer from './components/Footer'
+import ProfileSection from './components/ProfileSection'
 
 function App() {
 	const [activeSection, setActiveSection] = useState('home')
@@ -15,6 +16,7 @@ function App() {
 			{activeSection === 'home' && <LandingPage />}
 			{activeSection === 'tutors' && <TutorsSection />}
 			{activeSection === 'calendar' && <CalendarSection />}
+			{activeSection === 'profile' && <ProfileSection />}
 			
 			<Footer />
 		</div>
