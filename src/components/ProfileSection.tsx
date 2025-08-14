@@ -398,7 +398,7 @@ const ProfileSection = () => {
 }
 
 const AdminDashboard = ({ workers, onAdd, onUpdate, onAddBlocked, onAddAppointment }: { workers: Worker[]; onAdd: (w: Omit<Worker, 'id' | 'appointments' | 'reviews'>) => void; onUpdate: (id: number, updates: Partial<Omit<Worker, 'id' | 'appointments' | 'reviews'>>) => void; onAddBlocked: (data: { workerId: number; date: string; time: string; duration: number; note?: string }) => void; onAddAppointment: (data: { workerId: number; userName: string; date: string; time: string; duration: number; subject: string }) => void }) => {
-	const [activeTab, setActiveTab] = useState<'pasniedzeji' | 'privatstundas' | 'pieteikumi'>('pasniedzeji')
+	const [activeTab, setActiveTab] = useState<'pasniedzeji' | 'privatstundas' | 'pieteikumi'>('privatstundas')
 	const [isAdding, setIsAdding] = useState(false)
 	const [newWorker, setNewWorker] = useState<{ name: string; subject: string; rating: number; description: string; image: string }>({ name: '', subject: '', rating: 5, description: '', image: '' })
 	const [editingId, setEditingId] = useState<number | null>(null)
@@ -521,11 +521,11 @@ const AdminDashboard = ({ workers, onAdd, onUpdate, onAddBlocked, onAddAppointme
 	return (
 		<div className="space-y-8">
 			<div className="bg-white rounded-2xl shadow-xl p-2 lg:p-3">
-				<div className="flex gap-2">
-					<button onClick={() => setActiveTab('pasniedzeji')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'pasniedzeji' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Pasniedzēji</button>
-					<button onClick={() => setActiveTab('privatstundas')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'privatstundas' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Privātstundas</button>
-					<button onClick={() => setActiveTab('pieteikumi')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'pieteikumi' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Pieteikumi</button>
-				</div>
+			<div className="flex gap-2">
+				<button onClick={() => setActiveTab('privatstundas')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'privatstundas' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Privātstundas</button>
+				<button onClick={() => setActiveTab('pasniedzeji')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'pasniedzeji' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Pasniedzēji</button>
+				<button onClick={() => setActiveTab('pieteikumi')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'pieteikumi' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Pieteikumi</button>
+			</div>
 			</div>
 
 			{activeTab === 'pasniedzeji' && (
