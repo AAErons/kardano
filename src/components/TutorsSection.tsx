@@ -21,86 +21,7 @@ interface Review {
 }
 
 const TutorsSection = () => {
-	const tutors: Tutor[] = [
-		{
-			id: 1,
-			name: "Ēriks Freimanis",
-			subject: "Matemātika (5-12. klase)",
-			experience: "8 gadu pieredze",
-			education: "RTU Matemātikas fakultāte",
-			description: "Specializējos pamatskolas un vidusskolas matemātikā. Palīdzu skolēniem ne tikai apgūt pašreizējo vielu, bet arī aizpildīt iepriekšējās zināšanu trūkumus.",
-			rating: 4.9,
-			reviews: [
-				{
-					id: 1,
-					studentName: "Anna Kļaviņa",
-					rating: 5,
-					comment: "Ēriks palīdzēja man sagatavoties Valsts pārbaudes darbam matemātikā. Rezultāts - 95%!",
-					date: "2024. gada janvāris"
-				},
-				{
-					id: 2,
-					studentName: "Kārlis Ozols",
-					rating: 5,
-					comment: "Pēc 3 mēnešiem ar Ēriku, es beidzot saprotu algebru!",
-					date: "2023. gada decembris"
-				}
-			],
-			image: "/images/tutors/eriks.jpeg"
-		},
-		{
-			id: 2,
-			name: "Mārcis Bajaruns",
-			subject: "Matemātika (1-9. klase)",
-			experience: "12 gadu pieredze",
-			education: "LU Pedagoģijas fakultāte",
-			description: "Eksperts pamatskolas matemātikā. Mana pieeja ir radīt pozitīvu attieksmi pret matemātiku un palīdzēt skolēniem izveidot spēcīgu pamatu.",
-			rating: 4.8,
-			reviews: [
-				{
-					id: 3,
-					studentName: "Jānis Liepiņš",
-					rating: 5,
-					comment: "Mārcis ir brīnišķīgs! Mana meita tagad mīl matemātiku.",
-					date: "2024. gada februāris"
-				},
-				{
-					id: 4,
-					studentName: "Elīna Zvaigzne",
-					rating: 4,
-					comment: "Ļoti palīdzēja ar daļskaitļiem. Tagad viss ir skaidrs!",
-					date: "2023. gada novembris"
-				}
-			],
-			image: "/images/tutors/marcis.jpeg"
-		},
-		{
-			id: 3,
-			name: "Mārtiņš Mārcis Gailītis",
-			subject: "Matemātika (9-12. klase, iestājeksāmeni)",
-			experience: "15 gadu pieredze",
-			education: "RTU Inženierzinātņu vidusskola, RTU",
-			description: "Specializējos vidusskolas matemātikā un iestājeksāmenu sagatavošanā. Sagatavoju skolēnus iestājeksāmeniem Valsts ģimnāzijās un RTU Inženierzinātņu vidusskolā.",
-			rating: 5.0,
-			reviews: [
-				{
-					id: 5,
-					studentName: "Kristīne Jansone",
-					rating: 5,
-					comment: "Pateicoties Mārtiņam, es iestājos RTU Inženierzinātņu vidusskolā!",
-					date: "2024. gada marts"
-				},
-				{
-					id: 6,
-					studentName: "Roberts Krūmiņš",
-					rating: 5,
-					comment: "Mārtiņš ir īstais eksperts! Visi iestājeksāmeni nokārtoti ar augstiem rezultātiem.",
-					date: "2023. gada jūnijs"
-				}
-			],
-			image: "/images/tutors/martins.jpeg"
-		}
-	]
+	const tutors: Tutor[] = []
 
 	return (
 		<div className="min-h-screen bg-gray-50 py-16 px-4">
@@ -120,11 +41,15 @@ const TutorsSection = () => {
 				</div>
 
 				{/* Tutors Grid */}
-				<div className="grid lg:grid-cols-3 gap-8">
-					{tutors.map((tutor) => (
-						<TutorCard key={tutor.id} tutor={tutor} />
-					))}
-				</div>
+				{tutors.length === 0 ? (
+					<div className="text-center text-gray-500">Nav reģistrētu pasniedzēju.</div>
+				) : (
+					<div className="grid lg:grid-cols-3 gap-8">
+						{tutors.map((tutor) => (
+							<TutorCard key={tutor.id} tutor={tutor} />
+						))}
+					</div>
+				)}
 			</div>
 		</div>
 	)

@@ -5,6 +5,7 @@ import TutorsSection from './components/TutorsSection'
 import CalendarSection from './components/CalendarSection'
 import Footer from './components/Footer'
 import ProfileSection from './components/ProfileSection'
+import LessonsSection from './components/LessonsSection'
 
 function App() {
 	const [activeSection, setActiveSection] = useState('home')
@@ -13,7 +14,8 @@ function App() {
 		<div className="min-h-screen bg-white">
 			<Header activeSection={activeSection} setActiveSection={setActiveSection} />
 			
-			{activeSection === 'home' && <LandingPage />}
+			{activeSection === 'home' && <LandingPage go={(section) => setActiveSection(section)} />}
+			{activeSection === 'lessons' && <LessonsSection />}
 			{activeSection === 'tutors' && <TutorsSection />}
 			{activeSection === 'calendar' && <CalendarSection />}
 			{activeSection === 'profile' && <ProfileSection />}

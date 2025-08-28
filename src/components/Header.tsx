@@ -52,6 +52,16 @@ const Header = ({ activeSection, setActiveSection }: HeaderProps) => {
 							Pasniedzēji
 						</button>
 						<button
+							onClick={() => setActiveSection('lessons')}
+							className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+								activeSection === 'lessons'
+									? 'bg-yellow-400 text-black'
+									: 'text-gray-700 hover:bg-yellow-100 hover:text-black'
+							}`}
+						>
+							Nodarbības
+						</button>
+						<button
 							onClick={() => setActiveSection('calendar')}
 							className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
 								activeSection === 'calendar'
@@ -138,6 +148,16 @@ const Header = ({ activeSection, setActiveSection }: HeaderProps) => {
 							}`}
 						>
 							Pasniedzēji
+						</button>
+						<button
+							onClick={() => handleSectionChange('lessons')}
+							className={`block w-full text-left px-3 py-2 rounded-md text-base font-medium transition-colors ${
+								activeSection === 'lessons'
+									? 'bg-yellow-400 text-black'
+									: 'text-gray-700 hover:bg-yellow-100 hover:text-black'
+							}`}
+						>
+							Nodarbības
 						</button>
 						<button
 							onClick={() => handleSectionChange('calendar')}

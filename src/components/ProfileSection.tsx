@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 
 type Role = 'admin' | 'worker' | 'user' | null
 
@@ -208,27 +208,29 @@ const ProfileSection = () => {
 	const userUpcomingCount = userUpcomingAppointments.length
 	const nextUserAppointment = userUpcomingAppointments[0] || null
 
-	const handleLogin = () => {
-		setAuthError('')
-		if (username === 'admin' && password === 'admin') {
-			setRole('admin')
+	const handleLogin = async () => {
+		try {
+			setAuthError('')
+			const r = await fetch('/api/login', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ email: username, password })
+			})
+			if (!r.ok) {
+				const e = await r.json().catch(() => ({}))
+				setAuthError(e.error || 'Neizdevās pieteikties')
+				return
+			}
+			const data = await r.json().catch(() => ({}))
+			setRole((data?.role as Role) || 'user')
 			setLoggedInWorkerId(null)
-			return
+		} catch (e) {
+			setAuthError('Neizdevās pieteikties')
 		}
-		if (username === 'worker' && password === 'worker') {
-			setRole('worker')
-			setLoggedInWorkerId(workers[0]?.id ?? null)
-			return
-		}
-		if (username === 'user' && password === 'user') {
-			setRole('user')
-			setLoggedInWorkerId(null)
-			return
-		}
-		setAuthError('Nepareizs lietotājvārds vai parole')
 	}
 
-	const handleLogout = () => {
+	const handleLogout = async () => {
+		await fetch('/api/auth/logout')
 		setRole(null)
 		setUsername('')
 		setPassword('')
@@ -406,6 +408,16 @@ const AdminDashboard = ({ workers, onAdd, onUpdate, onAddBlocked, onAddAppointme
 
 	const [selectedTutorId, setSelectedTutorId] = useState<number | 'all'>('all')
 	const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+
+	const [pendingItems, setPendingItems] = useState<any[]>([])
+	useEffect(() => {
+		if (activeTab !== 'pieteikumi') return
+		const y = selectedDate.getFullYear()
+		const m = String(selectedDate.getMonth() + 1).padStart(2, '0')
+		fetch(`/api/admin/pending?year=${y}&month=${m}`).then(r => r.json()).then(d => {
+			if (d && Array.isArray(d.items)) setPendingItems(d.items)
+		}).catch(() => {})
+	}, [activeTab, selectedDate])
 
 	const handleNewImageUpload = (file: File) => {
 		const reader = new FileReader()
@@ -741,78 +753,31 @@ const AdminDashboard = ({ workers, onAdd, onUpdate, onAddBlocked, onAddAppointme
 				<div className="space-y-6">
 					<div className="bg-white rounded-2xl shadow-xl p-4 lg:p-6">
 						<h2 className="text-2xl font-bold text-black mb-4">Pieteikumi</h2>
-						<p className="text-gray-600 mb-6 text-sm">Mock dati priekšskatījumam. Šeit varēsiet apstiprināt vai noraidīt pieteikumus.</p>
-
-						{/* Privātstundu pieteikumi */}
-						<h3 className="text-lg lg:text-xl font-bold text-black mb-3">Privātstundu pieteikumi</h3>
-						<div className="space-y-3 mb-6">
-							{getTutorColumns().slice(0, 3).map((t, idx) => {
-								const time = ['09:00','11:00','15:30'][idx]
-								const duration = idx === 2 ? 90 : 60
-								const date = new Date()
-								const dateStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`
-								const subject = ['Algebra','Ģeometrija','Konsultācija'][idx]
-								const userName = ['Jānis','Elīna','Marta'][idx]
-								return (
-									<div key={`lesson-${t.id}`} className="border border-gray-200 rounded-xl p-3 flex items-center justify-between">
-										<div className="flex items-center gap-3">
-											<div className="w-10 h-10 rounded-full bg-gray-100 overflow-hidden">
-												<img src={t.image} alt={t.name} className="w-full h-full object-cover" />
-											</div>
-											<div>
-												<div className="font-semibold text-black">{t.name}</div>
-												<div className="text-sm text-gray-600">{date.toLocaleDateString('lv-LV')} • {time} • {duration} min • {subject}</div>
-												<div className="text-xs text-gray-500">Skolēns: {userName}</div>
-											</div>
-										</div>
-										<div className="flex items-center gap-2">
-											<button className="bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2 px-3 rounded-lg" onClick={() => {
-												onAddAppointment({ workerId: t.id, userName, date: dateStr, time, duration, subject })
-												alert('Privātstundas pieteikums apstiprināts (mock). Pieraksts pievienots grafikam.')
-											}}>
-												Apstiprināt
-											</button>
-											<button className="border-2 border-red-300 text-red-700 hover:bg-red-50 text-sm font-semibold py-2 px-3 rounded-lg" onClick={() => alert('Pieteikums noraidīts (mock).')}>
-												Noraidīt
-											</button>
-										</div>
-									</div>
-								)
-							})}
-						</div>
-
-						{/* Brīva laika pieteikumi */}
-						<h3 className="text-lg lg:text-xl font-bold text-black mb-3">Brīva laika pieteikumi</h3>
 						<div className="space-y-3">
-							{getTutorColumns().slice(0, 3).map((t, idx) => (
-								<div key={`free-${t.id}`} className="border border-gray-200 rounded-xl p-3 flex items-center justify-between">
-									<div className="flex items-center gap-3">
-										<div className="w-10 h-10 rounded-full bg-gray-100 overflow-hidden">
-											<img src={t.image} alt={t.name} className="w-full h-full object-cover" />
-										</div>
-										<div>
-											<div className="font-semibold text-black">{t.name}</div>
-											<div className="text-sm text-gray-600">{new Date().toLocaleDateString('lv-LV')} • {['09:00','11:30','14:00'][idx]} • {idx === 1 ? 120 : 60} min</div>
-											<div className="text-xs text-gray-500">Piezīme: {idx === 0 ? 'Ārsta apmeklējums' : idx === 1 ? 'Atvaļinājums' : 'Personīgi darbi'}</div>
-										</div>
+							{pendingItems.length > 0 ? pendingItems.map((p) => (
+								<div key={p.id} className="border border-gray-200 rounded-xl p-3 flex items-center justify-between">
+									<div>
+										<div className="font-semibold text-black">{p.userName} → {p.workerName}</div>
+										<div className="text-sm text-gray-600">{new Date(p.date).toLocaleDateString('lv-LV')} • {p.time} • {p.duration} min • {p.subject}</div>
 									</div>
 									<div className="flex items-center gap-2">
-										<button className="bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2 px-3 rounded-lg" onClick={() => {
-											const duration = idx === 1 ? 120 : 60
-											const time = ['09:00','11:30','14:00'][idx]
-											const date = new Date()
-											const dateStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`
-											onAddBlocked({ workerId: t.id, date: dateStr, time, duration, note: 'Apstiprināts' })
-											alert('Brīvā laika pieteikums apstiprināts (mock). Brīvais laiks pievienots grafikam.')
+										<button className="bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2 px-3 rounded-lg" onClick={async () => {
+											await fetch('/api/admin/appointments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, action: 'approve' }) })
+											setPendingItems(prev => prev.filter(x => x.id !== p.id))
 										}}>
 											Apstiprināt
 										</button>
-										<button className="border-2 border-red-300 text-red-700 hover:bg-red-50 text-sm font-semibold py-2 px-3 rounded-lg" onClick={() => alert('Pieteikums noraidīts (mock).')}>
+										<button className="border-2 border-red-300 text-red-700 hover:bg-red-50 text-sm font-semibold py-2 px-3 rounded-lg" onClick={async () => {
+											await fetch('/api/admin/appointments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, action: 'reject' }) })
+											setPendingItems(prev => prev.filter(x => x.id !== p.id))
+										}}>
 											Noraidīt
 										</button>
 									</div>
 								</div>
-							))}
+							)) : (
+								<div className="text-gray-500">Šobrīd nav pieteikumu</div>
+							)}
 						</div>
 					</div>
 				</div>

@@ -1,4 +1,4 @@
-const LandingPage = () => {
+const LandingPage = ({ go }: { go?: (section: 'home' | 'tutors' | 'calendar' | 'profile') => void }) => {
 	return (
 		<div className="min-h-screen bg-white">
 			{/* Hero Section */}
@@ -27,47 +27,19 @@ const LandingPage = () => {
 								</div>
 							</div>
 						</div>
+					</div>
 
-						{/* Description */}
-						<p className="text-lg text-gray-700 leading-relaxed text-center">
-							Profesionāla matemātikas mācīšana, kas palīdz skolēniem 
-							apgūt ne tikai pašreizējo vielu, bet arī aizpildīt 
-							iepriekšējās zināšanu trūkumus.
-						</p>
-
-						{/* Services */}
-						<div className="space-y-4">
-							<div className="bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-400">
-								<p className="text-gray-800 text-sm">
-									<strong>Palīdzu ar tekošās vielas apgūšanu,</strong> tajā pašā laikā, 
-									cītīgi sekojot līdzi tam vai nav radušies robi līdz šim apgūtajā.
-								</p>
-							</div>
-							
-							<div className="bg-gray-50 p-4 rounded-lg border-l-4 border-gray-300">
-								<p className="text-gray-800 text-sm">
-									<strong>Sagatavoju iestājeksāmeniem</strong> Valsts ģimnāzijās un 
-									RTU Inženierzinātņu vidusskolā.
-								</p>
-							</div>
-							
-							<div className="bg-gray-50 p-4 rounded-lg border-l-4 border-gray-300">
-								<p className="text-gray-800 text-sm">
-									<strong>Palīdzu sagatavoties</strong> pamatskolas un vidusskolas 
-									Valsts pārbaudes darbiem.
-								</p>
-							</div>
-						</div>
-
-						{/* CTA Buttons */}
-						<div className="flex flex-col gap-3">
-							<button className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-3 px-6 rounded-lg transition-colors duration-200 shadow-lg">
-								Rezervēt stundu
-							</button>
-							<button className="border-2 border-yellow-400 text-yellow-600 hover:bg-yellow-400 hover:text-black font-bold py-3 px-6 rounded-lg transition-colors duration-200">
-								Uzzināt vairāk
-							</button>
-						</div>
+					{/* Primary Actions (Mobile) */}
+					<div className="lg:hidden grid grid-cols-1 gap-3">
+						<button onClick={() => go && go('tutors')} className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-3 px-6 rounded-lg transition-colors duration-200 shadow-lg">
+							Iepazīties ar pasniedzējiem
+						</button>
+						<button onClick={() => go && go('lessons')} className="border-2 border-yellow-400 text-yellow-700 hover:bg-yellow-400 hover:text-black font-bold py-3 px-6 rounded-lg transition-colors duration-200">
+							Iepazīties ar nodarbībām
+						</button>
+						<button onClick={() => go && go('calendar')} className="bg-black hover:bg-gray-900 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-200">
+							Rezervēt nodarbību
+						</button>
 					</div>
 
 					{/* Desktop Layout - Side by Side */}
@@ -81,43 +53,16 @@ const LandingPage = () => {
 								</span>
 							</h1>
 							
-							<p className="text-xl text-gray-700 leading-relaxed">
-								Profesionāla matemātikas mācīšana, kas palīdz skolēniem 
-								apgūt ne tikai pašreizējo vielu, bet arī aizpildīt 
-								iepriekšējās zināšanu trūkumus.
-							</p>
-
-							{/* Services */}
-							<div className="space-y-6">
-								<div className="bg-yellow-50 p-6 rounded-lg border-l-4 border-yellow-400">
-									<p className="text-gray-800">
-										<strong>Palīdzu ar tekošās vielas apgūšanu,</strong> tajā pašā laikā, 
-										cītīgi sekojot līdzi tam vai nav radušies robi līdz šim apgūtajā.
-									</p>
-								</div>
-								
-								<div className="bg-gray-50 p-6 rounded-lg border-l-4 border-gray-300">
-									<p className="text-gray-800">
-										<strong>Sagatavoju iestājeksāmeniem</strong> Valsts ģimnāzijās un 
-										RTU Inženierzinātņu vidusskolā.
-									</p>
-								</div>
-								
-								<div className="bg-gray-50 p-6 rounded-lg border-l-4 border-gray-300">
-									<p className="text-gray-800">
-										<strong>Palīdzu sagatavoties</strong> pamatskolas un vidusskolas 
-										Valsts pārbaudes darbiem.
-									</p>
-								</div>
-							</div>
-
-							{/* CTA Buttons */}
-							<div className="flex flex-col sm:flex-row gap-4">
-								<button className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-4 px-8 rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl">
-									Rezervēt stundu
+							{/* Primary Actions (Desktop) */}
+							<div className="grid grid-cols-3 gap-4">
+								<button onClick={() => go && go('tutors')} className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-4 px-8 rounded-lg transition-colors duration-200 shadow-lg hover:shadow-xl">
+									Iepazīties ar pasniedzējiem
 								</button>
-								<button className="border-2 border-yellow-400 text-yellow-600 hover:bg-yellow-400 hover:text-black font-bold py-4 px-8 rounded-lg transition-colors duration-200">
-									Uzzināt vairāk
+								<button onClick={() => go && go('lessons')} className="border-2 border-yellow-400 text-yellow-700 hover:bg-yellow-400 hover:text-black font-bold py-4 px-8 rounded-lg transition-colors duration-200">
+									Iepazīties ar nodarbībām
+								</button>
+								<button onClick={() => go && go('calendar')} className="bg-black hover:bg-gray-900 text-white font-bold py-4 px-8 rounded-lg transition-colors duration-200">
+									Rezervēt nodarbību
 								</button>
 							</div>
 						</div>
