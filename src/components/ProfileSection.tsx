@@ -273,24 +273,6 @@ const ProfileSection = () => {
 		setUserAppointments(prev => [...prev, appointment])
 	}
 
-	const addBlockedAppointment = (_data: { workerId: number; date: string; time: string; duration: number; note?: string }) => {
-		const worker = workers.find(w => w.id === _data.workerId)
-		if (!worker) return
-		const appointment: Appointment = {
-			id: nextAppointmentId++,
-			workerId: worker.id,
-			workerName: worker.name,
-			userName: '—',
-			date: _data.date,
-			time: _data.time,
-			duration: _data.duration,
-			subject: 'Brīvs/Atvaļinājums',
-			status: 'blocked',
-			note: _data.note,
-		}
-		setWorkers(prev => prev.map(w => (w.id === worker.id ? { ...w, appointments: [...w.appointments, appointment] } : w)))
-	}
-
 	const addReview = (data: { workerId: number; studentName: string; rating: number; comment: string }) => {
 		const now = new Date()
 		const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -384,7 +366,7 @@ const ProfileSection = () => {
 				)}
 
 				{role === 'admin' && (
-					<AdminDashboard workers={workers} onAdd={addWorker} onUpdate={updateWorker} onAddBlocked={() => {}} onAddAppointment={() => {}} />
+					<AdminDashboard workers={workers} onAdd={addWorker} onUpdate={updateWorker} />
 				)}
 
 				{role === 'worker' && loggedInWorker && (
