@@ -1,4 +1,4 @@
-const LandingPage = ({ go }: { go?: (section: 'home' | 'tutors' | 'calendar' | 'profile') => void }) => {
+const LandingPage = ({ go }: { go?: (section: 'home' | 'lessons' | 'tutors' | 'calendar' | 'profile') => void }) => {
 	return (
 		<div className="min-h-screen bg-white">
 			{/* Hero Section */}
