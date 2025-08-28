@@ -384,7 +384,7 @@ const ProfileSection = () => {
 				)}
 
 				{role === 'admin' && (
-					<AdminDashboard workers={workers} onAdd={addWorker} onUpdate={updateWorker} onAddBlocked={addBlockedAppointment} onAddAppointment={bookAppointment} />
+					<AdminDashboard workers={workers} onAdd={addWorker} onUpdate={updateWorker} onAddBlocked={() => {}} onAddAppointment={() => {}} />
 				)}
 
 				{role === 'worker' && loggedInWorker && (

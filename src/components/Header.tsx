@@ -1,8 +1,10 @@
 import { useState } from 'react'
 
+type Section = 'home' | 'tutors' | 'lessons' | 'calendar' | 'profile'
+
 interface HeaderProps {
-	activeSection: string
-	setActiveSection: (section: string) => void
+	activeSection: Section
+	setActiveSection: React.Dispatch<React.SetStateAction<Section>>
 }
 
 const Header = ({ activeSection, setActiveSection }: HeaderProps) => {
