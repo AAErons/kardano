@@ -14,7 +14,7 @@ const Header = ({ activeSection, setActiveSection }: HeaderProps) => {
 		setIsMobileMenuOpen(false)
 	}
 
-	const handleSectionChange = (section: string) => {
+	const handleSectionChange = (section: Section) => {
 		setActiveSection(section)
 		closeMobileMenu()
 	}

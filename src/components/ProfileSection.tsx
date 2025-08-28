@@ -273,20 +273,20 @@ const ProfileSection = () => {
 		setUserAppointments(prev => [...prev, appointment])
 	}
 
-	const addBlockedAppointment = (data: { workerId: number; date: string; time: string; duration: number; note?: string }) => {
-		const worker = workers.find(w => w.id === data.workerId)
+	const addBlockedAppointment = (_data: { workerId: number; date: string; time: string; duration: number; note?: string }) => {
+		const worker = workers.find(w => w.id === _data.workerId)
 		if (!worker) return
 		const appointment: Appointment = {
 			id: nextAppointmentId++,
 			workerId: worker.id,
 			workerName: worker.name,
 			userName: '—',
-			date: data.date,
-			time: data.time,
-			duration: data.duration,
+			date: _data.date,
+			time: _data.time,
+			duration: _data.duration,
 			subject: 'Brīvs/Atvaļinājums',
 			status: 'blocked',
-			note: data.note,
+			note: _data.note,
 		}
 		setWorkers(prev => prev.map(w => (w.id === worker.id ? { ...w, appointments: [...w.appointments, appointment] } : w)))
 	}
@@ -399,7 +399,7 @@ const ProfileSection = () => {
 	)
 }
 
-const AdminDashboard = ({ workers, onAdd, onUpdate, onAddBlocked, onAddAppointment }: { workers: Worker[]; onAdd: (w: Omit<Worker, 'id' | 'appointments' | 'reviews'>) => void; onUpdate: (id: number, updates: Partial<Omit<Worker, 'id' | 'appointments' | 'reviews'>>) => void; onAddBlocked: (data: { workerId: number; date: string; time: string; duration: number; note?: string }) => void; onAddAppointment: (data: { workerId: number; userName: string; date: string; time: string; duration: number; subject: string }) => void }) => {
+const AdminDashboard = ({ workers, onAdd, onUpdate }: { workers: Worker[]; onAdd: (w: Omit<Worker, 'id' | 'appointments' | 'reviews'>) => void; onUpdate: (id: number, updates: Partial<Omit<Worker, 'id' | 'appointments' | 'reviews'>>) => void }) => {
 	const [activeTab, setActiveTab] = useState<'pasniedzeji' | 'privatstundas' | 'pieteikumi'>('privatstundas')
 	const [isAdding, setIsAdding] = useState(false)
 	const [newWorker, setNewWorker] = useState<{ name: string; subject: string; rating: number; description: string; image: string }>({ name: '', subject: '', rating: 5, description: '', image: '' })
