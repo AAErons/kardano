@@ -235,24 +235,6 @@ const ProfileSection = () => {
 		setAuthError('')
 	}
 
-	const addWorker = (newWorker: Omit<Worker, 'id' | 'appointments' | 'reviews'>) => {
-		const worker: Worker = {
-			id: nextWorkerId++,
-			name: newWorker.name,
-			subject: newWorker.subject,
-			description: newWorker.description,
-			image: newWorker.image,
-			rating: newWorker.rating,
-			reviews: [],
-			appointments: [],
-		}
-		setWorkers(prev => [...prev, worker])
-	}
-
-	const updateWorker = (id: number, updates: Partial<Omit<Worker, 'id' | 'appointments' | 'reviews'>>) => {
-		setWorkers(prev => prev.map(w => (w.id === id ? { ...w, ...updates } : w)))
-	}
-
 	const bookAppointment = (data: { workerId: number; userName: string; date: string; time: string; duration: number; subject: string }) => {
 		const worker = workers.find(w => w.id === data.workerId)
 		if (!worker) return
