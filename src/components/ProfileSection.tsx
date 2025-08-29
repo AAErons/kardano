@@ -147,7 +147,6 @@ const createMockUserAppointments = (workers: Worker[]): Appointment[] => {
 	]
 }
 
-let nextWorkerId = 4
 let nextAppointmentId = 100
 
 const ProfileSection = () => {
