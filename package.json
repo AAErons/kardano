@@ -10,13 +10,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "mongodb": "^6.7.0",
+    "cloudinary": "^2.5.0",
     "argon2": "^0.30.0",
-    "jose": "^5.2.0"
+    "jose": "^5.2.0",
+    "mongodb": "^6.7.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@types/node": "^20.19.11",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "@typescript-eslint/eslint-plugin": "^6.14.0",

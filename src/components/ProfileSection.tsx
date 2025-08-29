@@ -41,28 +41,6 @@ const createInitialWorkers = (): Worker[] => {
 	const mkDate = (d: number) => `${year}-${month}-${String(d).padStart(2, '0')}`
 	const workers: Worker[] = [
 		{
-			id: 1,
-			name: 'Ēriks Freimanis',
-			subject: 'Matemātika (5-12. klase)',
-			description: 'Specializējos pamatskolas un vidusskolas matemātikā. Palīdzu apgūt tekošo vielu un aizpildīt zināšanu robus.',
-			image: '/images/tutors/eriks.jpeg',
-			rating: 4.9,
-			reviews: [
-				{ id: 1, studentName: 'Anna Kļaviņa', rating: 5, comment: 'Lieliska sagatavošana VPD – 95%!', date: '2024-01' },
-				{ id: 2, studentName: 'Kārlis Ozols', rating: 5, comment: 'Beidzot saprotu algebru!', date: '2023-12' },
-			],
-			appointments: [
-				{ id: 1, workerId: 1, workerName: 'Ēriks Freimanis', userName: 'Jānis', date: mkDate(5), time: '14:00', duration: 60, subject: 'Algebra', status: 'scheduled' },
-				{ id: 2, workerId: 1, workerName: 'Ēriks Freimanis', userName: 'Elīna', date: mkDate(12), time: '16:00', duration: 60, subject: 'Ģeometrija', status: 'completed' },
-				{ id: 7, workerId: 1, workerName: 'Ēriks Freimanis', userName: 'Marta', date: mkDate(18), time: '10:00', duration: 60, subject: 'Trijstūri', status: 'scheduled' },
-				{ id: 8, workerId: 1, workerName: 'Ēriks Freimanis', userName: 'Paula', date: mkDate(25), time: '09:00', duration: 90, subject: 'Funkcijas', status: 'scheduled' },
-				// Same-day multi-appointment scenario on day 16
-				{ id: 13, workerId: 1, workerName: 'Ēriks Freimanis', userName: 'Gustavs', date: mkDate(16), time: '09:00', duration: 60, subject: 'Atvasinājumi', status: 'scheduled' },
-				{ id: 14, workerId: 1, workerName: 'Ēriks Freimanis', userName: 'Zane', date: mkDate(16), time: '11:30', duration: 30, subject: 'Konsultācija', status: 'scheduled' },
-				{ id: 15, workerId: 1, workerName: 'Ēriks Freimanis', userName: 'Ilze', date: mkDate(16), time: '14:00', duration: 60, subject: 'Vienādojumi', status: 'scheduled' },
-			],
-		},
-		{
 			id: 2,
 			name: 'Mārcis Bajaruns',
 			subject: 'Matemātika (1-9. klase)',
@@ -181,6 +159,23 @@ const ProfileSection = () => {
 	const [workers, setWorkers] = useState<Worker[]>(initialWorkersData)
 	const [loggedInWorkerId, setLoggedInWorkerId] = useState<number | null>(null)
 	const [userAppointments, setUserAppointments] = useState<Appointment[]>(createMockUserAppointments(initialWorkersData))
+	const [userId, setUserId] = useState<string | null>(null)
+	const [isWorkerActive, setIsWorkerActive] = useState<boolean | null>(null)
+
+	useEffect(() => {
+		// Load persisted auth
+		try {
+			const raw = localStorage.getItem('auth')
+			if (raw) {
+				const saved = JSON.parse(raw)
+				if (saved && (saved.role === 'admin' || saved.role === 'worker' || saved.role === 'user')) {
+					setRole(saved.role)
+					if (saved.userId) setUserId(saved.userId)
+					if (typeof saved.active === 'boolean') setIsWorkerActive(saved.active)
+				}
+			}
+		} catch {}
+	}, [])
 
 	const loggedInWorker = useMemo(() => {
 		return workers.find(w => w.id === loggedInWorkerId) || null
@@ -214,7 +209,7 @@ const ProfileSection = () => {
 			const r = await fetch('/api/login', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email: username, password })
+				body: JSON.stringify({ email: username, username, password })
 			})
 			if (!r.ok) {
 				const e = await r.json().catch(() => ({}))
@@ -223,6 +218,9 @@ const ProfileSection = () => {
 			}
 			const data = await r.json().catch(() => ({}))
 			setRole((data?.role as Role) || 'user')
+			setUserId(data?.userId || null)
+			if (typeof data?.active === 'boolean') setIsWorkerActive(data.active)
+			try { localStorage.setItem('auth', JSON.stringify({ role: (data?.role as Role) || 'user', userId: data?.userId, active: data?.active })) } catch {}
 			setLoggedInWorkerId(null)
 		} catch (e) {
 			setAuthError('Neizdevās pieteikties')
@@ -230,7 +228,7 @@ const ProfileSection = () => {
 	}
 
 	const handleLogout = async () => {
-		await fetch('/api/auth/logout')
+		try { localStorage.removeItem('auth') } catch {}
 		setRole(null)
 		setUsername('')
 		setPassword('')
@@ -349,11 +347,10 @@ const ProfileSection = () => {
 				{!role && (
 					<div className="max-w-xl mx-auto bg-white rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8">
 						<h2 className="text-xl lg:text-2xl font-bold text-black mb-4">Pieslēgties</h2>
-						<p className="text-gray-600 mb-6 text-sm">Testa piekļuve: admin/admin, worker/worker, user/user</p>
 						<div className="space-y-3 sm:space-y-4">
 							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-1">Lietotājvārds</label>
-								<input value={username} onChange={e => setUsername(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="admin | worker | user" />
+								<label className="block text-sm font-medium text-gray-700 mb-1">E-pasts vai lietotājvārds</label>
+								<input value={username} onChange={e => setUsername(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="epasts@example.com vai lietotājvārds" />
 							</div>
 							<div>
 								<label className="block text-sm font-medium text-gray-700 mb-1">Parole</label>
@@ -366,7 +363,7 @@ const ProfileSection = () => {
 				)}
 
 				{role === 'admin' && (
-					<AdminDashboard workers={workers} onAdd={addWorker} onUpdate={updateWorker} />
+					<AdminPanel />
 				)}
 
 				{role === 'worker' && loggedInWorker && (
@@ -376,394 +373,211 @@ const ProfileSection = () => {
 				{role === 'user' && (
 					<UserDashboard workers={workers} userAppointments={userAppointments} onBook={bookAppointment} onAddReview={addReview} />
 				)}
+
+				{role === 'worker' && isWorkerActive === false && userId && (
+					<div className="mb-6 lg:mb-10">
+						<TeacherOnboarding userId={userId} onFinished={() => setIsWorkerActive(true)} />
+					</div>
+				)}
 			</div>
 		</div>
 	)
 }
 
-const AdminDashboard = ({ workers, onAdd, onUpdate }: { workers: Worker[]; onAdd: (w: Omit<Worker, 'id' | 'appointments' | 'reviews'>) => void; onUpdate: (id: number, updates: Partial<Omit<Worker, 'id' | 'appointments' | 'reviews'>>) => void }) => {
-	const [activeTab, setActiveTab] = useState<'pasniedzeji' | 'privatstundas' | 'pieteikumi'>('privatstundas')
-	const [isAdding, setIsAdding] = useState(false)
-	const [newWorker, setNewWorker] = useState<{ name: string; subject: string; rating: number; description: string; image: string }>({ name: '', subject: '', rating: 5, description: '', image: '' })
-	const [editingId, setEditingId] = useState<number | null>(null)
-	const [editValues, setEditValues] = useState<{ name: string; subject: string; rating: number; description: string; image: string }>({ name: '', subject: '', rating: 5, description: '', image: '' })
-
-	const [selectedTutorId, setSelectedTutorId] = useState<number | 'all'>('all')
-	const [selectedDate, setSelectedDate] = useState<Date>(new Date())
-
-	const [pendingItems, setPendingItems] = useState<any[]>([])
-	useEffect(() => {
-		if (activeTab !== 'pieteikumi') return
-		const y = selectedDate.getFullYear()
-		const m = String(selectedDate.getMonth() + 1).padStart(2, '0')
-		fetch(`/api/admin/pending?year=${y}&month=${m}`).then(r => r.json()).then(d => {
-			if (d && Array.isArray(d.items)) setPendingItems(d.items)
-		}).catch(() => {})
-	}, [activeTab, selectedDate])
-
-	const handleNewImageUpload = (file: File) => {
-		const reader = new FileReader()
-		reader.onload = () => {
-			setNewWorker(prev => ({ ...prev, image: (reader.result as string) || '' }))
-		}
-		reader.readAsDataURL(file)
-	}
-
-	const handleEditImageUpload = (file: File) => {
-		const reader = new FileReader()
-		reader.onload = () => {
-			setEditValues(prev => ({ ...prev, image: (reader.result as string) || '' }))
-		}
-		reader.readAsDataURL(file)
-	}
-
-	const getDaysInMonth = (date: Date) => {
-		const year = date.getFullYear()
-		const month = date.getMonth()
-		const firstDay = new Date(year, month, 1)
-		const lastDay = new Date(year, month + 1, 0)
-		const daysInMonth = lastDay.getDate()
-		// Convert Sunday=0..Saturday=6 to Monday=0..Sunday=6
-		const startingDay = (firstDay.getDay() + 6) % 7
-		return { daysInMonth, startingDay }
-	}
-
-	const getMonthName = (date: Date) => {
-		const months = [
-			'Janvāris', 'Februāris', 'Marts', 'Aprīlis', 'Maijs', 'Jūnijs',
-			'Jūlijs', 'Augusts', 'Septembris', 'Oktobris', 'Novembris', 'Decembris'
-		]
-		return months[date.getMonth()]
-	}
-
-	const getWeekdayNames = () => ['P', 'O', 'T', 'C', 'Pk', 'S', 'Sv']
-
-	const isToday = (day: number) => {
-		const today = new Date()
-		return today.getDate() === day && today.getMonth() === selectedDate.getMonth() && today.getFullYear() === selectedDate.getFullYear()
-	}
-
-	const filterAppointmentsByMonthAndTutor = (date: Date) => {
-		const year = date.getFullYear()
-		const month = date.getMonth() + 1
-		const monthStr = String(month).padStart(2, '0')
-		const re = new RegExp(`^${year}-${monthStr}-`)
-		const relevantWorkers = selectedTutorId === 'all' ? workers : workers.filter(w => w.id === selectedTutorId)
-		const appts = relevantWorkers.flatMap(w => w.appointments.filter(a => re.test(a.date)))
-		return appts
-	}
-
-	const getDailyAppointments = (day: number) => {
-		const year = selectedDate.getFullYear()
-		const month = String(selectedDate.getMonth() + 1).padStart(2, '0')
-		const dayStr = String(day).padStart(2, '0')
-		const dateStr = `${year}-${month}-${dayStr}`
-		const relevantWorkers = selectedTutorId === 'all' ? workers : workers.filter(w => w.id === selectedTutorId)
-		return relevantWorkers.flatMap(w => w.appointments.filter(a => a.date === dateStr).map(a => ({ ...a, workerName: w.name })))
-	}
-
-	// Deprecated helper removed: getAllSlotsForDay
-
-	// Half-hour timeline helpers for richer daily view
-	const generateHalfHourSlots = () => {
-		const slots: string[] = []
-		for (let hour = 8; hour < 20; hour++) {
-			slots.push(`${String(hour).padStart(2, '0')}:00`)
-			slots.push(`${String(hour).padStart(2, '0')}:30`)
-		}
-		return slots
-	}
-
-	const halfHourSlots = useMemo(() => generateHalfHourSlots(), [])
-
-	const timeToIndex = (time: string) => {
-		const idx = halfHourSlots.indexOf(time)
-		return idx >= 0 ? idx + 1 : 1 // grid rows are 1-based
-	}
-
-	const durationToRowSpan = (durationMinutes: number) => {
-		return Math.max(1, Math.ceil(durationMinutes / 30))
-	}
-
-	const getTutorColumns = () => {
-		return selectedTutorId === 'all' ? workers : workers.filter(w => w.id === selectedTutorId)
-	}
-
-	const getDayAppointmentsByTutor = (day: number) => {
-		const year = selectedDate.getFullYear()
-		const month = String(selectedDate.getMonth() + 1).padStart(2, '0')
-		const dayStr = String(day).padStart(2, '0')
-		const dateStr = `${year}-${month}-${dayStr}`
-		const result: Record<number, Appointment[]> = {}
-		getTutorColumns().forEach(w => {
-			result[w.id] = w.appointments.filter(a => a.date === dateStr)
-		})
-		return result
-	}
-
-	const monthlyAppointments = useMemo(() => filterAppointmentsByMonthAndTutor(selectedDate), [workers, selectedTutorId, selectedDate])
-	const stats = useMemo(() => {
-		const total = monthlyAppointments.length
-		const completed = monthlyAppointments.filter(a => a.status === 'completed').length
-		const scheduled = monthlyAppointments.filter(a => a.status === 'scheduled').length
-		const totalMinutes = monthlyAppointments.reduce((sum, a) => sum + a.duration, 0)
-		return { total, completed, scheduled, totalHours: Math.round((totalMinutes / 60) * 10) / 10 }
-	}, [monthlyAppointments])
-
-	const { daysInMonth, startingDay } = getDaysInMonth(selectedDate)
-
+const AdminPanel = () => {
+	const [tab, setTab] = useState<'calendar' | 'teachers' | 'notifications'>('calendar')
 	return (
-		<div className="space-y-8">
-			<div className="bg-white rounded-2xl shadow-xl p-2 lg:p-3">
+		<div className="space-y-6">
+			<div className="bg-white rounded-2xl shadow-xl p-2">
 			<div className="flex gap-2">
-				<button onClick={() => setActiveTab('privatstundas')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'privatstundas' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Privātstundas</button>
-				<button onClick={() => setActiveTab('pasniedzeji')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'pasniedzeji' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Pasniedzēji</button>
-				<button onClick={() => setActiveTab('pieteikumi')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'pieteikumi' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Pieteikumi</button>
+					<button onClick={() => setTab('calendar')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'calendar' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Kalendārs</button>
+					<button onClick={() => setTab('teachers')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'teachers' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Pasniedzēji</button>
+					<button onClick={() => setTab('notifications')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'notifications' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Paziņojumi</button>
 			</div>
 			</div>
-
-			{activeTab === 'pasniedzeji' && (
-				<div className="bg-white rounded-2xl shadow-xl p-6 lg:p-8">
-					<div className="flex items-center justify-between mb-6">
-						<h2 className="text-2xl font-bold text-black">Pasniedzēji</h2>
-						<button onClick={() => setIsAdding(v => !v)} className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg transition-colors">
-							{isAdding ? 'Aizvērt' : 'Pievienot pasniedzēju'}
-						</button>
-					</div>
-
-					{isAdding && (
-						<div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
-							<input className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Vārds" value={newWorker.name} onChange={e => setNewWorker({ ...newWorker, name: e.target.value })} />
-							<input className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Priekšmets" value={newWorker.subject} onChange={e => setNewWorker({ ...newWorker, subject: e.target.value })} />
-							<label className="cursor-pointer bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium py-2 px-3 rounded-lg inline-block">
-								Augšupielādēt attēlu
-								<input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleNewImageUpload(f) }} />
-							</label>
-							{newWorker.image && (
-								<div className="md:col-span-2 lg:col-span-3">
-									<img src={newWorker.image} alt="Priekšskatījums" className="w-20 h-20 rounded-full object-cover border-2 border-yellow-200" />
+			{tab === 'calendar' && (
+				<div className="bg-white rounded-2xl shadow-xl p-6">
+					<div className="text-gray-600">Kalendārs (admins) – šeit varēsim rādīt kopskatu vai filtrēt pēc pasniedzēja. Pašlaik tukšs.</div>
 								</div>
 							)}
-							<textarea className="md:col-span-2 lg:col-span-3 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Apraksts" rows={3} value={newWorker.description} onChange={e => setNewWorker({ ...newWorker, description: e.target.value })} />
-							<input type="number" step="0.1" className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Reitings" value={newWorker.rating} onChange={e => setNewWorker({ ...newWorker, rating: Number(e.target.value) })} />
-							<button className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-3 px-4 rounded-lg" onClick={() => {
-								if (!newWorker.name || !newWorker.subject || !newWorker.description || !newWorker.image) return
-								onAdd(newWorker)
-								setNewWorker({ name: '', subject: '', rating: 5, description: '', image: '' })
-								setIsAdding(false)
-							}}>Saglabāt</button>
-						</div>
-					)}
-
-					<div className="grid lg:grid-cols-3 gap-6">
-						{workers.map(worker => (
-							<div key={worker.id} className="border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow bg-white">
-								<div className="flex items-start justify-between mb-4">
-									<div className="flex gap-4">
-									<img src={worker.image} alt={worker.name} className="w-20 h-20 rounded-full object-cover border-2 border-yellow-200" />
-										<div>
-											<h3 className="text-xl font-bold text-black">{worker.name}</h3>
-											<p className="text-gray-700">{worker.subject}</p>
-											<div className="text-yellow-600">★ {worker.rating.toFixed(1)}</div>
-										</div>
-									</div>
-									<button className="text-yellow-700 hover:text-yellow-800 font-medium" onClick={() => {
-										setEditingId(worker.id)
-										setEditValues({ name: worker.name, subject: worker.subject, rating: worker.rating, description: worker.description, image: worker.image })
-									}}>Rediģēt</button>
-								</div>
-
-								<div className="mb-4">
-									<h4 className="font-semibold text-black mb-2">Apraksts</h4>
-									<p className="text-gray-700 whitespace-pre-line">{worker.description}</p>
-								</div>
-
-								{editingId === worker.id && (
-									<div className="border-t border-gray-200 pt-4 space-y-3">
-										<div className="grid grid-cols-1 gap-3">
-										<input className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" value={editValues.name} onChange={e => setEditValues(v => ({ ...v, name: e.target.value }))} />
-										<input className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" value={editValues.subject} onChange={e => setEditValues(v => ({ ...v, subject: e.target.value }))} />
-									<label className="cursor-pointer bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium py-2 px-3 rounded-lg inline-block">
-										Augšupielādēt jaunu attēlu
-										<input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleEditImageUpload(f) }} />
-									</label>
-										{editValues.image && (
-											<img src={editValues.image} alt="Priekšskatījums" className="w-20 h-20 rounded-full object-cover border-2 border-yellow-200" />
-										)}
-										<textarea className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" rows={3} value={editValues.description} onChange={e => setEditValues(v => ({ ...v, description: e.target.value }))} />
-										<input type="number" step="0.1" className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" value={editValues.rating} onChange={e => setEditValues(v => ({ ...v, rating: Number(e.target.value) }))} />
-										</div>
-										<div className="flex gap-3">
-											<button className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg" onClick={() => { onUpdate(worker.id, editValues); setEditingId(null) }}>Saglabāt</button>
-											<button className="border-2 border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold py-2 px-4 rounded-lg" onClick={() => setEditingId(null)}>Atcelt</button>
-										</div>
-									</div>
-								)}
-							</div>
-						))}
-					</div>
-				</div>
-			)}
-
-			{activeTab === 'privatstundas' && (
-				<div className="space-y-6">
-					<div className="grid lg:grid-cols-3 gap-6">
-						<div className="lg:col-span-2 bg-white rounded-2xl shadow-xl p-4 sm:p-5 lg:p-6">
-							<div className="flex items-center justify-between mb-4 lg:mb-6">
-								<button onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1))} className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-lg lg:text-xl">←</button>
-								<h2 className="text-xl lg:text-2xl font-bold text-black text-center">{getMonthName(selectedDate)} {selectedDate.getFullYear()}</h2>
-								<button onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1))} className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-lg lg:text-xl">→</button>
-							</div>
-							<div className="mb-4">
-								<label className="block text-sm font-medium text-gray-700 mb-2">Filtrēt pēc pasniedzēja</label>
-								<select value={selectedTutorId === 'all' ? '' : selectedTutorId} onChange={e => setSelectedTutorId(e.target.value ? Number(e.target.value) : 'all')} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-sm lg:text-base">
-									<option value="">Visi pasniedzēji</option>
-									{workers.map(w => (
-										<option key={w.id} value={w.id}>{w.name}</option>
-									))}
-								</select>
-							</div>
-							<div className="grid grid-cols-7 gap-1 mb-2">
-								{getWeekdayNames().map((d, i) => (
-									<div key={i} className="text-center font-semibold text-gray-600 py-2 text-sm lg:text-base">{d}</div>
-								))}
-							</div>
-							<div className="grid grid-cols-7 gap-1">
-								{Array.from({ length: startingDay }, (_, index) => (
-									<div key={`empty-${index}`} className="h-16 lg:h-20"></div>
-								))}
-								{Array.from({ length: daysInMonth }, (_, index) => {
-									const day = index + 1
-									const dayAppts = getDailyAppointments(day)
-									const nonBlockedAppts = dayAppts.filter(a => a.status !== 'blocked')
-									const hasBlocked = dayAppts.some(a => a.status === 'blocked')
-									const hasAppts = nonBlockedAppts.length > 0
-									return (
-										<div key={day} className={`h-16 lg:h-20 border border-gray-200 p-1 lg:p-2 cursor-pointer transition-colors ${isToday(day) ? 'bg-yellow-400 text-black font-bold' : hasAppts ? 'bg-green-50 hover:bg-green-100' : hasBlocked ? 'bg-gray-100 hover:bg-gray-200' : 'bg-gray-50'}`} onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day))}>
-											<div className="text-xs lg:text-sm font-medium mb-1">{day}</div>
-											{hasAppts && (
-												<div className="text-[11px] lg:text-xs text-green-700">{nonBlockedAppts.length} pierakst{nonBlockedAppts.length > 1 ? 'i' : 's'}</div>
+			{tab === 'teachers' && <AdminTeachers />}
+			{tab === 'notifications' && (
+				<div className="bg-white rounded-2xl shadow-xl p-6 text-gray-600">Paziņojumi – nav datu</div>
 											)}
 										</div>
 									)
-								})}
-							</div>
-						</div>
-						<div className="bg-white rounded-2xl shadow-xl p-4 sm:p-5 lg:p-6">
-							<h3 className="text-lg lg:text-xl font-bold text-black mb-4">Statistika ({getMonthName(selectedDate)})</h3>
-							<div className="grid grid-cols-2 gap-3">
-								<div className="bg-gray-50 rounded-lg p-3">
-									<div className="text-gray-600 text-sm">Kopā pieraksti</div>
-									<div className="text-2xl font-bold text-black">{stats.total}</div>
-								</div>
-								<div className="bg-gray-50 rounded-lg p-3">
-									<div className="text-gray-600 text-sm">Pabeigti</div>
-									<div className="text-2xl font-bold text-black">{stats.completed}</div>
-								</div>
-								<div className="bg-gray-50 rounded-lg p-3">
-									<div className="text-gray-600 text-sm">Plānoti</div>
-									<div className="text-2xl font-bold text-black">{stats.scheduled}</div>
-								</div>
-								<div className="bg-gray-50 rounded-lg p-3">
-									<div className="text-gray-600 text-sm">Stundas</div>
-									<div className="text-2xl font-bold text-black">{stats.totalHours} h</div>
-								</div>
-							</div>
-						</div>
-					</div>
+}
 
-					<div className="bg-white rounded-2xl shadow-xl p-4 sm:p-5 lg:p-6">
-						<h3 className="text-lg lg:text-xl font-bold text-black mb-4">{selectedTutorId === 'all' ? 'Visu pasniedzēju' : 'Pasniedzēja'} dienas grafiks — {new Date(selectedDate).toLocaleDateString('lv-LV')}</h3>
-						{(() => {
-							const day = selectedDate.getDate()
-							const tutors = getTutorColumns()
-							const apptsByTutor = getDayAppointmentsByTutor(day)
-							const rows = halfHourSlots.length
-							return (
-								<div className="overflow-auto">
-									<div className="min-w-[720px]" style={{ display: 'grid', gridTemplateColumns: `160px repeat(${tutors.length}, minmax(160px, 1fr))` }}>
-										{/* Header Row */}
-										<div></div>
-										{tutors.map(t => (
-											<div key={t.id} className="px-2 py-2 font-semibold text-black border-b border-gray-200">{t.name}</div>
-										))}
+const AdminTeachers = () => {
+	const [items, setItems] = useState<Array<{ id: string; name: string; username: string; description: string; active: boolean }>>([])
+	const [form, setForm] = useState<{ firstName: string; lastName: string; description: string }>({ firstName: '', lastName: '', description: '' })
+	const [creating, setCreating] = useState(false)
+	const [created, setCreated] = useState<{ username: string; tempPassword: string } | null>(null)
 
-										{/* Time labels column */}
-										<div style={{ display: 'grid', gridTemplateRows: `repeat(${rows}, 2.25rem)` }} className="border-r border-gray-200">
-											{halfHourSlots.map((ts) => (
-												<div key={ts} className="text-xs text-gray-500 flex items-center justify-end pr-3 border-b border-gray-100">{ts}</div>
-											))}
-										</div>
+	useEffect(() => {
+		fetch('/api/teachers').then(r => r.json()).then(d => {
+			if (d && Array.isArray(d.items)) setItems(d.items)
+		}).catch(() => {})
+	}, [])
 
-										{/* Tutor columns with grid rows for timeslots */}
-										{tutors.map(t => (
-											<div key={t.id} style={{ display: 'grid', gridTemplateRows: `repeat(${rows}, 2.25rem)` }} className="relative">
-												{/* grid background */}
-												{halfHourSlots.map((ts) => (
-													<div key={ts} className="border-b border-gray-100"></div>
-												))}
-												{/* appointments as row-spanning blocks */}
-                                        {apptsByTutor[t.id]?.map(appt => {
-                                                    const startIdx = timeToIndex(appt.time)
-                                                    const span = durationToRowSpan(appt.duration)
-                                                    const isCompact = span === 1
                                                     return (
-                                                        <div key={appt.id} style={{ gridRow: `${startIdx} / span ${span}` }} className={`m-1 rounded-lg p-2 text-xs shadow-sm overflow-hidden ${appt.status === 'completed' ? 'bg-green-100 text-green-800 border border-green-200' : appt.status === 'blocked' ? 'bg-gray-100 text-gray-700 border border-gray-300' : 'bg-yellow-100 text-yellow-800 border border-yellow-200'}`}>
-                                                            <div className="font-semibold text-black/80 leading-tight">
-                                                                {appt.time} • {appt.subject}
-                                                                {isCompact && (
-                                                                    <span className="ml-1 text-[10px] text-black/70 whitespace-nowrap">• {appt.userName} • {appt.duration} min</span>
-                                                                )}
+				<div className="space-y-6">
+			<div className="bg-white rounded-2xl shadow-xl p-6">
+				<h2 className="text-2xl font-bold text-black mb-4">Pasniedzēji</h2>
+				<div className="grid md:grid-cols-3 gap-3 mb-3">
+					<input className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Vārds" value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} />
+					<input className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Uzvārds" value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} />
+					<input className="md:col-span-3 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Apraksts (neobligāti)" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
                                                             </div>
-                                                            {!isCompact && (
-                                                                <div className="text-[11px] text-black/70 leading-tight">{appt.userName} • {appt.duration} min</div>
-                                                            )}
+				<button disabled={creating} className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-70 text-black font-semibold py-2 px-4 rounded-lg" onClick={async () => {
+					if (!form.firstName.trim() || !form.lastName.trim()) return
+					setCreating(true)
+					try {
+						const r = await fetch('/api/teachers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+						if (!r.ok) return
+						const d = await r.json().catch(() => ({}))
+						if (d && d.username && d.tempPassword) setCreated({ username: d.username, tempPassword: d.tempPassword })
+						setForm({ firstName: '', lastName: '', description: '' })
+						const list = await fetch('/api/teachers').then(x => x.json()).catch(() => null)
+						if (list && Array.isArray(list.items)) setItems(list.items)
+					} finally {
+						setCreating(false)
+					}
+				}}>Pievienot pasniedzēju</button>
                                                         </div>
-                                                    )
-                                                })}
-											</div>
-										))}
-									</div>
-								</div>
-							)
-						})()}
+
+			{created && (
+				<div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+					<div className="font-semibold text-black mb-2">Izveidota pasniedzēja pieeja</div>
+					<div className="grid md:grid-cols-3 gap-2 items-center">
+						<input readOnly className="p-2 border border-gray-300 rounded-lg bg-white" value={created.username} />
+						<input readOnly className="p-2 border border-gray-300 rounded-lg bg-white" value={created.tempPassword} />
+						<div className="flex flex-wrap gap-2">
+							<button className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" onClick={async () => { try { await navigator.clipboard.writeText(created.username) } catch {} }}>Kopēt lietotājvārdu</button>
+							<button className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" onClick={async () => { try { await navigator.clipboard.writeText(created.tempPassword) } catch {} }}>Kopēt paroli</button>
+							<button className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" onClick={async () => { try { await navigator.clipboard.writeText(`${created.username} ${created.tempPassword}`) } catch {} }}>Kopēt abus</button>
+							<button className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" onClick={() => setCreated(null)}>Aizvērt</button>
+						</div>
 					</div>
+					<div className="text-xs text-gray-600 mt-2">Drošības nolūkos šī parole tiek rādīta tikai vienreiz.</div>
 				</div>
 			)}
 
-			{activeTab === 'pieteikumi' && (
-				<div className="space-y-6">
-					<div className="bg-white rounded-2xl shadow-xl p-4 lg:p-6">
-						<h2 className="text-2xl font-bold text-black mb-4">Pieteikumi</h2>
+			<div className="bg-white rounded-2xl shadow-xl p-6">
+				{items.length === 0 ? (
+					<div className="text-gray-500">Nav pasniedzēju</div>
+				) : (
 						<div className="space-y-3">
-							{pendingItems.length > 0 ? pendingItems.map((p) => (
-								<div key={p.id} className="border border-gray-200 rounded-xl p-3 flex items-center justify-between">
-									<div>
-										<div className="font-semibold text-black">{p.userName} → {p.workerName}</div>
-										<div className="text-sm text-gray-600">{new Date(p.date).toLocaleDateString('lv-LV')} • {p.time} • {p.duration} min • {p.subject}</div>
-									</div>
-									<div className="flex items-center gap-2">
-										<button className="bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2 px-3 rounded-lg" onClick={async () => {
-											await fetch('/api/admin/appointments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, action: 'approve' }) })
-											setPendingItems(prev => prev.filter(x => x.id !== p.id))
-										}}>
-											Apstiprināt
-										</button>
-										<button className="border-2 border-red-300 text-red-700 hover:bg-red-50 text-sm font-semibold py-2 px-3 rounded-lg" onClick={async () => {
-											await fetch('/api/admin/appointments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, action: 'reject' }) })
-											setPendingItems(prev => prev.filter(x => x.id !== p.id))
-										}}>
-											Noraidīt
-										</button>
-									</div>
+						{items.map(t => (
+							<div key={t.id} className="border border-gray-200 rounded-xl p-4">
+								<div className="font-semibold text-black">{t.name} <span className="text-gray-500">({t.username})</span></div>
+								<div className="text-sm text-gray-700">{t.active ? 'Aktīvs' : 'Neaktīvs'}</div>
+								{t.description && <div className="text-sm text-gray-600 mt-1">{t.description}</div>}
+								<div className="mt-2 flex items-center gap-3">
+									<label className="inline-flex items-center gap-2 text-sm">
+										<input type="checkbox" checked={t.active} onChange={async (e) => {
+											const active = e.target.checked
+											await fetch('/api/teachers', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id, active }) })
+											setItems(prev => prev.map(x => x.id === t.id ? { ...x, active } : x))
+										}} /> Aktīvs
+									</label>
+									<button className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" onClick={async () => {
+										const r = await fetch('/api/teachers', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id, action: 'resetPassword' }) })
+										if (!r.ok) return
+										const d = await r.json().catch(() => ({}))
+										if (d && d.tempPassword) {
+											try { await navigator.clipboard.writeText(d.tempPassword) } catch {}
+											alert('Jaunā pagaidu parole ir nokopēta starpliktuvē')
+										}
+									}}>Resetēt paroli</button>
 								</div>
-							)) : (
-								<div className="text-gray-500">Šobrīd nav pieteikumu</div>
+							</div>
+						))}
+								</div>
 							)}
 						</div>
-					</div>
+		</div>
+	)
+}
+
+const TeacherOnboarding = ({ userId, onFinished }: { userId: string; onFinished: () => void }) => {
+	const [photo, setPhoto] = useState<string>('')
+	const [description, setDescription] = useState('')
+	const [availability, setAvailability] = useState<Array<any>>([])
+	const [rule, setRule] = useState<{ type: 'weekly'|'weekdayRange'|'specific'; weekdays?: string; from?: string; to?: string; until?: string; date?: string }>({ type: 'weekly', weekdays: '', from: '', to: '', until: '' })
+	const [saving, setSaving] = useState(false)
+
+	const onPhotoSelect = (file: File) => {
+		const reader = new FileReader()
+		reader.onload = () => setPhoto((reader.result as string) || '')
+		reader.readAsDataURL(file)
+	}
+
+	const addRule = () => {
+		if (rule.type === 'specific' && (!rule.date || !rule.from || !rule.to)) return
+		if (rule.type !== 'specific' && (!rule.weekdays || !rule.from || !rule.to)) return
+		const weekdays = rule.weekdays?.split(',').map(s => s.trim()).filter(Boolean) || []
+		setAvailability(prev => [...prev, { type: rule.type, weekdays, from: rule.from, to: rule.to, until: rule.until || null, date: rule.date || null }])
+		setRule({ type: 'weekly', weekdays: '', from: '', to: '', until: '' })
+	}
+
+	return (
+		<div className="space-y-6">
+			<div className="bg-white rounded-2xl shadow p-6">
+				<h2 className="text-2xl font-bold text-black mb-4">Pasniedzēja profils</h2>
+				<div className="grid md:grid-cols-3 gap-3">
+					<label className="md:col-span-1 cursor-pointer bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium py-2 px-3 rounded-lg inline-block">
+						Augšupielādēt foto
+						<input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) onPhotoSelect(f) }} />
+					</label>
+					{photo && <img src={photo} alt="Foto" className="w-24 h-24 rounded-full object-cover border-2 border-yellow-200" />}
+					<textarea className="md:col-span-2 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" rows={4} placeholder="Apraksts" value={description} onChange={e => setDescription(e.target.value)} />
 				</div>
-			)}
+			</div>
+
+			<div className="bg-white rounded-2xl shadow p-6">
+				<h3 className="text-lg font-semibold text-black mb-3">Pieejamie laiki</h3>
+				<div className="grid md:grid-cols-5 gap-3 items-end">
+					<select className="p-2 border border-gray-300 rounded-lg" value={rule.type} onChange={e => setRule(r => ({ ...r, type: e.target.value as any }))}>
+						<option value="weekly">Nedēļas dienas (atkārtojas)</option>
+						<option value="weekdayRange">Darba dienas (diapazons)</option>
+						<option value="specific">Konkrēta diena</option>
+					</select>
+					{rule.type !== 'specific' ? (
+						<input className="p-2 border border-gray-300 rounded-lg" placeholder="Dienas, piem.: 1,3,4 (Pirmd=1..Sv=7)" value={rule.weekdays} onChange={e => setRule(r => ({ ...r, weekdays: e.target.value }))} />
+					) : (
+						<input type="date" className="p-2 border border-gray-300 rounded-lg" value={rule.date || ''} onChange={e => setRule(r => ({ ...r, date: e.target.value }))} />
+					)}
+					<input type="time" className="p-2 border border-gray-300 rounded-lg" value={rule.from || ''} onChange={e => setRule(r => ({ ...r, from: e.target.value }))} />
+					<input type="time" className="p-2 border border-gray-300 rounded-lg" value={rule.to || ''} onChange={e => setRule(r => ({ ...r, to: e.target.value }))} />
+					{rule.type !== 'specific' && <input type="date" className="p-2 border border-gray-300 rounded-lg" placeholder="Līdz (neobligāti)" value={rule.until || ''} onChange={e => setRule(r => ({ ...r, until: e.target.value }))} />}
+					<button className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-3 rounded-lg" onClick={addRule}>Pievienot</button>
+				</div>
+				{availability.length > 0 && (
+					<div className="mt-3 space-y-2">
+						{availability.map((a, idx) => (
+							<div key={idx} className="text-sm text-gray-700 flex items-center justify-between border border-gray-200 rounded-md p-2">
+								<div>{a.type === 'specific' ? `Diena ${a.date}` : `Dienas: ${(a.weekdays||[]).join(',')}`} • {a.from}-{a.to} {a.until ? `(līdz ${a.until})` : ''}</div>
+								<button className="text-xs text-red-600" onClick={() => setAvailability(prev => prev.filter((_, i) => i !== idx))}>Noņemt</button>
+							</div>
+						))}
+					</div>
+				)}
+			</div>
+
+			<div className="flex gap-2">
+				<button disabled={saving} className="bg-green-500 hover:bg-green-600 disabled:opacity-70 text-white font-semibold py-2 px-4 rounded-lg" onClick={async () => {
+					setSaving(true)
+					try {
+						await fetch('/api/teacher-profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, photo: photo || undefined, description, availability }) })
+						const prof = await fetch(`/api/teacher-profile?userId=${encodeURIComponent(userId)}`).then(r => r.json()).catch(() => null)
+						if (prof && prof.profile && prof.profile.photo) setPhoto(prof.profile.photo)
+						alert('Profils saglabāts')
+						onFinished()
+					} finally { setSaving(false) }
+				}}>Saglabāt</button>
+				<button className="border border-gray-300 px-4 py-2 rounded-lg" onClick={onFinished}>Pagaidām izlaist</button>
+			</div>
 		</div>
 	)
 }
