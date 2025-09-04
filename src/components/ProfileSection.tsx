@@ -397,7 +397,7 @@ const ProfileSection = () => {
 	)
 }
 
-const UserDashboard = ({ workers, userAppointments, onBook, onAddReview }: { workers: Worker[]; userAppointments: Appointment[]; onBook: (data: any) => void; onAddReview: (data: any) => void }) => {
+const UserDashboard = (_props: { workers: Worker[]; userAppointments: Appointment[]; onBook: (data: any) => void; onAddReview: (data: any) => void }) => {
 	return null
 }
 
@@ -943,14 +943,7 @@ const WorkerDashboard = ({ worker }: { worker: Worker }) => {
 
 	const halfHourSlots = useMemo(() => generateHalfHourSlots(), [])
 
-	const timeToIndex = (time: string) => {
-		const idx = halfHourSlots.indexOf(time)
-		return idx >= 0 ? idx + 1 : 1
-	}
 
-	const durationToRowSpan = (durationMinutes: number) => {
-		return Math.max(1, Math.ceil(durationMinutes / 30))
-	}
 
 	const handleSubmitRequest = () => {
 		if (!request.date || !request.startTime || !request.duration) return
@@ -1024,7 +1017,6 @@ const WorkerDashboard = ({ worker }: { worker: Worker }) => {
 					<h3 className="text-lg lg:text-xl font-bold text-black mb-4">Dienas grafiks — {new Date(selectedDate).toLocaleDateString('lv-LV')}</h3>
 					{(() => {
 						const day = selectedDate.getDate()
-						const dayAppts = getDailyAppointments(day)
 						const rows = halfHourSlots.length
 						return (
 							<div className="overflow-auto">
