@@ -160,6 +160,9 @@ const ProfileSection = () => {
 	const [userAppointments, setUserAppointments] = useState<Appointment[]>(createMockUserAppointments(initialWorkersData))
 	const [userId, setUserId] = useState<string | null>(null)
 	const [isWorkerActive, setIsWorkerActive] = useState<boolean | null>(null)
+	const [teacherProfile, setTeacherProfile] = useState<any | null>(null)
+	const [isEditingProfile, setIsEditingProfile] = useState(false)
+	const [teacherName, setTeacherName] = useState<string | null>(null)
 
 	useEffect(() => {
 		// Load persisted auth
@@ -175,6 +178,26 @@ const ProfileSection = () => {
 			}
 		} catch {}
 	}, [])
+
+	useEffect(() => {
+		// Reset profile state when auth context changes
+		setTeacherProfile(null)
+		setTeacherName(null)
+		// For workers, check if teacher profile exists
+		if (role === 'worker' && userId) {
+			fetch(`/api/teacher-profile?userId=${encodeURIComponent(userId)}`).then(r => r.json()).then(d => {
+				if (d && d.profile) setTeacherProfile(d.profile)
+				else setTeacherProfile(null)
+			}).catch(() => setTeacherProfile(null))
+			// fetch teacher display name from users list
+			fetch('/api/teachers').then(r => r.json()).then(d => {
+				if (d && Array.isArray(d.items)) {
+					const me = d.items.find((t: any) => t.id === userId)
+					if (me && me.name) setTeacherName(me.name)
+				}
+			}).catch(() => {})
+		}
+	}, [role, userId])
 
 	const loggedInWorker = useMemo(() => {
 		return workers.find(w => w.id === loggedInWorkerId) || null
@@ -355,9 +378,18 @@ const ProfileSection = () => {
 					<UserDashboard workers={workers} userAppointments={userAppointments} onBook={bookAppointment} onAddReview={addReview} />
 				)}
 
-				{role === 'worker' && isWorkerActive === false && userId && (
+				{role === 'worker' && userId && (
 					<div className="mb-6 lg:mb-10">
-						<TeacherOnboarding userId={userId} onFinished={() => setIsWorkerActive(true)} />
+						{teacherProfile && !isEditingProfile ? (
+							<TeacherProfileView profile={{ ...teacherProfile, name: teacherName || teacherProfile.name }} isActive={Boolean(isWorkerActive)} onEdit={() => setIsEditingProfile(true)} />
+						) : (
+							<TeacherOnboarding userId={userId} displayName={teacherName || undefined} isActive={Boolean(isWorkerActive)} initialPhoto={teacherProfile?.photo} initialDescription={teacherProfile?.description} initialAvailability={teacherProfile?.availability || []} onFinished={() => {
+								// refresh profile after save
+								fetch(`/api/teacher-profile?userId=${encodeURIComponent(userId)}`).then(r => r.json()).then(d => {
+									if (d && d.profile) { setTeacherProfile(d.profile); setIsEditingProfile(false) }
+								}).catch(() => {})
+							}} />
+						)}
 					</div>
 				)}
 			</div>
@@ -365,15 +397,53 @@ const ProfileSection = () => {
 	)
 }
 
+const UserDashboard = ({ workers, userAppointments, onBook, onAddReview }: { workers: Worker[]; userAppointments: Appointment[]; onBook: (data: any) => void; onAddReview: (data: any) => void }) => {
+	return null
+}
+
+export default ProfileSection
+
 const AdminPanel = () => {
 	const [tab, setTab] = useState<'calendar' | 'teachers' | 'notifications'>('calendar')
+	const [unreadCount, setUnreadCount] = useState(0)
+
+	useEffect(() => {
+		// initialize from cache to avoid empty flash
+		try {
+			const raw = localStorage.getItem('cache_admin_notifications_v1')
+			if (raw) {
+				const cached = JSON.parse(raw)
+				if (cached && Array.isArray(cached.items)) {
+					setUnreadCount(cached.items.filter((n: any) => n.unread !== false).length)
+				}
+			}
+		} catch {}
+
+		// poll notifications count lightly
+		let timer: any
+		const load = async () => {
+			try {
+				const r = await fetch('/api/notifications?recipientRole=admin')
+				if (!r.ok) return
+				const d = await r.json()
+				if (d && Array.isArray(d.items)) {
+					setUnreadCount(d.items.filter((n: any) => n.unread !== false).length)
+				}
+			} catch {}
+		}
+		load()
+		timer = setInterval(load, 15000)
+		return () => timer && clearInterval(timer)
+	}, [])
 	return (
 		<div className="space-y-6">
 			<div className="bg-white rounded-2xl shadow-xl p-2">
 			<div className="flex gap-2">
 					<button onClick={() => setTab('calendar')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'calendar' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Kalendārs</button>
 					<button onClick={() => setTab('teachers')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'teachers' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Pasniedzēji</button>
-					<button onClick={() => setTab('notifications')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'notifications' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Paziņojumi</button>
+					<button onClick={() => setTab('notifications')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'notifications' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>
+						Paziņojumi {unreadCount > 0 && <span className="ml-2 inline-block text-xs bg-red-500 text-white rounded-full px-2 py-0.5">{unreadCount}</span>}
+					</button>
 			</div>
 			</div>
 			{tab === 'calendar' && (
@@ -382,50 +452,186 @@ const AdminPanel = () => {
 								</div>
 							)}
 			{tab === 'teachers' && <AdminTeachers />}
-			{tab === 'notifications' && (
-				<div className="bg-white rounded-2xl shadow-xl p-6 text-gray-600">Paziņojumi – nav datu</div>
-											)}
-										</div>
-									)
+			{tab === 'notifications' && <AdminNotifications onCountChange={setUnreadCount} />}
+							</div>
+						)
+}
+
+const AdminNotifications = ({ onCountChange }: { onCountChange: (n: number) => void }) => {
+	const [items, setItems] = useState<Array<{ id: string; type: string; title: string; message: string; unread: boolean; createdAt: string }>>([])
+	const [openId, setOpenId] = useState<string | null>(null)
+	const [selectMode, setSelectMode] = useState(false)
+	const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({})
+	useEffect(() => {
+		// derive unread count for parent whenever items change
+		try { onCountChange(items.filter((n: any) => n.unread !== false).length) } catch {}
+	}, [items, onCountChange])
+	const load = async () => {
+		try {
+			const r = await fetch('/api/notifications?recipientRole=admin')
+			if (!r.ok) return
+			const d = await r.json()
+			if (d && Array.isArray(d.items)) {
+				setItems(d.items)
+				try { localStorage.setItem('cache_admin_notifications_v1', JSON.stringify({ items: d.items, ts: Date.now() })) } catch {}
+			}
+		} catch {}
+	}
+	useEffect(() => {
+		// load from cache to render instantly
+		try {
+			const raw = localStorage.getItem('cache_admin_notifications_v1')
+			if (raw) {
+				const cached = JSON.parse(raw)
+				if (cached && Array.isArray(cached.items)) {
+					setItems(cached.items)
+				}
+			}
+		} catch {}
+		// refresh in background
+		load()
+	}, [])
+	const openAndMarkRead = async (id: string) => {
+		setOpenId(prev => prev === id ? null : id)
+		// mark as read if was unread
+		const n = items.find(x => x.id === id)
+		if (n && n.unread) {
+			try {
+				await fetch('/api/notifications', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, unread: false }) })
+				setItems(prev => {
+					const next = prev.map(x => x.id === id ? { ...x, unread: false } : x)
+					try { localStorage.setItem('cache_admin_notifications_v1', JSON.stringify({ items: next, ts: Date.now() })) } catch {}
+					return next
+				})
+			} catch {}
+		}
+	}
+	const toggleSelect = (id: string) => {
+		setSelectedIds(prev => ({ ...prev, [id]: !prev[id] }))
+	}
+	const deleteSelected = async () => {
+		const ids = Object.keys(selectedIds).filter(k => selectedIds[k])
+		if (!ids.length) return
+		try {
+			await fetch('/api/notifications', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) })
+			setItems(prev => {
+				const next = prev.filter(n => !ids.includes(n.id))
+				try { localStorage.setItem('cache_admin_notifications_v1', JSON.stringify({ items: next, ts: Date.now() })) } catch {}
+				return next
+			})
+			setSelectedIds({})
+			setSelectMode(false)
+		} catch {}
+	}
+	const deleteOne = async (id: string) => {
+		try {
+			await fetch('/api/notifications', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+			setItems(prev => {
+				const next = prev.filter(n => n.id !== id)
+				try { localStorage.setItem('cache_admin_notifications_v1', JSON.stringify({ items: next, ts: Date.now() })) } catch {}
+				return next
+			})
+			if (openId === id) setOpenId(null)
+		} catch {}
+	}
+	return (
+		<div className="bg-white rounded-2xl shadow-xl p-6">
+			<div className="flex items-center justify-between mb-4">
+				<h2 className="text-xl font-bold text-black">Paziņojumi</h2>
+				<div className="flex items-center gap-2">
+					{selectMode ? (
+						<>
+							<button className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50" onClick={deleteSelected}>Dzēst izvēlētos</button>
+							<button className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50" onClick={() => { setSelectMode(false); setSelectedIds({}) }}>Atcelt</button>
+						</>
+					) : (
+						<button className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50" onClick={() => setSelectMode(true)}>Atlasīt</button>
+					)}
+			</div>
+			</div>
+			{items.length === 0 ? (
+				<div className="text-gray-600">Nav paziņojumu</div>
+			) : (
+				<div className="space-y-2">
+					{items.map(n => (
+						<div key={n.id} className={`border rounded-xl ${n.unread ? 'bg-yellow-50 border-yellow-200' : 'bg-white border-gray-200'}`}>
+							<div className="flex items-center justify-between p-4">
+								<div className="flex items-center gap-3 min-w-0">
+									{selectMode && (
+										<input type="checkbox" checked={!!selectedIds[n.id]} onChange={() => toggleSelect(n.id)} />
+									)}
+									<button className="text-left font-semibold text-black truncate" title={n.title} onClick={() => openAndMarkRead(n.id)}>{n.title}</button>
+					</div>
+								<div className="flex items-center gap-2">
+									<div className="text-xs text-gray-500">{n.createdAt ? new Date(n.createdAt).toLocaleString('lv-LV') : ''}</div>
+									<button className="text-xs text-red-600" onClick={() => deleteOne(n.id)}>Dzēst</button>
+								</div>
+							</div>
+							{openId === n.id && (
+								<div className="px-4 pb-4 text-sm text-gray-700 whitespace-pre-line">{n.message}</div>
+							)}
+						</div>
+					))}
+						</div>
+					)}
+		</div>
+	)
 }
 
 const AdminTeachers = () => {
 	const [items, setItems] = useState<Array<{ id: string; name: string; username: string; description: string; active: boolean }>>([])
-	const [form, setForm] = useState<{ firstName: string; lastName: string; description: string }>({ firstName: '', lastName: '', description: '' })
+	const [form, setForm] = useState<{ firstName: string; lastName: string }>({ firstName: '', lastName: '' })
 	const [creating, setCreating] = useState(false)
 	const [created, setCreated] = useState<{ username: string; tempPassword: string } | null>(null)
+	const [openId, setOpenId] = useState<string | null>(null)
+	const [profiles, setProfiles] = useState<Record<string, any>>({})
+	const [loadingProfileId, setLoadingProfileId] = useState<string | null>(null)
 
 	useEffect(() => {
+		// load from cache first
+		try {
+			const raw = localStorage.getItem('cache_admin_teachers_v1')
+			if (raw) {
+				const cached = JSON.parse(raw)
+				if (cached && Array.isArray(cached.items)) setItems(cached.items)
+			}
+		} catch {}
+		// then refresh
 		fetch('/api/teachers').then(r => r.json()).then(d => {
-			if (d && Array.isArray(d.items)) setItems(d.items)
+			if (d && Array.isArray(d.items)) {
+				setItems(d.items)
+				try { localStorage.setItem('cache_admin_teachers_v1', JSON.stringify({ items: d.items, ts: Date.now() })) } catch {}
+			}
 		}).catch(() => {})
 	}, [])
 
-                                                    return (
-				<div className="space-y-6">
+	return (
+		<div className="space-y-6">
 			<div className="bg-white rounded-2xl shadow-xl p-6">
 				<h2 className="text-2xl font-bold text-black mb-4">Pasniedzēji</h2>
-				<div className="grid md:grid-cols-3 gap-3 mb-3">
+				<div className="grid md:grid-cols-2 gap-3 mb-3">
 					<input className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Vārds" value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} />
 					<input className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Uzvārds" value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} />
-					<input className="md:col-span-3 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Apraksts (neobligāti)" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-                                                            </div>
+										</div>
 				<button disabled={creating} className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-70 text-black font-semibold py-2 px-4 rounded-lg" onClick={async () => {
 					if (!form.firstName.trim() || !form.lastName.trim()) return
 					setCreating(true)
 					try {
-						const r = await fetch('/api/teachers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+						const r = await fetch('/api/teachers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ firstName: form.firstName, lastName: form.lastName }) })
 						if (!r.ok) return
 						const d = await r.json().catch(() => ({}))
 						if (d && d.username && d.tempPassword) setCreated({ username: d.username, tempPassword: d.tempPassword })
-						setForm({ firstName: '', lastName: '', description: '' })
+						setForm({ firstName: '', lastName: '' })
 						const list = await fetch('/api/teachers').then(x => x.json()).catch(() => null)
-						if (list && Array.isArray(list.items)) setItems(list.items)
+						if (list && Array.isArray(list.items)) {
+							setItems(list.items)
+							try { localStorage.setItem('cache_admin_teachers_v1', JSON.stringify({ items: list.items, ts: Date.now() })) } catch {}
+						}
 					} finally {
 						setCreating(false)
 					}
 				}}>Pievienot pasniedzēju</button>
-                                                        </div>
+								</div>
 
 			{created && (
 				<div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
@@ -438,7 +644,7 @@ const AdminTeachers = () => {
 							<button className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" onClick={async () => { try { await navigator.clipboard.writeText(created.tempPassword) } catch {} }}>Kopēt paroli</button>
 							<button className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" onClick={async () => { try { await navigator.clipboard.writeText(`${created.username} ${created.tempPassword}`) } catch {} }}>Kopēt abus</button>
 							<button className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" onClick={() => setCreated(null)}>Aizvērt</button>
-						</div>
+								</div>
 					</div>
 					<div className="text-xs text-gray-600 mt-2">Drošības nolūkos šī parole tiek rādīta tikai vienreiz.</div>
 				</div>
@@ -448,45 +654,99 @@ const AdminTeachers = () => {
 				{items.length === 0 ? (
 					<div className="text-gray-500">Nav pasniedzēju</div>
 				) : (
-						<div className="space-y-3">
+					<div className="space-y-3">
 						{items.map(t => (
-							<div key={t.id} className="border border-gray-200 rounded-xl p-4">
-								<div className="font-semibold text-black">{t.name} <span className="text-gray-500">({t.username})</span></div>
-								<div className="text-sm text-gray-700">{t.active ? 'Aktīvs' : 'Neaktīvs'}</div>
-								{t.description && <div className="text-sm text-gray-600 mt-1">{t.description}</div>}
-								<div className="mt-2 flex items-center gap-3">
-									<label className="inline-flex items-center gap-2 text-sm">
-										<input type="checkbox" checked={t.active} onChange={async (e) => {
-											const active = e.target.checked
-											await fetch('/api/teachers', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id, active }) })
-											setItems(prev => prev.map(x => x.id === t.id ? { ...x, active } : x))
-										}} /> Aktīvs
+							<div key={t.id} className="border border-gray-200 rounded-xl">
+								<div className="p-4">
+									<div className="font-semibold text-black">{t.name} <span className="text-gray-500">({t.username})</span></div>
+									<div className="text-sm text-gray-700">{t.active ? 'Aktīvs' : 'Neaktīvs'}</div>
+									{t.description && <div className="text-sm text-gray-600 mt-1">{t.description}</div>}
+									<div className="mt-2 flex items-center gap-3">
+										<label className="inline-flex items-center gap-2 text-sm">
+											<input type="checkbox" checked={t.active} onChange={async (e) => {
+												const active = e.target.checked
+												await fetch('/api/teachers', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id, active }) })
+												setItems(prev => {
+													const next = prev.map(x => x.id === t.id ? { ...x, active } : x)
+													try { localStorage.setItem('cache_admin_teachers_v1', JSON.stringify({ items: next, ts: Date.now() })) } catch {}
+													return next
+												})
+											}} /> Aktīvs
 									</label>
-									<button className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" onClick={async () => {
-										const r = await fetch('/api/teachers', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id, action: 'resetPassword' }) })
-										if (!r.ok) return
-										const d = await r.json().catch(() => ({}))
-										if (d && d.tempPassword) {
-											try { await navigator.clipboard.writeText(d.tempPassword) } catch {}
-											alert('Jaunā pagaidu parole ir nokopēta starpliktuvē')
-										}
-									}}>Resetēt paroli</button>
-								</div>
+										<button className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" onClick={async () => {
+											const r = await fetch('/api/teachers', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id, action: 'resetPassword' }) })
+											if (!r.ok) return
+											const d = await r.json().catch(() => ({}))
+											if (d && d.tempPassword) {
+												try { await navigator.clipboard.writeText(d.tempPassword) } catch {}
+												alert('Jaunā pagaidu parole ir nokopēta starpliktuvē')
+											}
+										}}>Atjaunot paroli</button>
+										<button className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" onClick={async () => {
+											if (openId === t.id) { setOpenId(null); return }
+											setOpenId(t.id)
+											if (!profiles[t.id]) {
+												setLoadingProfileId(t.id)
+												try {
+													const prof = await fetch(`/api/teacher-profile?userId=${encodeURIComponent(t.id)}`).then(x => x.json()).catch(() => null)
+													setProfiles(prev => ({ ...prev, [t.id]: prof && prof.profile ? prof.profile : null }))
+												} finally {
+													setLoadingProfileId(null)
+												}
+											}
+										}}>{openId === t.id ? 'Aizvērt profilu' : 'Skatīt profilu'}</button>
+										</div>
+										</div>
+								{openId === t.id && (
+									<div className="border-t border-gray-200 p-4 bg-gray-50">
+										{loadingProfileId === t.id ? (
+											<div className="text-sm text-gray-600">Ielādē profilu...</div>
+										) : (
+											(() => {
+												const p = profiles[t.id]
+												if (!p) return <div className="text-sm text-gray-500">Nav profila informācijas</div>
+												return (
+													<div className="space-y-3">
+														<div className="flex items-start gap-4">
+															{p.photo ? <img src={p.photo} alt="Foto" className="w-16 h-16 rounded-full object-cover border-2 border-yellow-200" /> : <div className="w-16 h-16 rounded-full bg-gray-200" />}
+															<div className="flex-1">
+																<div className="text-sm text-gray-700 whitespace-pre-line">{p.description || '—'}</div>
+									</div>
 							</div>
+														<div>
+															<div className="font-semibold text-black mb-1">Pieejamie laiki</div>
+															{(p.availability || []).length ? (
+																<div className="space-y-1 text-sm text-gray-700">
+																	{p.availability.map((a: any, idx: number) => (
+																		<div key={idx}>{a.type === 'specific' ? `Diena ${a.date}` : `Dienas: ${(a.weekdays||[]).join(',')}`} • {a.from}-{a.to} {a.until ? `(līdz ${a.until})` : ''}</div>
 						))}
-								</div>
-							)}
-						</div>
-		</div>
-	)
+					</div>
+															) : (
+																<div className="text-sm text-gray-500">Nav norādīts</div>
+															)}
+				</div>
+													</div>
+												)
+											})()
+										)}
+							</div>
+								)}
+							</div>
+								))}
+							</div>
+				)}
+			</div>
+										</div>
+									)
 }
 
-const TeacherOnboarding = ({ userId, onFinished }: { userId: string; onFinished: () => void }) => {
-	const [photo, setPhoto] = useState<string>('')
-	const [description, setDescription] = useState('')
-	const [availability, setAvailability] = useState<Array<any>>([])
+const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescription, initialAvailability, displayName, isActive }: { userId: string; onFinished: () => void; initialPhoto?: string; initialDescription?: string; initialAvailability?: any[]; displayName?: string; isActive?: boolean }) => {
+	const [photo, setPhoto] = useState<string>(initialPhoto || '')
+	const [description, setDescription] = useState(initialDescription || '')
+	const [availability, setAvailability] = useState<Array<any>>(Array.isArray(initialAvailability) ? initialAvailability : [])
 	const [rule, setRule] = useState<{ type: 'weekly'|'weekdayRange'|'specific'; weekdays?: string; from?: string; to?: string; until?: string; date?: string }>({ type: 'weekly', weekdays: '', from: '', to: '', until: '' })
 	const [saving, setSaving] = useState(false)
+	const [savedProfile, setSavedProfile] = useState<{ photo?: string; description?: string; availability?: any[] } | null>(null)
 
 	const onPhotoSelect = (file: File) => {
 		const reader = new FileReader()
@@ -513,8 +773,8 @@ const TeacherOnboarding = ({ userId, onFinished }: { userId: string; onFinished:
 					</label>
 					{photo && <img src={photo} alt="Foto" className="w-24 h-24 rounded-full object-cover border-2 border-yellow-200" />}
 					<textarea className="md:col-span-2 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" rows={4} placeholder="Apraksts" value={description} onChange={e => setDescription(e.target.value)} />
-				</div>
-			</div>
+							</div>
+						</div>
 
 			<div className="bg-white rounded-2xl shadow p-6">
 				<h3 className="text-lg font-semibold text-black mb-3">Pieejamie laiki</h3>
@@ -533,18 +793,18 @@ const TeacherOnboarding = ({ userId, onFinished }: { userId: string; onFinished:
 					<input type="time" className="p-2 border border-gray-300 rounded-lg" value={rule.to || ''} onChange={e => setRule(r => ({ ...r, to: e.target.value }))} />
 					{rule.type !== 'specific' && <input type="date" className="p-2 border border-gray-300 rounded-lg" placeholder="Līdz (neobligāti)" value={rule.until || ''} onChange={e => setRule(r => ({ ...r, until: e.target.value }))} />}
 					<button className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-3 rounded-lg" onClick={addRule}>Pievienot</button>
-				</div>
+								</div>
 				{availability.length > 0 && (
 					<div className="mt-3 space-y-2">
 						{availability.map((a, idx) => (
 							<div key={idx} className="text-sm text-gray-700 flex items-center justify-between border border-gray-200 rounded-md p-2">
 								<div>{a.type === 'specific' ? `Diena ${a.date}` : `Dienas: ${(a.weekdays||[]).join(',')}`} • {a.from}-{a.to} {a.until ? `(līdz ${a.until})` : ''}</div>
 								<button className="text-xs text-red-600" onClick={() => setAvailability(prev => prev.filter((_, i) => i !== idx))}>Noņemt</button>
-							</div>
+								</div>
 						))}
-					</div>
+								</div>
 				)}
-			</div>
+					</div>
 
 			<div className="flex gap-2">
 				<button disabled={saving} className="bg-green-500 hover:bg-green-600 disabled:opacity-70 text-white font-semibold py-2 px-4 rounded-lg" onClick={async () => {
@@ -552,12 +812,82 @@ const TeacherOnboarding = ({ userId, onFinished }: { userId: string; onFinished:
 					try {
 						await fetch('/api/teacher-profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, photo: photo || undefined, description, availability }) })
 						const prof = await fetch(`/api/teacher-profile?userId=${encodeURIComponent(userId)}`).then(r => r.json()).catch(() => null)
-						if (prof && prof.profile && prof.profile.photo) setPhoto(prof.profile.photo)
-						alert('Profils saglabāts')
-						onFinished()
+						if (prof && prof.profile) {
+							setSavedProfile(prof.profile)
+							if (prof.profile.photo) setPhoto(prof.profile.photo)
+						}
 					} finally { setSaving(false) }
 				}}>Saglabāt</button>
 				<button className="border border-gray-300 px-4 py-2 rounded-lg" onClick={onFinished}>Pagaidām izlaist</button>
+										</div>
+
+			{savedProfile && (
+				<div className="mt-6 bg-white rounded-2xl shadow p-6 space-y-3">
+					<div className="flex items-start gap-4">
+						{savedProfile.photo ? (
+							<img src={savedProfile.photo} alt="Foto" className="w-24 h-24 rounded-full object-cover border-2 border-yellow-200" />
+						) : (
+							<div className="w-24 h-24 rounded-full bg-gray-100 border-2 border-yellow-200" />
+						)}
+						<div className="flex-1">
+							<div className="flex items-center gap-2">
+								<div className="font-semibold text-black mb-1">{displayName || '—'}</div>
+								<span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-yellow-100 text-yellow-800 border border-yellow-200'}`}>{isActive ? 'Aktīvs' : 'Neaktīvs'}</span>
+                                                            </div>
+							<div className="text-sm text-gray-700 whitespace-pre-line">{savedProfile.description || '—'}</div>
+                                                        </div>
+											</div>
+					<div>
+						<div className="font-semibold text-black mb-2">Pieejamie laiki</div>
+						{(savedProfile.availability || []).length > 0 ? (
+							<div className="space-y-1 text-sm text-gray-700">
+								{savedProfile.availability!.map((a: any, idx: number) => (
+									<div key={idx}>{a.type === 'specific' ? `Diena ${a.date}` : `Dienas: ${(a.weekdays||[]).join(',')}`} • {a.from}-{a.to} {a.until ? `(līdz ${a.until})` : ''}</div>
+										))}
+									</div>
+						) : (
+							<div className="text-sm text-gray-500">Nav norādīts</div>
+						)}
+					</div>
+				</div>
+			)}
+		</div>
+	)
+}
+
+const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isActive: boolean; onEdit: () => void }) => {
+	return (
+				<div className="space-y-6">
+			<div className="bg-white rounded-2xl shadow p-6 space-y-4">
+				<div className="flex items-start gap-4">
+					{profile.photo ? (
+						<img src={profile.photo} alt="Foto" className="w-24 h-24 rounded-full object-cover border-2 border-yellow-200" />
+					) : (
+						<div className="w-24 h-24 rounded-full bg-gray-100 border-2 border-yellow-200" />
+					)}
+					<div className="flex-1">
+						<div className="flex items-center justify-between">
+									<div className="flex items-center gap-2">
+								<div className="font-semibold text-black mb-1">{profile.name || '—'}</div>
+								<span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-yellow-100 text-yellow-800 border border-yellow-200'}`}>{isActive ? 'Aktīvs' : 'Neaktīvs'}</span>
+									</div>
+							<button className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50" onClick={onEdit}>Labot profīlu</button>
+								</div>
+						<div className="text-sm text-gray-700 whitespace-pre-line">{profile.description || '—'}</div>
+						</div>
+					</div>
+				<div>
+					<div className="font-semibold text-black mb-2">Pieejamie laiki</div>
+					{(profile.availability || []).length > 0 ? (
+						<div className="space-y-1 text-sm text-gray-700">
+							{profile.availability.map((a: any, idx: number) => (
+								<div key={idx}>{a.type === 'specific' ? `Diena ${a.date}` : `Dienas: ${(a.weekdays||[]).join(',')}`} • {a.from}-{a.to} {a.until ? `(līdz ${a.until})` : ''}</div>
+							))}
+				</div>
+					) : (
+						<div className="text-sm text-gray-500">Nav norādīts</div>
+			)}
+				</div>
 			</div>
 		</div>
 	)
@@ -702,169 +1032,21 @@ const WorkerDashboard = ({ worker }: { worker: Worker }) => {
 									<div></div>
 									<div className="px-2 py-2 font-semibold text-black border-b border-gray-200">{worker.name}</div>
 
-									<div style={{ display: 'grid', gridTemplateRows: `repeat(${rows}, 2.25rem)` }} className="border-r border-gray-200">
+									<div style={{ display: 'grid', gridTemplateRows: 'repeat(' + rows + ', 2.25rem)' }} className="border-r border-gray-200">
 										{halfHourSlots.map((ts) => (
 											<div key={ts} className="text-xs text-gray-500 flex items-center justify-end pr-3 border-b border-gray-100">{ts}</div>
 										))}
 									</div>
 
-									<div style={{ display: 'grid', gridTemplateRows: `repeat(${rows}, 2.25rem)` }} className="relative">
-										{halfHourSlots.map((ts) => (
-											<div key={ts} className="border-b border-gray-100"></div>
-										))}
-                                    {dayAppts.map(appt => {
-											const startIdx = timeToIndex(appt.time)
-											const span = durationToRowSpan(appt.duration)
-											const isCompact = span === 1
-											return (
-                                            <div key={appt.id} style={{ gridRow: `${startIdx} / span ${span}` }} className={`m-1 rounded-lg p-2 text-xs shadow-sm overflow-hidden ${appt.status === 'completed' ? 'bg-green-100 text-green-800 border border-green-200' : appt.status === 'blocked' ? 'bg-gray-100 text-gray-700 border border-gray-300' : 'bg-yellow-100 text-yellow-800 border border-yellow-200'}`}>
-												<div className="font-semibold text-black/80 leading-tight">
-													{appt.time} • {appt.subject}
-													{isCompact && (
-														<span className="ml-1 text-[10px] text-black/70 whitespace-nowrap">• {appt.userName} • {appt.duration} min</span>
-													)}
+									<div style={{ display: 'grid', gridTemplateRows: 'repeat(' + rows + ', 2.25rem)' }} className="relative">
+										{/* appointment blocks will render here */}
 												</div>
-												{!isCompact && (
-													<div className="text-[11px] text-black/70 leading-tight">{appt.userName} • {appt.duration} min</div>
-												)}
-											</div>
-											)
-										})}
-									</div>
 								</div>
 							</div>
 						)
 					})()}
 				</div>
 			</div>
-			<div className="bg-white rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8">
-				<h2 className="text-2xl font-bold text-black mb-4">Manas atsauksmes</h2>
-				<div className="space-y-3">
-					{worker.reviews.length > 0 ? worker.reviews.map(r => (
-						<div key={r.id} className="border border-gray-200 rounded-lg p-3">
-							<div className="flex items-center justify-between mb-1">
-								<span className="font-semibold text-black">{r.studentName}</span>
-								<span className="text-yellow-600">★ {r.rating}</span>
-							</div>
-							<p className="text-sm text-gray-700">{r.comment}</p>
-							<div className="text-xs text-gray-500 mt-1">{r.date}</div>
-						</div>
-					)) : (
-						<div className="text-gray-500">Vēl nav atsauksmju</div>
-					)}
-				</div>
-			</div>
 		</div>
 	)
 }
-
-const UserDashboard = ({ workers, userAppointments, onBook, onAddReview }: { workers: Worker[]; userAppointments: Appointment[]; onBook: (data: { workerId: number; userName: string; date: string; time: string; duration: number; subject: string }) => void; onAddReview: (data: { workerId: number; studentName: string; rating: number; comment: string }) => void }) => {
-	const [isBooking, setIsBooking] = useState(false)
-	const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming')
-	const [form, setForm] = useState<{ workerId: number | ''; userName: string; date: string; time: string; duration: number; subject: string }>({ workerId: '', userName: 'Es', date: '', time: '', duration: 60, subject: 'Matemātika' })
-	const [review, setReview] = useState<{ workerId: number | ''; rating: number; comment: string }>({ workerId: '', rating: 5, comment: '' })
-
-	const now = new Date()
-	const isUpcoming = (a: Appointment) => {
-		const dt = new Date(`${a.date}T${a.time}:00`)
-		return a.status !== 'completed' && dt >= now
-	}
-	const isHistory = (a: Appointment) => !isUpcoming(a)
-
-	return (
-				<div className="grid lg:grid-cols-3 gap-6">
-					<div className="lg:col-span-2 bg-white rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8">
-				<div className="flex items-center justify-between mb-4">
-					<h2 className="text-2xl font-bold text-black">Mani pieraksti</h2>
-					<button onClick={() => setIsBooking(v => !v)} className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg transition-colors">
-						{isBooking ? 'Aizvērt' : 'Jauns pieraksts'}
-					</button>
-				</div>
-				<div className="bg-gray-50 rounded-lg p-1 inline-flex mb-4">
-					<button className={`px-4 py-2 text-sm font-semibold rounded-md ${activeTab === 'upcoming' ? 'bg-white shadow text-black' : 'text-gray-600'}`} onClick={() => setActiveTab('upcoming')}>Gaidošie</button>
-					<button className={`px-4 py-2 text-sm font-semibold rounded-md ${activeTab === 'history' ? 'bg-white shadow text-black' : 'text-gray-600'}`} onClick={() => setActiveTab('history')}>Privātstundu vēsture</button>
-				</div>
-				{isBooking && (
-					<div className="grid md:grid-cols-2 gap-3 mb-6">
-						<select className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" value={form.workerId} onChange={e => setForm({ ...form, workerId: e.target.value ? Number(e.target.value) : '' })}>
-							<option value="">Izvēlieties pasniedzēju</option>
-							{workers.map(w => (
-								<option key={w.id} value={w.id}>{w.name}</option>
-							))}
-						</select>
-						<input className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Datums (YYYY-MM-DD)" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
-						<input className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Laiks (HH:MM)" value={form.time} onChange={e => setForm({ ...form, time: e.target.value })} />
-						<input type="number" className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Ilgums (min)" value={form.duration} onChange={e => setForm({ ...form, duration: Number(e.target.value) })} />
-						<input className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Tēma" value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} />
-						<button className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-3 px-4 rounded-lg" onClick={() => {
-							if (!form.workerId || !form.date || !form.time) return
-							onBook({ workerId: form.workerId as number, userName: form.userName, date: form.date, time: form.time, duration: form.duration, subject: form.subject })
-							setForm({ workerId: '', userName: 'Es', date: '', time: '', duration: 60, subject: 'Matemātika' })
-							setIsBooking(false)
-						}}>Rezervēt</button>
-					</div>
-				)}
-				<div className="space-y-3">
-					{(activeTab === 'upcoming' ? userAppointments.filter(isUpcoming) : userAppointments.filter(isHistory)).length > 0 ? (
-						(activeTab === 'upcoming' ? userAppointments.filter(isUpcoming) : userAppointments.filter(isHistory)).map(appt => (
-							<div key={appt.id} className="flex items-center justify-between border border-gray-200 rounded-lg p-3">
-								<div>
-									<div className="font-semibold text-black">{new Date(appt.date).toLocaleDateString('lv-LV')} {appt.time}</div>
-									<div className="text-sm text-gray-600">{appt.subject} • {appt.duration} min</div>
-								</div>
-								<div className="text-sm text-gray-500">{appt.workerName}</div>
-							</div>
-						))
-					) : (
-						<div className="text-gray-500">Nav datu</div>
-					)}
-				</div>
-
-				{/* Leave a review */}
-				<div className="mt-6 border-t border-gray-200 pt-4">
-					<h3 className="text-lg font-semibold text-black mb-3">Atstāt atsauksmi pasniedzējam</h3>
-					<div className="grid md:grid-cols-4 gap-3">
-						<select className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" value={review.workerId} onChange={e => setReview({ ...review, workerId: e.target.value ? Number(e.target.value) : '' })}>
-							<option value="">Izvēlieties pasniedzēju</option>
-							{workers.map(w => (
-								<option key={w.id} value={w.id}>{w.name}</option>
-							))}
-						</select>
-						<input type="number" min={1} max={5} step={1} className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Vērtējums (1-5)" value={review.rating} onChange={e => setReview({ ...review, rating: Number(e.target.value) })} />
-						<input className="md:col-span-2 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Komentārs" value={review.comment} onChange={e => setReview({ ...review, comment: e.target.value })} />
-					</div>
-					<div className="mt-3">
-						<button className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg" onClick={() => {
-							if (!review.workerId || !review.rating || !review.comment.trim()) return
-							onAddReview({ workerId: review.workerId as number, studentName: 'Es', rating: Math.max(1, Math.min(5, review.rating)), comment: review.comment.trim() })
-							setReview({ workerId: '', rating: 5, comment: '' })
-							alert('Paldies! Atsauksme pievienota (mock).')
-						}}>
-							Iesniegt atsauksmi
-						</button>
-					</div>
-				</div>
-			</div>
-				<div className="bg-white rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8">
-				<h2 className="text-2xl font-bold text-black mb-4">Pasniedzēji</h2>
-				<div className="space-y-3 max-h-[28rem] overflow-auto pr-1">
-					{workers.map(w => (
-						<div key={w.id} className="border border-gray-200 rounded-lg p-3">
-							<div className="flex items-center justify-between">
-								<div>
-									<div className="font-semibold text-black">{w.name}</div>
-									<div className="text-sm text-gray-600">{w.subject}</div>
-								</div>
-								<div className="text-yellow-600">★ {w.rating.toFixed(1)}</div>
-							</div>
-						</div>
-					))}
-				</div>
-			</div>
-		</div>
-	)
-}
-
-export default ProfileSection
-
-

@@ -1,5 +1,6 @@
 // Support loading cloudinary in NodeNext/ESM envs
 import { createRequire } from 'node:module'
+import { ObjectId } from 'mongodb'
 const _require = createRequire(import.meta.url)
 async function loadCloudinaryV2(): Promise<any> {
   try {
@@ -42,37 +43,77 @@ export default async function handler(req: any, res: any) {
     const col = db.collection('teachers')
 
     if (req.method === 'GET') {
-      const { userId } = (req.query || {}) as any
+      const { userId } = req.query
       if (!userId) return res.status(400).json({ error: 'Missing userId' })
-      const doc = await col.findOne({ userId: String(userId) })
-      return res.status(200).json({ profile: doc || null })
+      const profile = await col.findOne({ userId })
+      return res.status(200).json({ profile: profile || null })
     }
 
     if (req.method === 'PUT') {
-      const { userId, photo, description, availability } = (req.body || {}) as { userId?: string; photo?: string; description?: string; availability?: any[] }
+      const { userId, photo, description, availability } = req.body
       if (!userId) return res.status(400).json({ error: 'Missing userId' })
-      // Basic validation for availability structure
-      const rules = Array.isArray(availability) ? availability : []
-      const setDoc: any = { description: description || '', availability: rules, updatedAt: new Date() }
-      // Only attempt upload on valid data URI
-      if (photo && typeof photo === 'string') {
-        if (photo.startsWith('data:image')) {
+
+      const updateDoc: any = {
+        description: description || '',
+        availability: availability || [],
+        updatedAt: new Date(),
+      }
+
+      if (photo) {
+        if (photo.startsWith('data:image/')) {
+          // It's a data URL, upload to Cloudinary
           try {
-            const cloud = await loadCloudinaryV2()
-            const folder = `teachers/${userId}`
-            const result = await cloud.uploader.upload(photo, { folder, overwrite: true, invalidate: true, resource_type: 'image' })
-            setDoc.photo = result.secure_url
-            setDoc.photoPublicId = result.public_id
-          } catch (e: any) {
-            console.error('[teacher-profile] cloudinary upload error', e?.message || e)
-            return res.status(400).json({ error: 'Image upload failed' })
+            const cloudinary = await loadCloudinaryV2()
+            cloudinary.config({
+              cloudinary_url: process.env.CLOUDINARY_URL,
+            })
+            const uploadResult = await cloudinary.uploader.upload(photo, {
+              folder: `teachers/${userId}`,
+              public_id: `avatar`,
+              overwrite: true,
+            })
+            updateDoc.photo = uploadResult.secure_url
+            updateDoc.photoPublicId = uploadResult.public_id
+          } catch (uploadError: any) {
+            console.error('[teacher-profile] cloudinary upload error', uploadError.message)
+            return res.status(400).json({ error: `Image upload failed: ${uploadError.message}` })
           }
-        } else {
-          // If provided a non-data URL string, persist as-is
-          setDoc.photo = photo
+        } else if (typeof photo === 'string' && photo.startsWith('http')) {
+          // It's already a URL, save directly
+          updateDoc.photo = photo
         }
       }
-      await col.updateOne({ userId: String(userId) }, { $set: setDoc, $setOnInsert: { userId: String(userId), createdAt: new Date() } }, { upsert: true })
+
+      const existing = await col.findOne({ userId })
+      await col.updateOne(
+        { userId },
+        { $set: updateDoc, $setOnInsert: { createdAt: new Date() } },
+        { upsert: true }
+      )
+
+      // Create notification if this is the first-time profile save
+      try {
+        if (!existing) {
+          const notifications = db.collection('notifications')
+          let teacherName: string | null = null
+          try {
+            const userDoc = await db.collection('users').findOne({ _id: new ObjectId(String(userId)) })
+            teacherName = (userDoc && (userDoc.name || userDoc.username)) || null
+          } catch {}
+          await notifications.insertOne({
+            type: 'teacher_profile_submitted',
+            title: `Jauns pasniedzēja profils: ${teacherName || 'Nezināms'}`,
+            message: `${teacherName || 'Pasniedzējs'} ir aizpildījis profila informāciju un iesniedzis to pārskatīšanai.`,
+            recipientRole: 'admin',
+            actorUserId: userId,
+            actorName: teacherName || null,
+            unread: true,
+            createdAt: new Date(),
+          })
+        }
+      } catch (e) {
+        console.warn('[teacher-profile] failed to create notification', e)
+      }
       return res.status(200).json({ ok: true })
     }
 
