@@ -1016,7 +1016,6 @@ const WorkerDashboard = ({ worker }: { worker: Worker }) => {
 				<div className="bg-white rounded-2xl shadow-xl p-4 lg:p-6">
 					<h3 className="text-lg lg:text-xl font-bold text-black mb-4">Dienas grafiks — {new Date(selectedDate).toLocaleDateString('lv-LV')}</h3>
 					{(() => {
-						const day = selectedDate.getDate()
 						const rows = halfHourSlots.length
 						return (
 							<div className="overflow-auto">
