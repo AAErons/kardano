@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react'
+import RegistrationModal from './RegistrationModal.js'
 
 type Role = 'admin' | 'worker' | 'user' | null
 
@@ -154,6 +155,7 @@ const ProfileSection = () => {
 	const [username, setUsername] = useState('')
 	const [password, setPassword] = useState('')
 	const [authError, setAuthError] = useState('')
+	const [isRegistrationOpen, setIsRegistrationOpen] = useState(false)
 
 	const [workers, setWorkers] = useState<Worker[]>(initialWorkersData)
 	const [loggedInWorkerId, setLoggedInWorkerId] = useState<number | null>(null)
@@ -255,6 +257,11 @@ const ProfileSection = () => {
 		setUsername('')
 		setPassword('')
 		setAuthError('')
+	}
+
+	const handleRegistrationSuccess = () => {
+		setAuthError('')
+		alert('Reģistrācija veiksmīga! Tagad varat pieslēgties ar saviem datiem.')
 	}
 
 	const bookAppointment = (data: { workerId: number; userName: string; date: string; time: string; duration: number; subject: string }) => {
@@ -362,6 +369,17 @@ const ProfileSection = () => {
 							</div>
 							{authError && <div className="text-red-600 text-sm">{authError}</div>}
 							<button onClick={handleLogin} className="w-full bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-3 rounded-lg transition-colors">Pieslēgties</button>
+							
+							{/* Registration Link */}
+							<div className="text-center pt-4 border-t border-gray-200">
+								<p className="text-gray-600 text-sm mb-2">Nav konta?</p>
+								<button 
+									onClick={() => setIsRegistrationOpen(true)}
+									className="text-yellow-600 hover:text-yellow-700 font-medium text-sm underline"
+								>
+									Reģistrēties
+								</button>
+							</div>
 						</div>
 					</div>
 				)}
@@ -393,6 +411,13 @@ const ProfileSection = () => {
 					</div>
 				)}
 			</div>
+
+			{/* Registration Modal */}
+			<RegistrationModal 
+				isOpen={isRegistrationOpen}
+				onClose={() => setIsRegistrationOpen(false)}
+				onSuccess={handleRegistrationSuccess}
+			/>
 		</div>
 	)
 }
@@ -404,7 +429,7 @@ const UserDashboard = (_props: { workers: Worker[]; userAppointments: Appointmen
 export default ProfileSection
 
 const AdminPanel = () => {
-	const [tab, setTab] = useState<'calendar' | 'teachers' | 'notifications'>('calendar')
+	const [tab, setTab] = useState<'calendar' | 'teachers' | 'students' | 'notifications'>('calendar')
 	const [unreadCount, setUnreadCount] = useState(0)
 
 	useEffect(() => {
@@ -441,6 +466,7 @@ const AdminPanel = () => {
 			<div className="flex gap-2">
 					<button onClick={() => setTab('calendar')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'calendar' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Kalendārs</button>
 					<button onClick={() => setTab('teachers')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'teachers' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Pasniedzēji</button>
+					<button onClick={() => setTab('students')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'students' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Skolēni</button>
 					<button onClick={() => setTab('notifications')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'notifications' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>
 						Paziņojumi {unreadCount > 0 && <span className="ml-2 inline-block text-xs bg-red-500 text-white rounded-full px-2 py-0.5">{unreadCount}</span>}
 					</button>
@@ -452,9 +478,237 @@ const AdminPanel = () => {
 								</div>
 							)}
 			{tab === 'teachers' && <AdminTeachers />}
+			{tab === 'students' && <AdminStudents />}
 			{tab === 'notifications' && <AdminNotifications onCountChange={setUnreadCount} />}
 							</div>
 						)
+}
+
+const AdminStudents = () => {
+	const [students, setStudents] = useState<Array<{
+		id: string
+		userId: string
+		firstName: string
+		lastName: string
+		age: number | null
+		grade: string | null
+		school: string | null
+		isSelf: boolean
+		createdAt: string
+	}>>([])
+	const [users, setUsers] = useState<Record<string, {
+		firstName: string
+		lastName: string
+		email: string
+		accountType: string
+	}>>({})
+	const [loading, setLoading] = useState(true)
+	const [lastLoadTime, setLastLoadTime] = useState<number>(0)
+
+	// Load students data
+	const loadStudents = async (forceRefresh = false) => {
+		try {
+			// Check cache first (unless force refresh)
+			if (!forceRefresh) {
+				try {
+					const cached = localStorage.getItem('cache_admin_students_v1')
+					if (cached) {
+						const { students: cachedStudents, users: cachedUsers, timestamp } = JSON.parse(cached)
+						// Use cache if less than 5 minutes old
+						if (timestamp && Date.now() - timestamp < 5 * 60 * 1000) {
+							setStudents(cachedStudents || [])
+							setUsers(cachedUsers || {})
+							setLoading(false)
+							setLastLoadTime(timestamp)
+							return
+						}
+					}
+				} catch (e) {
+					console.warn('Failed to load cached students:', e)
+				}
+			}
+
+			// Load all students
+			const studentsResponse = await fetch('/api/students?userId=all')
+			if (studentsResponse.ok) {
+				const studentsData = await studentsResponse.json()
+				if (studentsData.success && studentsData.students) {
+					setStudents(studentsData.students)
+					
+					// Load user info for each unique userId
+					const userIds = [...new Set(studentsData.students.map((s: any) => s.userId))] as string[]
+					const userPromises = userIds.map(async (userId: string) => {
+						try {
+							const userResponse = await fetch(`/api/user-info?userId=${userId}`)
+							if (userResponse.ok) {
+								const userData = await userResponse.json()
+								if (userData.success && userData.user) {
+									return { userId, user: userData.user }
+								}
+							}
+						} catch (error) {
+							console.warn('Failed to load user info for', userId)
+						}
+						return null
+					})
+					
+					const userResults = await Promise.all(userPromises)
+					const userMap: Record<string, any> = {}
+					userResults.forEach(result => {
+						if (result) {
+							userMap[result.userId] = result.user
+						}
+					})
+					setUsers(userMap)
+
+					// Cache the results
+					const timestamp = Date.now()
+					try {
+						localStorage.setItem('cache_admin_students_v1', JSON.stringify({
+							students: studentsData.students,
+							users: userMap,
+							timestamp
+						}))
+					} catch (e) {
+						console.warn('Failed to cache students:', e)
+					}
+					setLastLoadTime(timestamp)
+				}
+			}
+		} catch (error) {
+			console.error('Failed to load students:', error)
+		} finally {
+			setLoading(false)
+		}
+	}
+
+	// Load students on mount
+	useEffect(() => {
+		loadStudents()
+	}, [])
+
+	// Listen for storage events to update when new students are added from other tabs
+	useEffect(() => {
+		const handleStorageChange = (e: StorageEvent) => {
+			if (e.key === 'cache_admin_students_v1' && e.newValue) {
+				try {
+					const { students: newStudents, users: newUsers, timestamp } = JSON.parse(e.newValue)
+					if (timestamp > lastLoadTime) {
+						setStudents(newStudents || [])
+						setUsers(newUsers || {})
+						setLastLoadTime(timestamp)
+					}
+				} catch (error) {
+					console.warn('Failed to parse storage update:', error)
+				}
+			}
+		}
+
+		window.addEventListener('storage', handleStorageChange)
+		return () => window.removeEventListener('storage', handleStorageChange)
+	}, [lastLoadTime])
+
+	// Poll for cache invalidation (check every 30 seconds)
+	useEffect(() => {
+		const checkCacheInvalidation = async () => {
+			try {
+				const response = await fetch('/api/cache-invalidation?key=admin_students')
+				if (response.ok) {
+					const data = await response.json()
+					if (data.success && data.lastUpdate) {
+						const cached = localStorage.getItem('cache_admin_students_v1')
+						if (cached) {
+							const { timestamp } = JSON.parse(cached)
+							if (data.lastUpdate > timestamp) {
+								// Cache is invalid, refresh
+								loadStudents(true)
+							}
+						}
+					}
+				}
+			} catch (error) {
+				console.warn('Failed to check cache invalidation:', error)
+			}
+		}
+
+		// Check immediately, then every 30 seconds
+		checkCacheInvalidation()
+		const interval = setInterval(checkCacheInvalidation, 30000)
+		return () => clearInterval(interval)
+	}, [])
+
+	// Refresh button handler
+	const handleRefresh = () => {
+		setLoading(true)
+		loadStudents(true)
+	}
+
+	if (loading) {
+		return (
+			<div className="bg-white rounded-2xl shadow-xl p-6">
+				<h2 className="text-2xl font-bold text-black mb-4">Skolēni</h2>
+				<div className="text-gray-600">Ielādē...</div>
+			</div>
+		)
+	}
+
+	return (
+		<div className="bg-white rounded-2xl shadow-xl p-6">
+			<div className="flex items-center justify-between mb-4">
+				<h2 className="text-2xl font-bold text-black">Skolēni</h2>
+				<button 
+					onClick={handleRefresh}
+					className="px-3 py-1 text-sm bg-yellow-400 hover:bg-yellow-500 text-black rounded-lg transition-colors"
+				>
+					Atjaunot
+				</button>
+			</div>
+			<div className="text-sm text-gray-600 mb-4">
+				Kopā: {students.length} skolēni no {Object.keys(users).length} lietotājiem
+				{lastLoadTime > 0 && (
+					<span className="ml-2 text-xs">
+						• Atjaunots: {new Date(lastLoadTime).toLocaleTimeString('lv-LV')}
+					</span>
+				)}
+			</div>
+			
+			{students.length === 0 ? (
+				<div className="text-gray-600">Nav reģistrētu skolēnu</div>
+			) : (
+				<div className="space-y-3">
+					{students.map(student => {
+						const user = users[student.userId]
+						return (
+							<div key={student.id} className="border border-gray-200 rounded-lg p-4">
+								<div className="flex items-center justify-between">
+									<div className="flex-1">
+										<div className="font-semibold text-black">
+											{student.firstName} {student.lastName}
+										</div>
+										<div className="text-sm text-gray-600">
+											{student.isSelf ? 'Pašreģistrācija' : 'Bērns'}
+											{student.age && ` • ${student.age} gadi`}
+											{student.grade && ` • ${student.grade}`}
+											{student.school && ` • ${student.school}`}
+										</div>
+										{user && (
+											<div className="text-xs text-gray-500 mt-1">
+												Vecāks: {user.firstName} {user.lastName} ({user.email})
+												{user.accountType === 'children' && ' • Vecāku konts'}
+											</div>
+										)}
+									</div>
+									<div className="text-xs text-gray-500">
+										{new Date(student.createdAt).toLocaleDateString('lv-LV')}
+									</div>
+								</div>
+							</div>
+						)
+					})}
+				</div>
+			)}
+		</div>
+	)
 }
 
 const AdminNotifications = ({ onCountChange }: { onCountChange: (n: number) => void }) => {
