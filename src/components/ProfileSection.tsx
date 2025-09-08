@@ -834,9 +834,9 @@ const AdminNotifications = ({ onCountChange }: { onCountChange: (n: number) => v
 
 const AdminTeachers = () => {
 	const [items, setItems] = useState<Array<{ id: string; name: string; username: string; description: string; active: boolean }>>([])
-	const [form, setForm] = useState<{ firstName: string; lastName: string }>({ firstName: '', lastName: '' })
+	const [form, setForm] = useState<{ email: string }>({ email: '' })
 	const [creating, setCreating] = useState(false)
-	const [created, setCreated] = useState<{ username: string; tempPassword: string } | null>(null)
+	const [created, setCreated] = useState<{ email: string; tempPassword: string; loginUrl: string } | null>(null)
 	const [openId, setOpenId] = useState<string | null>(null)
 	const [profiles, setProfiles] = useState<Record<string, any>>({})
 	const [loadingProfileId, setLoadingProfileId] = useState<string | null>(null)
@@ -864,18 +864,22 @@ const AdminTeachers = () => {
 			<div className="bg-white rounded-2xl shadow-xl p-6">
 				<h2 className="text-2xl font-bold text-black mb-4">Pasniedzēji</h2>
 				<div className="grid md:grid-cols-2 gap-3 mb-3">
-					<input className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Vārds" value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} />
-					<input className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Uzvārds" value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} />
-										</div>
+					<input className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Pasniedzēja e-pasts" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+				</div>
 				<button disabled={creating} className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-70 text-black font-semibold py-2 px-4 rounded-lg" onClick={async () => {
-					if (!form.firstName.trim() || !form.lastName.trim()) return
+					const email = (form.email || '').trim()
+					if (!email) return
 					setCreating(true)
 					try {
-						const r = await fetch('/api/teachers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ firstName: form.firstName, lastName: form.lastName }) })
-						if (!r.ok) return
+						const r = await fetch('/api/send-teacher-invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) })
+						if (!r.ok) {
+							const e = await r.json().catch(() => ({}))
+							alert(e.error || 'Neizdevās izveidot ielūgumu')
+							return
+						}
 						const d = await r.json().catch(() => ({}))
-						if (d && d.username && d.tempPassword) setCreated({ username: d.username, tempPassword: d.tempPassword })
-						setForm({ firstName: '', lastName: '' })
+						if (d && d.email && d.tempPassword && d.loginUrl) setCreated({ email: d.email, tempPassword: d.tempPassword, loginUrl: d.loginUrl })
+						setForm({ email: '' })
 						const list = await fetch('/api/teachers').then(x => x.json()).catch(() => null)
 						if (list && Array.isArray(list.items)) {
 							setItems(list.items)
@@ -884,23 +888,23 @@ const AdminTeachers = () => {
 					} finally {
 						setCreating(false)
 					}
-				}}>Pievienot pasniedzēju</button>
-								</div>
+				}}>Nosūtīt ielūgumu</button>
+			</div>
 
 			{created && (
 				<div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-					<div className="font-semibold text-black mb-2">Izveidota pasniedzēja pieeja</div>
+					<div className="font-semibold text-black mb-2">Ielūgums nosūtīts pasniedzējam</div>
 					<div className="grid md:grid-cols-3 gap-2 items-center">
-						<input readOnly className="p-2 border border-gray-300 rounded-lg bg-white" value={created.username} />
+						<input readOnly className="p-2 border border-gray-300 rounded-lg bg-white" value={created.email} />
 						<input readOnly className="p-2 border border-gray-300 rounded-lg bg-white" value={created.tempPassword} />
 						<div className="flex flex-wrap gap-2">
-							<button className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" onClick={async () => { try { await navigator.clipboard.writeText(created.username) } catch {} }}>Kopēt lietotājvārdu</button>
+							<a className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" href={created.loginUrl} target="_blank" rel="noreferrer">Atvērt ielūguma saiti</a>
 							<button className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" onClick={async () => { try { await navigator.clipboard.writeText(created.tempPassword) } catch {} }}>Kopēt paroli</button>
-							<button className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" onClick={async () => { try { await navigator.clipboard.writeText(`${created.username} ${created.tempPassword}`) } catch {} }}>Kopēt abus</button>
+							<button className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" onClick={async () => { try { await navigator.clipboard.writeText(`${created.email} ${created.tempPassword} ${created.loginUrl}`) } catch {} }}>Kopēt visu</button>
 							<button className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" onClick={() => setCreated(null)}>Aizvērt</button>
-								</div>
+						</div>
 					</div>
-					<div className="text-xs text-gray-600 mt-2">Drošības nolūkos šī parole tiek rādīta tikai vienreiz.</div>
+					<div className="text-xs text-gray-600 mt-2">Ja e-pasts netika nosūtīts (SMTP nav konfigurēts), varat manuāli nosūtīt ielūguma saiti un paroli.</div>
 				</div>
 			)}
 
@@ -926,7 +930,7 @@ const AdminTeachers = () => {
 													return next
 												})
 											}} /> Aktīvs
-									</label>
+										</label>
 										<button className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" onClick={async () => {
 											const r = await fetch('/api/teachers', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id, action: 'resetPassword' }) })
 											if (!r.ok) return
@@ -949,8 +953,8 @@ const AdminTeachers = () => {
 												}
 											}
 										}}>{openId === t.id ? 'Aizvērt profilu' : 'Skatīt profilu'}</button>
-										</div>
-										</div>
+									</div>
+								</div>
 								{openId === t.id && (
 									<div className="border-t border-gray-200 p-4 bg-gray-50">
 										{loadingProfileId === t.id ? (
@@ -965,33 +969,33 @@ const AdminTeachers = () => {
 															{p.photo ? <img src={p.photo} alt="Foto" className="w-16 h-16 rounded-full object-cover border-2 border-yellow-200" /> : <div className="w-16 h-16 rounded-full bg-gray-200" />}
 															<div className="flex-1">
 																<div className="text-sm text-gray-700 whitespace-pre-line">{p.description || '—'}</div>
-									</div>
-							</div>
+															</div>
+														</div>
 														<div>
 															<div className="font-semibold text-black mb-1">Pieejamie laiki</div>
 															{(p.availability || []).length ? (
 																<div className="space-y-1 text-sm text-gray-700">
 																	{p.availability.map((a: any, idx: number) => (
 																		<div key={idx}>{a.type === 'specific' ? `Diena ${a.date}` : `Dienas: ${(a.weekdays||[]).join(',')}`} • {a.from}-{a.to} {a.until ? `(līdz ${a.until})` : ''}</div>
-						))}
-					</div>
+																	))}
+																</div>
 															) : (
 																<div className="text-sm text-gray-500">Nav norādīts</div>
 															)}
-				</div>
+														</div>
 													</div>
 												)
 											})()
 										)}
-							</div>
+									</div>
 								)}
 							</div>
-								))}
-							</div>
+						))}
+					</div>
 				)}
 			</div>
-										</div>
-									)
+		</div>
+	)
 }
 
 const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescription, initialAvailability, displayName, isActive }: { userId: string; onFinished: () => void; initialPhoto?: string; initialDescription?: string; initialAvailability?: any[]; displayName?: string; isActive?: boolean }) => {
