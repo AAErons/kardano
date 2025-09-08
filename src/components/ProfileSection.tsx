@@ -179,6 +179,13 @@ const ProfileSection = () => {
 				}
 			}
 		} catch {}
+
+		// Prefill login identifier from URL
+		try {
+			const params = new URLSearchParams(window.location.search)
+			const prefill = params.get('prefill')
+			if (prefill) setUsername(prefill)
+		} catch {}
 	}, [])
 
 	useEffect(() => {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Header from './components/Header.js'
 import LandingPage from './components/LandingPage.js'
 import TutorsSection from './components/TutorsSection.js'
@@ -9,6 +9,16 @@ import LessonsSection from './components/LessonsSection.js'
 
 function App() {
 	const [activeSection, setActiveSection] = useState<'home' | 'lessons' | 'tutors' | 'calendar' | 'profile'>('home')
+
+	useEffect(() => {
+		try {
+			const params = new URLSearchParams(window.location.search)
+			const open = params.get('open')
+			if (open === 'login' || params.has('invite')) {
+				setActiveSection('profile')
+			}
+		} catch {}
+	}, [])
 
 	return (
 		<div className="min-h-screen bg-white">

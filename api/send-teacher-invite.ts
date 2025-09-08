@@ -57,7 +57,7 @@ export default async function handler(req: any, res: any) {
 
 		// Prepare login URL
 		const baseUrl = process.env.PUBLIC_BASE_URL || 'http://localhost:3000'
-		const loginUrl = `${baseUrl}/?invite=${inviteToken}`
+		const loginUrl = `${baseUrl}/?open=login&prefill=${encodeURIComponent(idEmail)}&invite=${inviteToken}`
 
 		// Send email
 		try {
@@ -77,8 +77,9 @@ export default async function handler(req: any, res: any) {
 					html: `
 						<p>Sveiki!</p>
 						<p>Jums ir izveidots pasniedzēja konts platformā <b>Kardano</b>.</p>
-						<p>Pagaidu parole: <b>${tempPassword}</b></p>
-						<p>Pieslēdzieties, izmantojot šo saiti, lai pabeigtu profila izveidi un nomainītu paroli:</p>
+						<p>Lūdzu, pieslēdzieties, izmantojot <b>jūsu e‑pastu</b> un zemāk norādīto <b>pagaidu paroli</b>:</p>
+						<p>E‑pasts: <b>${idEmail}</b><br/>Pagaidu parole: <b>${tempPassword}</b></p>
+						<p>Noklikšķiniet uz saites zemāk — tā atvērs pieteikšanās formu ar aizpildītu e‑pastu. Pēc pirmās pieteikšanās varēsiet nomainīt paroli un pabeigt profilu:</p>
 						<p><a href="${loginUrl}">${loginUrl}</a></p>
 						<p>Ja nebijāt gaidījis šo ziņu, lūdzu, ignorējiet to.</p>
 					`,
