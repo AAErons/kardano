@@ -395,9 +395,11 @@ const ProfileSection = () => {
 					<AdminPanel />
 				)}
 
+				{/* Temporarily hide WorkerDashboard (not defined)
 				{role === 'worker' && loggedInWorker && (
 					<WorkerDashboard worker={loggedInWorker} />
 				)}
+				*/}
 
 				{role === 'user' && (
 					<UserDashboard workers={workers} userAppointments={userAppointments} onBook={bookAppointment} onAddReview={addReview} />
@@ -406,9 +408,10 @@ const ProfileSection = () => {
 				{role === 'worker' && userId && (
 					<div className="mb-6 lg:mb-10">
 						{teacherProfile && !isEditingProfile ? (
-							<TeacherProfileView profile={{ ...teacherProfile, name: teacherName || teacherProfile.name }} isActive={Boolean(isWorkerActive)} onEdit={() => setIsEditingProfile(true)} />
+							/* <TeacherProfileView profile={{ ...teacherProfile, name: teacherName || teacherProfile.name }} isActive={Boolean(isWorkerActive)} onEdit={() => setIsEditingProfile(true)} /> */
+							null
 						) : (
-							<TeacherOnboarding userId={userId} displayName={teacherName || undefined} isActive={Boolean(isWorkerActive)} initialPhoto={teacherProfile?.photo} initialDescription={teacherProfile?.description} initialAvailability={teacherProfile?.availability || []} onFinished={() => {
+							<TeacherOnboarding userId={userId} displayName={teacherName || undefined} isActive={Boolean(isWorkerActive)} initialPhoto={teacherProfile?.photo} initialDescription={teacherProfile?.description} initialAvailability={teacherProfile?.availability || []} initialFirstName={teacherProfile?.firstName} initialLastName={teacherProfile?.lastName} onFinished={() => {
 								// refresh profile after save
 								fetch(`/api/teacher-profile?userId=${encodeURIComponent(userId)}`).then(r => r.json()).then(d => {
 									if (d && d.profile) { setTeacherProfile(d.profile); setIsEditingProfile(false) }
@@ -980,10 +983,27 @@ const AdminTeachers = () => {
 														</div>
 														<div>
 															<div className="font-semibold text-black mb-1">Pieejamie laiki</div>
-															{(p.availability || []).length ? (
-																<div className="space-y-1 text-sm text-gray-700">
+															{(p.availability || []).length > 0 ? (
+																<div className="mt-3 grid md:grid-cols-2 gap-2">
 																	{p.availability.map((a: any, idx: number) => (
-																		<div key={idx}>{a.type === 'specific' ? `Diena ${a.date}` : `Dienas: ${(a.weekdays||[]).join(',')}`} • {a.from}-{a.to} {a.until ? `(līdz ${a.until})` : ''}</div>
+																		<div key={idx} className="text-sm text-gray-800 flex items-center justify-between border border-gray-200 rounded-lg p-3 bg-white">
+																			<div className="truncate">
+																				{a.type === 'specific' ? (
+																					<span>Konkrēta diena: <b>{a.date}</b></span>
+																				) : (
+																					<span>Dienas: <b>{(a.weekdays||[]).join(', ')}</b></span>
+																				)}
+																				<span className="ml-2">{a.from}-{a.to}</span>
+																				{a.until && <span className="ml-2 text-xs text-gray-600">(līdz {a.until})</span>}
+																			</div>
+																			<button className="text-xs text-red-600" onClick={() => setProfiles(prev => ({
+																				...prev,
+																				[t.id]: {
+																					...prev[t.id],
+																					availability: (prev?.[t.id]?.availability || []).filter((_: any, i: number) => i !== idx)
+																				}
+																			}))}>Noņemt</button>
+																		</div>
 																	))}
 																</div>
 															) : (
@@ -1005,10 +1025,12 @@ const AdminTeachers = () => {
 	)
 }
 
-const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescription, initialAvailability, displayName, isActive }: { userId: string; onFinished: () => void; initialPhoto?: string; initialDescription?: string; initialAvailability?: any[]; displayName?: string; isActive?: boolean }) => {
+const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescription, initialAvailability, initialFirstName, initialLastName, displayName, isActive }: { userId: string; onFinished: () => void; initialPhoto?: string; initialDescription?: string; initialAvailability?: any[]; initialFirstName?: string; initialLastName?: string; displayName?: string; isActive?: boolean }) => {
 	const [photo, setPhoto] = useState<string>(initialPhoto || '')
 	const [description, setDescription] = useState(initialDescription || '')
-	const [availability, setAvailability] = useState<Array<any>>(Array.isArray(initialAvailability) ? initialAvailability : [])
+	const [availability, setAvailability] = useState<any[]>(Array.isArray(initialAvailability) ? initialAvailability : [])
+	const [firstName, setFirstName] = useState<string>(initialFirstName || '')
+	const [lastName, setLastName] = useState<string>(initialLastName || '')
 	const [rule, setRule] = useState<{ type: 'weekly'|'weekdayRange'|'specific'; weekdays?: string; from?: string; to?: string; until?: string; date?: string }>({ type: 'weekly', weekdays: '', from: '', to: '', until: '' })
 	const [saving, setSaving] = useState(false)
 	const [savedProfile, setSavedProfile] = useState<{ photo?: string; description?: string; availability?: any[] } | null>(null)
@@ -1032,6 +1054,8 @@ const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescriptio
 			<div className="bg-white rounded-2xl shadow p-6">
 				<h2 className="text-2xl font-bold text-black mb-4">Pasniedzēja profils</h2>
 				<div className="grid md:grid-cols-3 gap-3">
+					<input className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Vārds" value={firstName} onChange={e => setFirstName(e.target.value)} />
+					<input className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Uzvārds" value={lastName} onChange={e => setLastName(e.target.value)} />
 					<label className="md:col-span-1 cursor-pointer bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium py-2 px-3 rounded-lg inline-block">
 						Augšupielādēt foto
 						<input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) onPhotoSelect(f) }} />
@@ -1043,16 +1067,32 @@ const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescriptio
 
 			<div className="bg-white rounded-2xl shadow p-6">
 				<h3 className="text-lg font-semibold text-black mb-3">Pieejamie laiki</h3>
+				<div className="flex flex-wrap gap-2 mb-3">
+					{['Pirmd','Otrd','Trešd','Ceturtd','Piektd','Sestd','Sv'].map((label, idx) => {
+						const day = String(idx + 1)
+						const selected = (rule.weekdays || '').split(',').map(s => s.trim()).filter(Boolean).includes(day)
+						return (
+							<button key={day} type="button" className={`px-2 py-1 text-sm rounded-lg border ${selected ? 'bg-yellow-400 border-yellow-500 text-black' : 'bg-white border-gray-300 text-gray-700'}`} onClick={() => {
+								setRule(r => {
+									const parts = (r.weekdays || '').split(',').map(s => s.trim()).filter(Boolean)
+									const has = parts.includes(day)
+									const next = has ? parts.filter(p => p !== day) : [...parts, day]
+									return { ...r, type: r.type === 'specific' ? 'weekly' : r.type, weekdays: next.join(',') }
+								})
+							}}>{label}</button>
+						)
+					})}
+				</div>
 				<div className="grid md:grid-cols-5 gap-3 items-end">
 					<select className="p-2 border border-gray-300 rounded-lg" value={rule.type} onChange={e => setRule(r => ({ ...r, type: e.target.value as any }))}>
 						<option value="weekly">Nedēļas dienas (atkārtojas)</option>
 						<option value="weekdayRange">Darba dienas (diapazons)</option>
 						<option value="specific">Konkrēta diena</option>
 					</select>
-					{rule.type !== 'specific' ? (
-						<input className="p-2 border border-gray-300 rounded-lg" placeholder="Dienas, piem.: 1,3,4 (Pirmd=1..Sv=7)" value={rule.weekdays} onChange={e => setRule(r => ({ ...r, weekdays: e.target.value }))} />
-					) : (
+					{rule.type === 'specific' ? (
 						<input type="date" className="p-2 border border-gray-300 rounded-lg" value={rule.date || ''} onChange={e => setRule(r => ({ ...r, date: e.target.value }))} />
+					) : (
+						<input className="p-2 border border-gray-300 rounded-lg" placeholder="Dienas piem.: 1,3,4" value={rule.weekdays} onChange={e => setRule(r => ({ ...r, weekdays: e.target.value }))} />
 					)}
 					<input type="time" className="p-2 border border-gray-300 rounded-lg" value={rule.from || ''} onChange={e => setRule(r => ({ ...r, from: e.target.value }))} />
 					<input type="time" className="p-2 border border-gray-300 rounded-lg" value={rule.to || ''} onChange={e => setRule(r => ({ ...r, to: e.target.value }))} />
@@ -1060,14 +1100,22 @@ const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescriptio
 					<button className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-3 rounded-lg" onClick={addRule}>Pievienot</button>
 								</div>
 				{availability.length > 0 && (
-					<div className="mt-3 space-y-2">
+					<div className="mt-3 grid md:grid-cols-2 gap-2">
 						{availability.map((a, idx) => (
-							<div key={idx} className="text-sm text-gray-700 flex items-center justify-between border border-gray-200 rounded-md p-2">
-								<div>{a.type === 'specific' ? `Diena ${a.date}` : `Dienas: ${(a.weekdays||[]).join(',')}`} • {a.from}-{a.to} {a.until ? `(līdz ${a.until})` : ''}</div>
+							<div key={idx} className="text-sm text-gray-800 flex items-center justify-between border border-gray-200 rounded-lg p-3 bg-white">
+								<div className="truncate">
+									{a.type === 'specific' ? (
+										<span>Konkrēta diena: <b>{a.date}</b></span>
+									) : (
+										<span>Dienas: <b>{(a.weekdays||[]).join(', ')}</b></span>
+									)}
+									<span className="ml-2">{a.from}-{a.to}</span>
+									{a.until && <span className="ml-2 text-xs text-gray-600">(līdz {a.until})</span>}
+								</div>
 								<button className="text-xs text-red-600" onClick={() => setAvailability(prev => prev.filter((_, i) => i !== idx))}>Noņemt</button>
-								</div>
+							</div>
 						))}
-								</div>
+						</div>
 				)}
 					</div>
 
@@ -1075,7 +1123,7 @@ const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescriptio
 				<button disabled={saving} className="bg-green-500 hover:bg-green-600 disabled:opacity-70 text-white font-semibold py-2 px-4 rounded-lg" onClick={async () => {
 					setSaving(true)
 					try {
-						await fetch('/api/teacher-profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, photo: photo || undefined, description, availability }) })
+						await fetch('/api/teacher-profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, photo: photo || undefined, description, availability, firstName, lastName }) })
 						const prof = await fetch(`/api/teacher-profile?userId=${encodeURIComponent(userId)}`).then(r => r.json()).catch(() => null)
 						if (prof && prof.profile) {
 							setSavedProfile(prof.profile)
@@ -1107,202 +1155,15 @@ const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescriptio
 						{(savedProfile.availability || []).length > 0 ? (
 							<div className="space-y-1 text-sm text-gray-700">
 								{savedProfile.availability!.map((a: any, idx: number) => (
-									<div key={idx}>{a.type === 'specific' ? `Diena ${a.date}` : `Dienas: ${(a.weekdays||[]).join(',')}`} • {a.from}-{a.to} {a.until ? `(līdz ${a.until})` : ''}</div>
-										))}
+									<div key={idx}>
+										{a.type === 'specific' ? `Diena ${a.date}` : `Dienas: ${(a.weekdays||[]).join(', ')}`} • {a.from}-{a.to} {a.until ? `(līdz ${a.until})` : ''}
 									</div>
+								))}
+							</div>
 						) : (
 							<div className="text-sm text-gray-500">Nav norādīts</div>
 						)}
 					</div>
-				</div>
-			)}
-		</div>
-	)
-}
-
-const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isActive: boolean; onEdit: () => void }) => {
-	return (
-				<div className="space-y-6">
-			<div className="bg-white rounded-2xl shadow p-6 space-y-4">
-				<div className="flex items-start gap-4">
-					{profile.photo ? (
-						<img src={profile.photo} alt="Foto" className="w-24 h-24 rounded-full object-cover border-2 border-yellow-200" />
-					) : (
-						<div className="w-24 h-24 rounded-full bg-gray-100 border-2 border-yellow-200" />
-					)}
-					<div className="flex-1">
-						<div className="flex items-center justify-between">
-									<div className="flex items-center gap-2">
-								<div className="font-semibold text-black mb-1">{profile.name || '—'}</div>
-								<span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-yellow-100 text-yellow-800 border border-yellow-200'}`}>{isActive ? 'Aktīvs' : 'Neaktīvs'}</span>
-									</div>
-							<button className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50" onClick={onEdit}>Labot profīlu</button>
-								</div>
-						<div className="text-sm text-gray-700 whitespace-pre-line">{profile.description || '—'}</div>
-						</div>
 					</div>
-				<div>
-					<div className="font-semibold text-black mb-2">Pieejamie laiki</div>
-					{(profile.availability || []).length > 0 ? (
-						<div className="space-y-1 text-sm text-gray-700">
-							{profile.availability.map((a: any, idx: number) => (
-								<div key={idx}>{a.type === 'specific' ? `Diena ${a.date}` : `Dienas: ${(a.weekdays||[]).join(',')}`} • {a.from}-{a.to} {a.until ? `(līdz ${a.until})` : ''}</div>
-							))}
-				</div>
-					) : (
-						<div className="text-sm text-gray-500">Nav norādīts</div>
-			)}
-				</div>
-			</div>
-		</div>
-	)
-}
-
-const WorkerDashboard = ({ worker }: { worker: Worker }) => {
-	const [selectedDate, setSelectedDate] = useState<Date>(new Date())
-	const [requestOpen, setRequestOpen] = useState(false)
-	const [request, setRequest] = useState<{ date: string; startTime: string; duration: number; note: string }>({ date: '', startTime: '', duration: 60, note: '' })
-
-	const getDaysInMonth = (date: Date) => {
-		const year = date.getFullYear()
-		const month = date.getMonth()
-		const firstDay = new Date(year, month, 1)
-		const lastDay = new Date(year, month + 1, 0)
-		const daysInMonth = lastDay.getDate()
-		// Convert Sunday=0..Saturday=6 to Monday=0..Sunday=6
-		const startingDay = (firstDay.getDay() + 6) % 7
-		return { daysInMonth, startingDay }
-	}
-
-	const getMonthName = (date: Date) => {
-		const months = [
-			'Janvāris', 'Februāris', 'Marts', 'Aprīlis', 'Maijs', 'Jūnijs',
-			'Jūlijs', 'Augusts', 'Septembris', 'Oktobris', 'Novembris', 'Decembris'
-		]
-		return months[date.getMonth()]
-	}
-
-	const getWeekdayNames = () => ['P', 'O', 'T', 'C', 'Pk', 'S', 'Sv']
-
-	const isToday = (day: number) => {
-		const today = new Date()
-		return today.getDate() === day && today.getMonth() === selectedDate.getMonth() && today.getFullYear() === selectedDate.getFullYear()
-	}
-
-	const getDailyAppointments = (day: number) => {
-		const year = selectedDate.getFullYear()
-		const month = String(selectedDate.getMonth() + 1).padStart(2, '0')
-		const dayStr = String(day).padStart(2, '0')
-		const dateStr = `${year}-${month}-${dayStr}`
-		return worker.appointments.filter(a => a.date === dateStr)
-	}
-
-	const generateHalfHourSlots = () => {
-		const slots: string[] = []
-		for (let hour = 8; hour < 20; hour++) {
-			slots.push(`${String(hour).padStart(2, '0')}:00`)
-			slots.push(`${String(hour).padStart(2, '0')}:30`)
-		}
-		return slots
-	}
-
-	const halfHourSlots = useMemo(() => generateHalfHourSlots(), [])
-
-
-
-	const handleSubmitRequest = () => {
-		if (!request.date || !request.startTime || !request.duration) return
-		// In a real app this would be sent for approval.
-		// Since worker is a prop, we'd normally lift state up. For preview, append to selected day visual by using selectedDate setter.
-		// Quick client-side preview: if selected date matches, it will render from getDailyAppointments which is based on worker.appointments.
-		// To actually add visually, mutate a local copy and rely on rerender via state. We can't mutate props, so skip persistent add.
-		// Instead, show a temporary confirmation and reset form.
-		setRequestOpen(false)
-		setRequest({ date: '', startTime: '', duration: 60, note: '' })
-		alert('Pieteikums iesniegts (mock). Reālajā versijā tiks nosūtīts apstiprināšanai.')
-	}
-
-	const { daysInMonth, startingDay } = getDaysInMonth(selectedDate)
-
-	return (
-		<div className="grid lg:grid-cols-3 gap-6">
-			<div className="lg:col-span-2 space-y-6">
-				<div className="bg-white rounded-2xl shadow-xl p-4 sm:p-5 lg:p-6">
-					<div className="flex items-center justify-between mb-4 lg:mb-6">
-						<button onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1))} className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-lg lg:text-xl">←</button>
-						<h2 className="text-xl lg:text-2xl font-bold text-black text-center">{getMonthName(selectedDate)} {selectedDate.getFullYear()}</h2>
-						<div className="flex items-center gap-2">
-							<button onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1))} className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-lg lg:text-xl">→</button>
-							<button onClick={() => setRequestOpen(v => !v)} className="ml-2 bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-3 rounded-lg text-sm">Pieteikt brīvu</button>
-						</div>
-					</div>
-
-					{requestOpen && (
-						<div className="mb-6 border border-yellow-200 bg-yellow-50 rounded-xl p-4">
-							<h3 className="font-semibold text-black mb-3">Pieteikt brīvu laiku/atvaļinājumu</h3>
-							<div className="grid md:grid-cols-4 gap-3">
-								<input type="date" className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" value={request.date} onChange={e => setRequest({ ...request, date: e.target.value })} />
-								<input type="time" className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" value={request.startTime} onChange={e => setRequest({ ...request, startTime: e.target.value })} />
-								<input type="number" min={30} step={30} className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Ilgums (min)" value={request.duration} onChange={e => setRequest({ ...request, duration: Number(e.target.value) })} />
-								<input className="md:col-span-2 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Piezīme (neobligāti)" value={request.note} onChange={e => setRequest({ ...request, note: e.target.value })} />
-							</div>
-							<div className="mt-3 flex gap-2">
-								<button onClick={handleSubmitRequest} className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg">Iesniegt</button>
-								<button onClick={() => setRequestOpen(false)} className="border-2 border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold py-2 px-4 rounded-lg">Atcelt</button>
-							</div>
-						</div>
-					)}
-
-				<div className="grid grid-cols-7 gap-1 mb-2 text-xs sm:text-sm">
-						{getWeekdayNames().map((d, i) => (
-							<div key={i} className="text-center font-semibold text-gray-600 py-2 text-sm lg:text-base">{d}</div>
-						))}
-					</div>
-				<div className="grid grid-cols-7 gap-1">
-						{Array.from({ length: startingDay }, (_, index) => (
-							<div key={`empty-${index}`} className="h-16 lg:h-20"></div>
-						))}
-						{Array.from({ length: daysInMonth }, (_, index) => {
-							const day = index + 1
-							const appts = getDailyAppointments(day)
-							const nonBlockedAppts = appts.filter(a => a.status !== 'blocked')
-							const hasBlocked = appts.some(a => a.status === 'blocked')
-							const hasAppts = nonBlockedAppts.length > 0
-							return (
-								<div key={day} className={`h-16 lg:h-20 border border-gray-200 p-1 lg:p-2 cursor-pointer transition-colors ${isToday(day) ? 'bg-yellow-400 text-black font-bold' : hasAppts ? 'bg-green-50 hover:bg-green-100' : hasBlocked ? 'bg-gray-100 hover:bg-gray-200' : 'bg-gray-50'}`} onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day))}>
-									<div className="text-xs lg:text-sm font-medium mb-1">{day}</div>
-									{hasAppts && <div className="text-[11px] lg:text-xs text-green-700">{nonBlockedAppts.length} pierakst{nonBlockedAppts.length > 1 ? 'i' : 's'}</div>}
-								</div>
-							)
-						})}
-					</div>
-				</div>
-
-				<div className="bg-white rounded-2xl shadow-xl p-4 lg:p-6">
-					<h3 className="text-lg lg:text-xl font-bold text-black mb-4">Dienas grafiks — {new Date(selectedDate).toLocaleDateString('lv-LV')}</h3>
-					{(() => {
-						const rows = halfHourSlots.length
-						return (
-							<div className="overflow-auto">
-								<div className="min-w-[560px]" style={{ display: 'grid', gridTemplateColumns: `160px minmax(320px, 1fr)` }}>
-									<div></div>
-									<div className="px-2 py-2 font-semibold text-black border-b border-gray-200">{worker.name}</div>
-
-									<div style={{ display: 'grid', gridTemplateRows: 'repeat(' + rows + ', 2.25rem)' }} className="border-r border-gray-200">
-										{halfHourSlots.map((ts) => (
-											<div key={ts} className="text-xs text-gray-500 flex items-center justify-end pr-3 border-b border-gray-100">{ts}</div>
-										))}
-									</div>
-
-									<div style={{ display: 'grid', gridTemplateRows: 'repeat(' + rows + ', 2.25rem)' }} className="relative">
-										{/* appointment blocks will render here */}
-												</div>
-								</div>
-							</div>
-						)
-					})()}
-				</div>
-			</div>
-		</div>
-	)
-}
+				)}
+					</div>)}

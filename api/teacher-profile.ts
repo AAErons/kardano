@@ -50,7 +50,7 @@ export default async function handler(req: any, res: any) {
     }
 
     if (req.method === 'PUT') {
-      const { userId, photo, description, availability } = req.body
+      const { userId, photo, description, availability, firstName, lastName } = req.body
       if (!userId) return res.status(400).json({ error: 'Missing userId' })
 
       const updateDoc: any = {
@@ -58,6 +58,9 @@ export default async function handler(req: any, res: any) {
         availability: availability || [],
         updatedAt: new Date(),
       }
+
+      if (typeof firstName === 'string') updateDoc.firstName = firstName.trim()
+      if (typeof lastName === 'string') updateDoc.lastName = lastName.trim()
 
       if (photo) {
         if (photo.startsWith('data:image/')) {
@@ -90,6 +93,25 @@ export default async function handler(req: any, res: any) {
         { $set: updateDoc, $setOnInsert: { createdAt: new Date() } },
         { upsert: true }
       )
+
+      // Optionally mirror name fields to users collection
+      try {
+        if (typeof firstName === 'string' || typeof lastName === 'string') {
+          const users = db.collection('users')
+          const toSet: any = {}
+          if (typeof firstName === 'string') toSet.firstName = (firstName || '').trim()
+          if (typeof lastName === 'string') toSet.lastName = (lastName || '').trim()
+          const fn = toSet.firstName || existing?.firstName || ''
+          const ln = toSet.lastName || existing?.lastName || ''
+          const full = `${fn} ${ln}`.trim()
+          if (full) toSet.name = full
+          if (Object.keys(toSet).length) {
+            await users.updateOne({ _id: new ObjectId(String(userId)) }, { $set: toSet })
+          }
+        }
+      } catch (e) {
+        console.warn('[teacher-profile] failed to mirror names to users', (e as any)?.message)
+      }
 
       // Create notification if this is the first-time profile save
       try {
