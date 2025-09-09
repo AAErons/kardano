@@ -163,6 +163,7 @@ const ProfileSection = () => {
 	const [userId, setUserId] = useState<string | null>(null)
 	const [isWorkerActive, setIsWorkerActive] = useState<boolean | null>(null)
 	const [teacherProfile, setTeacherProfile] = useState<any | null>(null)
+	const [isLoadingProfile, setIsLoadingProfile] = useState(false)
 	const [isEditingProfile, setIsEditingProfile] = useState(false)
 	const [teacherName, setTeacherName] = useState<string | null>(null)
 
@@ -180,11 +181,16 @@ const ProfileSection = () => {
 			}
 		} catch {}
 
-		// Prefill login identifier from URL
+		// Prefill login identifier from URL and handle open parameters
 		try {
 			const params = new URLSearchParams(window.location.search)
 			const prefill = params.get('prefill')
 			if (prefill) setUsername(prefill)
+			
+			const open = params.get('open')
+			if (open === 'register') {
+				setIsRegistrationOpen(true)
+			}
 		} catch {}
 	}, [])
 
@@ -192,12 +198,18 @@ const ProfileSection = () => {
 		// Reset profile state when auth context changes
 		setTeacherProfile(null)
 		setTeacherName(null)
+		setIsLoadingProfile(false)
 		// For workers, check if teacher profile exists
 		if (role === 'worker' && userId) {
+			setIsLoadingProfile(true)
 			fetch(`/api/teacher-profile?userId=${encodeURIComponent(userId)}`).then(r => r.json()).then(d => {
 				if (d && d.profile) setTeacherProfile(d.profile)
 				else setTeacherProfile(null)
-			}).catch(() => setTeacherProfile(null))
+				setIsLoadingProfile(false)
+			}).catch(() => {
+				setTeacherProfile(null)
+				setIsLoadingProfile(false)
+			})
 			// fetch teacher display name from users list
 			fetch('/api/teachers').then(r => r.json()).then(d => {
 				if (d && Array.isArray(d.items)) {
@@ -407,9 +419,14 @@ const ProfileSection = () => {
 
 				{role === 'worker' && userId && (
 					<div className="mb-6 lg:mb-10">
-						{teacherProfile && !isEditingProfile ? (
-							/* <TeacherProfileView profile={{ ...teacherProfile, name: teacherName || teacherProfile.name }} isActive={Boolean(isWorkerActive)} onEdit={() => setIsEditingProfile(true)} /> */
-							null
+						{isLoadingProfile ? (
+							<div className="bg-white rounded-2xl shadow p-6">
+								<div className="flex items-center justify-center py-8">
+									<div className="text-gray-500">Ielādē profīlu...</div>
+								</div>
+							</div>
+						) : teacherProfile && !isEditingProfile ? (
+							<TeacherProfileView profile={{ ...teacherProfile, name: teacherName || teacherProfile.name }} isActive={Boolean(isWorkerActive)} onEdit={() => setIsEditingProfile(true)} />
 						) : (
 							<TeacherOnboarding userId={userId} displayName={teacherName || undefined} isActive={Boolean(isWorkerActive)} initialPhoto={teacherProfile?.photo} initialDescription={teacherProfile?.description} initialAvailability={teacherProfile?.availability || []} initialFirstName={teacherProfile?.firstName} initialLastName={teacherProfile?.lastName} onFinished={() => {
 								// refresh profile after save
@@ -434,6 +451,44 @@ const ProfileSection = () => {
 
 const UserDashboard = (_props: { workers: Worker[]; userAppointments: Appointment[]; onBook: (data: any) => void; onAddReview: (data: any) => void }) => {
 	return null
+}
+
+const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isActive: boolean; onEdit: () => void }) => {
+	return (
+		<div className="space-y-6">
+			<div className="bg-white rounded-2xl shadow p-6 space-y-4">
+				<div className="flex items-start gap-4">
+					{profile.photo ? (
+						<img src={profile.photo} alt="Foto" className="w-24 h-24 rounded-full object-cover border-2 border-yellow-200" />
+					) : (
+						<div className="w-24 h-24 rounded-full bg-gray-100 border-2 border-yellow-200" />
+					)}
+					<div className="flex-1">
+						<div className="flex items-center justify-between">
+							<div className="flex items-center gap-2">
+								<div className="font-semibold text-black mb-1">{profile.name || '—'}</div>
+								<span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-yellow-100 text-yellow-800 border border-yellow-200'}`}>{isActive ? 'Aktīvs' : 'Neaktīvs'}</span>
+							</div>
+							<button className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50" onClick={onEdit}>Labot profīlu</button>
+						</div>
+						<div className="text-sm text-gray-700 whitespace-pre-line">{profile.description || '—'}</div>
+					</div>
+				</div>
+				<div>
+					<div className="font-semibold text-black mb-2">Pieejamie laiki</div>
+					{(profile.availability || []).length > 0 ? (
+						<div className="space-y-1 text-sm text-gray-700">
+							{profile.availability.map((a: any, idx: number) => (
+								<div key={idx}>{a.type === 'specific' ? `Diena ${a.date}` : `Dienas: ${(a.weekdays||[]).join(',')}`} • {a.from}-{a.to} {a.until ? `(līdz ${a.until})` : ''}</div>
+							))}
+						</div>
+					) : (
+						<div className="text-sm text-gray-500">Nav norādīts</div>
+					)}
+				</div>
+			</div>
+		</div>
+	)
 }
 
 export default ProfileSection
@@ -1025,15 +1080,99 @@ const AdminTeachers = () => {
 	)
 }
 
-const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescription, initialAvailability, initialFirstName, initialLastName, displayName, isActive }: { userId: string; onFinished: () => void; initialPhoto?: string; initialDescription?: string; initialAvailability?: any[]; initialFirstName?: string; initialLastName?: string; displayName?: string; isActive?: boolean }) => {
+const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescription, initialAvailability, initialFirstName, initialLastName }: { userId: string; onFinished: () => void; initialPhoto?: string; initialDescription?: string; initialAvailability?: any[]; initialFirstName?: string; initialLastName?: string; displayName?: string; isActive?: boolean }) => {
 	const [photo, setPhoto] = useState<string>(initialPhoto || '')
 	const [description, setDescription] = useState(initialDescription || '')
-	const [availability, setAvailability] = useState<any[]>(Array.isArray(initialAvailability) ? initialAvailability : [])
 	const [firstName, setFirstName] = useState<string>(initialFirstName || '')
 	const [lastName, setLastName] = useState<string>(initialLastName || '')
-	const [rule, setRule] = useState<{ type: 'weekly'|'weekdayRange'|'specific'; weekdays?: string; from?: string; to?: string; until?: string; date?: string }>({ type: 'weekly', weekdays: '', from: '', to: '', until: '' })
 	const [saving, setSaving] = useState(false)
-	const [savedProfile, setSavedProfile] = useState<{ photo?: string; description?: string; availability?: any[] } | null>(null)
+	
+	// New availability state structure
+	const [weeklySchedule, setWeeklySchedule] = useState<Record<string, { enabled: boolean; startHour: string; endHour: string }>>({
+		'1': { enabled: false, startHour: '09:00', endHour: '17:00' }, // Monday
+		'2': { enabled: false, startHour: '09:00', endHour: '17:00' }, // Tuesday
+		'3': { enabled: false, startHour: '09:00', endHour: '17:00' }, // Wednesday
+		'4': { enabled: false, startHour: '09:00', endHour: '17:00' }, // Thursday
+		'5': { enabled: false, startHour: '09:00', endHour: '17:00' }, // Friday
+		'6': { enabled: false, startHour: '09:00', endHour: '17:00' }, // Saturday
+		'7': { enabled: false, startHour: '09:00', endHour: '17:00' }, // Sunday
+	})
+	const [endDate, setEndDate] = useState<string>('')
+	const [startDate, setStartDate] = useState<string>('')
+
+	// Initialize from existing availability data
+	useEffect(() => {
+		if (initialAvailability && initialAvailability.length > 0) {
+			const newSchedule = { ...weeklySchedule }
+			let newEndDate = ''
+			let newStartDate = ''
+			
+			initialAvailability.forEach((avail: any) => {
+				if (avail.type === 'weekly' && avail.weekdays) {
+					avail.weekdays.forEach((day: string) => {
+						if (newSchedule[day]) {
+							newSchedule[day] = {
+								enabled: true,
+								startHour: avail.from || '09:00',
+								endHour: avail.to || '17:00'
+							}
+						}
+					})
+				}
+				if (avail.until) {
+					newEndDate = avail.until
+				}
+				if (avail.fromDate) {
+					newStartDate = avail.fromDate
+				}
+			})
+			
+			setWeeklySchedule(newSchedule)
+			setEndDate(newEndDate)
+			setStartDate(newStartDate)
+		}
+	}, [initialAvailability])
+
+	const dayNames = ['Pirmdiena', 'Otrdiena', 'Trešdiena', 'Ceturtdiena', 'Piektdiena', 'Sestdiena', 'Svētdiena']
+
+	const updateDaySchedule = (day: string, field: 'enabled' | 'startHour' | 'endHour', value: string | boolean) => {
+		setWeeklySchedule(prev => ({
+			...prev,
+			[day]: {
+				...prev[day],
+				[field]: value
+			}
+		}))
+	}
+
+	const generateAvailabilityData = () => {
+		const enabledDays = Object.entries(weeklySchedule)
+			.filter(([_, schedule]) => schedule.enabled)
+			.map(([day, schedule]) => ({ day, ...schedule }))
+
+		if (enabledDays.length === 0) return []
+
+		// Group days with same hours
+		const groupedByHours: Record<string, string[]> = {}
+		enabledDays.forEach(({ day, startHour, endHour }) => {
+			const key = `${startHour}-${endHour}`
+			if (!groupedByHours[key]) groupedByHours[key] = []
+			groupedByHours[key].push(day)
+		})
+
+		// Convert to availability format
+		return Object.entries(groupedByHours).map(([hours, days]) => {
+			const [startHour, endHour] = hours.split('-')
+			return {
+				type: 'weekly',
+				weekdays: days,
+				from: startHour, // This is already in "HH:00" format
+				to: endHour,    // This is already in "HH:00" format
+				fromDate: startDate || null,
+				until: endDate || null
+			}
+		})
+	}
 
 	const onPhotoSelect = (file: File) => {
 		const reader = new FileReader()
@@ -1041,12 +1180,39 @@ const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescriptio
 		reader.readAsDataURL(file)
 	}
 
-	const addRule = () => {
-		if (rule.type === 'specific' && (!rule.date || !rule.from || !rule.to)) return
-		if (rule.type !== 'specific' && (!rule.weekdays || !rule.from || !rule.to)) return
-		const weekdays = rule.weekdays?.split(',').map(s => s.trim()).filter(Boolean) || []
-		setAvailability(prev => [...prev, { type: rule.type, weekdays, from: rule.from, to: rule.to, until: rule.until || null, date: rule.date || null }])
-		setRule({ type: 'weekly', weekdays: '', from: '', to: '', until: '' })
+	const handleSave = async () => {
+		if (!firstName.trim() || !lastName.trim()) {
+			alert('Lūdzu aizpildiet vārdu un uzvārdu')
+			return
+		}
+
+		setSaving(true)
+		try {
+			const availabilityData = generateAvailabilityData()
+			
+			const response = await fetch('/api/teacher-profile', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					userId,
+					firstName: firstName.trim(),
+					lastName: lastName.trim(),
+					photo,
+					description: description.trim(),
+					availability: availabilityData
+				})
+			})
+
+			if (response.ok) {
+				onFinished()
+			} else {
+				alert('Kļūda saglabājot profilu')
+			}
+		} catch (error) {
+			alert('Kļūda savienojumā')
+		} finally {
+			setSaving(false)
+		}
 	}
 
 	return (
@@ -1066,104 +1232,103 @@ const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescriptio
 						</div>
 
 			<div className="bg-white rounded-2xl shadow p-6">
-				<h3 className="text-lg font-semibold text-black mb-3">Pieejamie laiki</h3>
-				<div className="flex flex-wrap gap-2 mb-3">
-					{['Pirmd','Otrd','Trešd','Ceturtd','Piektd','Sestd','Sv'].map((label, idx) => {
-						const day = String(idx + 1)
-						const selected = (rule.weekdays || '').split(',').map(s => s.trim()).filter(Boolean).includes(day)
-						return (
-							<button key={day} type="button" className={`px-2 py-1 text-sm rounded-lg border ${selected ? 'bg-yellow-400 border-yellow-500 text-black' : 'bg-white border-gray-300 text-gray-700'}`} onClick={() => {
-								setRule(r => {
-									const parts = (r.weekdays || '').split(',').map(s => s.trim()).filter(Boolean)
-									const has = parts.includes(day)
-									const next = has ? parts.filter(p => p !== day) : [...parts, day]
-									return { ...r, type: r.type === 'specific' ? 'weekly' : r.type, weekdays: next.join(',') }
-								})
-							}}>{label}</button>
-						)
-					})}
-				</div>
-				<div className="grid md:grid-cols-5 gap-3 items-end">
-					<select className="p-2 border border-gray-300 rounded-lg" value={rule.type} onChange={e => setRule(r => ({ ...r, type: e.target.value as any }))}>
-						<option value="weekly">Nedēļas dienas (atkārtojas)</option>
-						<option value="weekdayRange">Darba dienas (diapazons)</option>
-						<option value="specific">Konkrēta diena</option>
-					</select>
-					{rule.type === 'specific' ? (
-						<input type="date" className="p-2 border border-gray-300 rounded-lg" value={rule.date || ''} onChange={e => setRule(r => ({ ...r, date: e.target.value }))} />
-					) : (
-						<input className="p-2 border border-gray-300 rounded-lg" placeholder="Dienas piem.: 1,3,4" value={rule.weekdays} onChange={e => setRule(r => ({ ...r, weekdays: e.target.value }))} />
-					)}
-					<input type="time" className="p-2 border border-gray-300 rounded-lg" value={rule.from || ''} onChange={e => setRule(r => ({ ...r, from: e.target.value }))} />
-					<input type="time" className="p-2 border border-gray-300 rounded-lg" value={rule.to || ''} onChange={e => setRule(r => ({ ...r, to: e.target.value }))} />
-					{rule.type !== 'specific' && <input type="date" className="p-2 border border-gray-300 rounded-lg" placeholder="Līdz (neobligāti)" value={rule.until || ''} onChange={e => setRule(r => ({ ...r, until: e.target.value }))} />}
-					<button className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-3 rounded-lg" onClick={addRule}>Pievienot</button>
-								</div>
-				{availability.length > 0 && (
-					<div className="mt-3 grid md:grid-cols-2 gap-2">
-						{availability.map((a, idx) => (
-							<div key={idx} className="text-sm text-gray-800 flex items-center justify-between border border-gray-200 rounded-lg p-3 bg-white">
-								<div className="truncate">
-									{a.type === 'specific' ? (
-										<span>Konkrēta diena: <b>{a.date}</b></span>
-									) : (
-										<span>Dienas: <b>{(a.weekdays||[]).join(', ')}</b></span>
-									)}
-									<span className="ml-2">{a.from}-{a.to}</span>
-									{a.until && <span className="ml-2 text-xs text-gray-600">(līdz {a.until})</span>}
-								</div>
-								<button className="text-xs text-red-600" onClick={() => setAvailability(prev => prev.filter((_, i) => i !== idx))}>Noņemt</button>
+				<h3 className="text-lg font-semibold text-black mb-4">Darba grafiks</h3>
+				
+				{/* Weekly Schedule */}
+				<div className="space-y-3 mb-6">
+					{Object.entries(weeklySchedule).map(([dayNum, schedule]) => (
+						<div key={dayNum} className="flex items-center gap-4 p-3 border border-gray-200 rounded-lg">
+							<div className="flex items-center gap-2 min-w-[120px]">
+								<input
+									type="checkbox"
+									checked={schedule.enabled}
+									onChange={(e) => updateDaySchedule(dayNum, 'enabled', e.target.checked)}
+									className="w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
+								/>
+								<span className="text-sm font-medium text-gray-700">
+									{dayNames[parseInt(dayNum) - 1]}
+								</span>
 							</div>
-						))}
+							
+							{schedule.enabled && (
+								<div className="flex items-center gap-2">
+									<span className="text-sm text-gray-600">No:</span>
+									<select
+										value={schedule.startHour}
+										onChange={(e) => updateDaySchedule(dayNum, 'startHour', e.target.value)}
+										className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+									>
+										{Array.from({ length: 24 }, (_, i) => {
+											const hour = String(i).padStart(2, '0')
+											return (
+												<option key={hour} value={`${hour}:00`}>{hour}:00</option>
+											)
+										})}
+									</select>
+									<span className="text-sm text-gray-600">Līdz:</span>
+									<select
+										value={schedule.endHour}
+										onChange={(e) => updateDaySchedule(dayNum, 'endHour', e.target.value)}
+										className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+									>
+										{Array.from({ length: 24 }, (_, i) => {
+											const hour = String(i).padStart(2, '0')
+											return (
+												<option key={hour} value={`${hour}:00`}>{hour}:00</option>
+											)
+										})}
+									</select>
+								</div>
+							)}
 						</div>
-				)}
+					))}
+				</div>
+
+				{/* Date Range */}
+				<div className="border-t border-gray-200 pt-4">
+					<div className="grid md:grid-cols-2 gap-4">
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-2">
+								Sākuma datums (neobligāti)
+							</label>
+							<input
+								type="date"
+								value={startDate}
+								onChange={(e) => setStartDate(e.target.value)}
+								className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent w-full"
+							/>
+							<p className="text-xs text-gray-500 mt-1">
+								No šī datuma sāksies jūsu pieejamība
+							</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-2">
+								Beigu datums (neobligāti)
+							</label>
+							<input
+								type="date"
+								value={endDate}
+								onChange={(e) => setEndDate(e.target.value)}
+								className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent w-full"
+							/>
+							<p className="text-xs text-gray-500 mt-1">
+								Pēc šī datuma jūs vairs nebūsiet pieejams jaunām rezervācijām
+							</p>
+						</div>
 					</div>
+				</div>
+			</div>
 
 			<div className="flex gap-2">
-				<button disabled={saving} className="bg-green-500 hover:bg-green-600 disabled:opacity-70 text-white font-semibold py-2 px-4 rounded-lg" onClick={async () => {
-					setSaving(true)
-					try {
-						await fetch('/api/teacher-profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, photo: photo || undefined, description, availability, firstName, lastName }) })
-						const prof = await fetch(`/api/teacher-profile?userId=${encodeURIComponent(userId)}`).then(r => r.json()).catch(() => null)
-						if (prof && prof.profile) {
-							setSavedProfile(prof.profile)
-							if (prof.profile.photo) setPhoto(prof.profile.photo)
-						}
-					} finally { setSaving(false) }
-				}}>Saglabāt</button>
+				<button 
+					disabled={saving} 
+					className="bg-green-500 hover:bg-green-600 disabled:opacity-70 text-white font-semibold py-2 px-4 rounded-lg" 
+					onClick={handleSave}
+				>
+					{saving ? 'Saglabā...' : 'Saglabāt profilu'}
+				</button>
 				<button className="border border-gray-300 px-4 py-2 rounded-lg" onClick={onFinished}>Pagaidām izlaist</button>
-										</div>
-
-			{savedProfile && (
-				<div className="mt-6 bg-white rounded-2xl shadow p-6 space-y-3">
-					<div className="flex items-start gap-4">
-						{savedProfile.photo ? (
-							<img src={savedProfile.photo} alt="Foto" className="w-24 h-24 rounded-full object-cover border-2 border-yellow-200" />
-						) : (
-							<div className="w-24 h-24 rounded-full bg-gray-100 border-2 border-yellow-200" />
-						)}
-						<div className="flex-1">
-							<div className="flex items-center gap-2">
-								<div className="font-semibold text-black mb-1">{displayName || '—'}</div>
-								<span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-yellow-100 text-yellow-800 border border-yellow-200'}`}>{isActive ? 'Aktīvs' : 'Neaktīvs'}</span>
-                                                            </div>
-							<div className="text-sm text-gray-700 whitespace-pre-line">{savedProfile.description || '—'}</div>
-                                                        </div>
-											</div>
-					<div>
-						<div className="font-semibold text-black mb-2">Pieejamie laiki</div>
-						{(savedProfile.availability || []).length > 0 ? (
-							<div className="space-y-1 text-sm text-gray-700">
-								{savedProfile.availability!.map((a: any, idx: number) => (
-									<div key={idx}>
-										{a.type === 'specific' ? `Diena ${a.date}` : `Dienas: ${(a.weekdays||[]).join(', ')}`} • {a.from}-{a.to} {a.until ? `(līdz ${a.until})` : ''}
-									</div>
-								))}
-							</div>
-						) : (
-							<div className="text-sm text-gray-500">Nav norādīts</div>
-						)}
-					</div>
-					</div>
-				)}
-					</div>)}
+			</div>
+		</div>
+	)
+}

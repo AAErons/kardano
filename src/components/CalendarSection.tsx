@@ -12,18 +12,10 @@ interface TimeSlot {
 	available: boolean
 }
 
-interface Teacher {
-	id: string
-	name: string
-	description: string
-}
-
 const CalendarSection = () => {
 	const [selectedDate, setSelectedDate] = useState(new Date())
 	const [selectedDay, setSelectedDay] = useState<number | null>(null)
-	const [selectedTeacher, setSelectedTeacher] = useState<string | null>(null)
 	const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
-	const [teachers, setTeachers] = useState<Teacher[]>([])
 	const [loading, setLoading] = useState(true)
 	const [userRole, setUserRole] = useState<string | null>(null)
 	const [showMonthPicker, setShowMonthPicker] = useState(false)
@@ -57,7 +49,7 @@ const CalendarSection = () => {
 		}
 	}, [selectedDate])
 
-	// Load time slots and teachers
+	// Load time slots
 	useEffect(() => {
 		const loadData = async () => {
 			try {
@@ -67,7 +59,6 @@ const CalendarSection = () => {
 					const data = await response.json()
 					if (data.success) {
 						setTimeSlots(data.timeSlots || [])
-						setTeachers(data.teachers || [])
 					}
 				}
 			} catch (error) {
@@ -121,17 +112,6 @@ const CalendarSection = () => {
 		return timeSlots.filter(slot => slot.date === dateStr)
 	}
 
-	const handleBookSlot = (slot: TimeSlot) => {
-		if (!userRole) {
-			// Show registration suggestion
-			alert(`Lai rezervētu stundu, lūdzu reģistrējieties vai pieslēdzieties savam kontam.\n\nStunda: ${slot.teacherName}\nDatums: ${new Date(slot.date).toLocaleDateString('lv-LV')}\nLaiks: ${slot.time}\nTēma: ${slot.subject}`)
-			return
-		}
-
-		// TODO: Implement actual booking logic for logged-in users
-		alert(`Rezervācija veiksmīga!\n\nStunda: ${slot.teacherName}\nDatums: ${new Date(slot.date).toLocaleDateString('lv-LV')}\nLaiks: ${slot.time}\nTēma: ${slot.subject}`)
-	}
-
 	const { daysInMonth, startingDay } = getDaysInMonth(selectedDate)
 
 	if (loading) {
@@ -169,15 +149,15 @@ const CalendarSection = () => {
 					{!userRole && (
 						<div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg max-w-2xl mx-auto">
 							<p className="text-yellow-800 font-medium">
-								💡 <strong>Padoms:</strong> Reģistrējieties, lai vieglāk rezervētu stundas un sekotu saviem pierakstiem!
+								Reģistrējieties, lai rezervētu stundas un sekotu saviem pierakstiem!
 							</p>
 						</div>
 					)}
 				</div>
 
-				<div className="grid lg:grid-cols-3 gap-6 lg:gap-8">
+				<div className="grid lg:grid-cols-1 gap-6 lg:gap-8">
 					{/* Calendar */}
-					<div className="lg:col-span-2 order-2 lg:order-1">
+					<div className="order-2 lg:order-1">
 						<div className="bg-white rounded-2xl shadow-xl p-4 lg:p-6">
 							{/* Calendar Header */}
 							<div className="flex items-center justify-between mb-4 lg:mb-6">
@@ -321,110 +301,89 @@ const CalendarSection = () => {
 											}}
 											title={isPast ? 'Pagājušais datums' : hasSlots ? `${slots.length} pieejam${slots.length > 1 ? 'i' : 's'} laiks${slots.length > 1 ? 'i' : ''}` : 'Nav pieejamu laiku'}
 										>
-											<div className="text-xs lg:text-sm font-medium mb-1">{day}</div>
-											{hasSlots && !isPast && (
-												<div className="text-xs text-green-600">
-													{slots.length} laiks{slots.length > 1 ? 'i' : ''}
-												</div>
-											)}
-											{isPast && (
-												<div className="text-xs text-gray-400">
-													Pagājis
-												</div>
-											)}
+											<div className="text-xs lg:text-sm font-medium">{day}</div>
 										</div>
 									)
 								})}
 							</div>
 							
-							{/* Navigation Help */}
-							<div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-								<p className="text-sm text-blue-800 text-center">
-									💡 <strong>Padoms:</strong> Izmantojiet bultas (← →) lai pārvietotos starp mēnešiem un atrastu pieejamos laikus nākotnē!
-								</p>
-							</div>
-						</div>
-					</div>
-
-					{/* Available Slots */}
-					<div className="lg:col-span-1 order-1 lg:order-2">
-						<div className="bg-white rounded-2xl shadow-xl p-4 lg:p-6">
-							<h3 className="text-lg lg:text-xl font-bold text-black mb-4">
-								Pieejamie laiki
-							</h3>
-							
-							{/* Selected Date Display */}
+							{/* Selected Date Time Slots */}
 							{selectedDay && (
-								<div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-									<p className="text-sm text-yellow-800 font-medium">
-										📅 Izvēlētais datums: {selectedDay}. {getMonthName(selectedDate)} {selectedDate.getFullYear()}
-									</p>
-								</div>
-							)}
-							
-							
-							{/* Teacher Filter */}
-							{teachers.length > 0 && (
-								<div className="mb-6">
-									<label className="block text-sm font-medium text-gray-700 mb-2">
-										Filtrēt pēc pasniedzēja:
-									</label>
-									<select
-										value={selectedTeacher || ''}
-										onChange={(e) => setSelectedTeacher(e.target.value || null)}
-										className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-sm lg:text-base"
-									>
-										<option value="">Visi pasniedzēji</option>
-										{teachers.map(teacher => (
-											<option key={teacher.id} value={teacher.id}>
-												{teacher.name}
-											</option>
-										))}
-									</select>
-								</div>
-							)}
-
-							{/* Time Slots List */}
-							<div className="space-y-3">
-								{timeSlots
-									.filter(slot => !selectedTeacher || slot.teacherId === selectedTeacher)
-									.filter(slot => slot.available)
-									.map(slot => (
-										<div key={slot.id} className="border border-gray-200 rounded-lg p-3 hover:border-yellow-400 transition-colors">
-											<div className="space-y-2 mb-3">
-												<div>
-													<h4 className="font-semibold text-black text-sm lg:text-base">{slot.teacherName}</h4>
-													<p className="text-xs lg:text-sm text-gray-600">{slot.subject}</p>
-													{slot.teacherDescription && (
-														<p className="text-xs text-gray-500 mt-1">{slot.teacherDescription}</p>
-													)}
+								<div className="mt-6 p-4 bg-white border border-gray-200 rounded-lg">
+									<h3 className="text-lg font-semibold text-black mb-4">
+										Pieejamie laiki - {selectedDay}. {getMonthName(selectedDate)} {selectedDate.getFullYear()}
+									</h3>
+									
+									{(() => {
+										const slots = getSlotsForDate(selectedDay)
+										const availableSlots = slots.filter(slot => slot.available)
+										
+										if (availableSlots.length === 0) {
+											return (
+												<div className="text-center py-8 text-gray-500">
+													<p>Nav pieejamu laiku šajā datumā</p>
 												</div>
-												<span className="text-xs lg:text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
-													{slot.duration} min
-												</span>
+											)
+										}
+
+										return (
+											<div className="space-y-3">
+												{availableSlots.map(slot => (
+													<div key={slot.id} className="border border-gray-200 rounded-lg p-4 hover:border-yellow-400 transition-colors">
+														<div className="flex items-start justify-between">
+															<div className="flex-1">
+																<div className="flex items-center gap-3 mb-2">
+																	<h4 className="font-semibold text-black">{slot.teacherName}</h4>
+																</div>
+																<p className="text-sm text-gray-600 mb-1">{slot.subject}</p>
+																{slot.teacherDescription && (
+																	<p className="text-xs text-gray-500 mb-2">{slot.teacherDescription}</p>
+																)}
+																<div className="text-lg font-bold text-yellow-600">
+																	{slot.time}
+																</div>
+															</div>
+															<div className="ml-4">
+																{userRole === 'admin' || userRole === 'worker' ? (
+																	<div className="text-sm text-gray-500 italic">
+																		Pasniedzēja laiks
+																	</div>
+																) : userRole === 'user' ? (
+																	<button 
+																		onClick={() => {
+																			alert(`Rezervācija veiksmīga!\n\nStunda: ${slot.teacherName}\nDatums: ${new Date(slot.date).toLocaleDateString('lv-LV')}\nLaiks: ${slot.time}\nTēma: ${slot.subject}`)
+																		}}
+																		className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg transition-colors"
+																	>
+																		Rezervēt
+																	</button>
+																) : (
+																	<div className="flex flex-col gap-2">
+																		<div className="text-sm text-gray-500 italic">
+																			Reģistrācija nepieciešama rezervācijai
+																		</div>
+																		<button 
+																			onClick={() => {
+																				window.location.href = '/?open=register'
+																			}}
+																			className="bg-blue-400 hover:bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
+																		>
+																			Reģistrēties
+																		</button>
+																	</div>
+																)}
+															</div>
+														</div>
+													</div>
+												))}
 											</div>
-											<div className="space-y-2">
-												<span className="text-base lg:text-lg font-bold text-yellow-600 block">
-													{new Date(slot.date).toLocaleDateString('lv-LV')} {slot.time}
-												</span>
-												<button 
-													onClick={() => handleBookSlot(slot)}
-													className="w-full bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg transition-colors text-sm lg:text-base"
-												>
-													{userRole ? 'Rezervēt' : 'Rezervēt (reģistrācija ieteicama)'}
-												</button>
-											</div>
-										</div>
-									))}
-								
-								{timeSlots.filter(slot => !selectedTeacher || slot.teacherId === selectedTeacher).filter(slot => slot.available).length === 0 && (
-									<div className="text-center py-8 text-gray-500">
-										{teachers.length === 0 ? 'Nav pievienotu pasniedzēju' : 'Nav pieejamu laiku šajā periodā'}
-									</div>
-								)}
-							</div>
+										)
+									})()}
+								</div>
+							)}
 						</div>
 					</div>
+
 				</div>
 			</div>
 		</div>

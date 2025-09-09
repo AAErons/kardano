@@ -35,6 +35,83 @@ async function getClient(): Promise<any> {
   return _client
 }
 
+async function generateTimeSlotsFromAvailability(db: any, userId: string, availability: any[]) {
+  if (!availability || availability.length === 0) return
+
+  const teacher = await db.collection('teachers').findOne({ userId })
+  if (!teacher) return
+
+  const teacherName = teacher.firstName && teacher.lastName 
+    ? `${teacher.firstName} ${teacher.lastName}`.trim()
+    : 'Pasniedzējs'
+
+  const timeSlots: any[] = []
+  const today = new Date()
+  
+  // Generate slots for the next 90 days
+  for (let i = 0; i < 90; i++) {
+    const date = new Date(today)
+    date.setDate(today.getDate() + i)
+    const dateStr = date.toISOString().split('T')[0] // YYYY-MM-DD format
+    const dayOfWeek = String(date.getDay() === 0 ? 7 : date.getDay()) // Convert Sunday=0 to Sunday=7
+    
+    // Check if teacher is available on this day
+    for (const avail of availability) {
+      if (avail.type === 'weekly' && avail.weekdays) {
+        // Check if this day of week is in the availability
+        const isAvailableOnThisDay = avail.weekdays.includes(dayOfWeek)
+        
+        if (isAvailableOnThisDay) {
+          // Check date range
+          const startDate = avail.fromDate
+          const endDate = avail.until
+          
+          if (startDate && dateStr < startDate) continue
+          if (endDate && dateStr > endDate) continue
+          
+          // Generate hourly slots between start and end time
+          const startHour = parseInt(avail.from?.split(':')[0] || '9')
+          const endHour = parseInt(avail.to?.split(':')[0] || '17')
+          
+          console.log('[teacher-profile] Processing availability:', {
+            from: avail.from,
+            to: avail.to,
+            startHour,
+            endHour,
+            weekdays: avail.weekdays
+          })
+          
+          for (let hour = startHour; hour < endHour; hour++) {
+            const timeStr = `${String(hour).padStart(2, '0')}:00`
+            
+            timeSlots.push({
+              teacherId: userId,
+              teacherName: teacherName,
+              teacherDescription: teacher.description || '',
+              date: dateStr,
+              time: timeStr,
+              duration: 45, // Fixed 45 minutes
+              subject: 'Matemātika',
+              available: true,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            })
+          }
+        }
+      }
+    }
+  }
+  
+  // Remove existing time slots for this teacher
+  await db.collection('time_slots').deleteMany({ teacherId: userId })
+  
+  // Insert new time slots
+  if (timeSlots.length > 0) {
+    await db.collection('time_slots').insertMany(timeSlots)
+    console.log('[teacher-profile] Generated %d time slots for teacher %s', timeSlots.length, userId)
+  }
+}
+
 export default async function handler(req: any, res: any) {
   try {
     const client = await getClient()
@@ -136,6 +213,16 @@ export default async function handler(req: any, res: any) {
       } catch (e) {
         console.warn('[teacher-profile] failed to create notification', e)
       }
+
+      // Generate time slots from availability
+      try {
+        console.log('[teacher-profile] Generating time slots for teacher', userId)
+        console.log('[teacher-profile] Availability data:', JSON.stringify(availability, null, 2))
+        await generateTimeSlotsFromAvailability(db, userId, availability || [])
+      } catch (e) {
+        console.warn('[teacher-profile] failed to generate time slots', e)
+      }
+
       return res.status(200).json({ ok: true })
     }
 
