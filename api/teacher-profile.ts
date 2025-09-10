@@ -47,64 +47,69 @@ async function generateTimeSlotsFromAvailability(db: any, userId: string, availa
 
   const timeSlots: any[] = []
   const today = new Date()
-  
+
+  const coerceWeekdaysToStrings = (weekdays: any): string[] => {
+    if (!Array.isArray(weekdays)) return []
+    return weekdays.map((d: any) => String(d))
+  }
+
+  // Expand a rule into discrete hourly slots for a given date
+  const expandRuleForDate = (rule: any, dateStr: string) => {
+    const startHour = parseInt(rule.from?.split(':')[0] || '9')
+    const endHour = parseInt(rule.to?.split(':')[0] || '17')
+    for (let hour = startHour; hour < endHour; hour++) {
+      const timeStr = `${String(hour).padStart(2, '0')}:00`
+      timeSlots.push({
+        teacherId: userId,
+        teacherName: teacherName,
+        teacherDescription: teacher.description || '',
+        date: dateStr,
+        time: timeStr,
+        duration: 45,
+        subject: 'Matemātika',
+        available: true,
+        lessonType: rule.lessonType || 'individual',
+        location: rule.location || 'facility',
+        modality: rule.modality || 'in_person',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+    }
+  }
+
   // Generate slots for the next 90 days
   for (let i = 0; i < 90; i++) {
     const date = new Date(today)
     date.setDate(today.getDate() + i)
     const dateStr = date.toISOString().split('T')[0] // YYYY-MM-DD format
-    const dayOfWeek = String(date.getDay() === 0 ? 7 : date.getDay()) // Convert Sunday=0 to Sunday=7
-    
-    // Check if teacher is available on this day
-    for (const avail of availability) {
-      if (avail.type === 'weekly' && avail.weekdays) {
-        // Check if this day of week is in the availability
-        const isAvailableOnThisDay = avail.weekdays.includes(dayOfWeek)
-        
-        if (isAvailableOnThisDay) {
-          // Check date range
-          const startDate = avail.fromDate
-          const endDate = avail.until
-          
-          if (startDate && dateStr < startDate) continue
-          if (endDate && dateStr > endDate) continue
-          
-          // Generate hourly slots between start and end time
-          const startHour = parseInt(avail.from?.split(':')[0] || '9')
-          const endHour = parseInt(avail.to?.split(':')[0] || '17')
-          
-          console.log('[teacher-profile] Processing availability:', {
-            from: avail.from,
-            to: avail.to,
-            startHour,
-            endHour,
-            weekdays: avail.weekdays
-          })
-          
-          for (let hour = startHour; hour < endHour; hour++) {
-            const timeStr = `${String(hour).padStart(2, '0')}:00`
-            
-            timeSlots.push({
-              teacherId: userId,
-              teacherName: teacherName,
-              teacherDescription: teacher.description || '',
-              date: dateStr,
-              time: timeStr,
-              duration: 45, // Fixed 45 minutes
-              subject: 'Matemātika',
-              available: true,
-              createdAt: new Date(),
-              updatedAt: new Date()
-            })
-          }
-        }
-      }
+    const dayOfWeek = String(date.getDay() === 0 ? 7 : date.getDay()) // 1..7, Monday=1
+
+    // Prefer specific-day overrides
+    const specificRules = availability.filter((a: any) => a?.type === 'specific' && a?.date === dateStr)
+    if (specificRules.length) {
+      specificRules.forEach((rule: any) => expandRuleForDate(rule, dateStr))
+      continue
+    }
+
+    // Fall back to weekly rules within optional date range
+    const weeklyRules = availability.filter((a: any) => a?.type === 'weekly' && Array.isArray(a?.weekdays))
+    for (const rule of weeklyRules) {
+      const ruleDays = coerceWeekdaysToStrings(rule.weekdays)
+      const isAvailableOnThisDay = ruleDays.includes(dayOfWeek)
+      if (!isAvailableOnThisDay) continue
+
+      const startDate = rule.fromDate
+      const endDate = rule.until
+      if (startDate && dateStr < startDate) continue
+      if (endDate && dateStr > endDate) continue
+
+      expandRuleForDate(rule, dateStr)
     }
   }
-  
+
   // Remove existing time slots for this teacher
   await db.collection('time_slots').deleteMany({ teacherId: userId })
-  
+
   // Insert new time slots
   if (timeSlots.length > 0) {
     await db.collection('time_slots').insertMany(timeSlots)

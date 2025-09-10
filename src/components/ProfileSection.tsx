@@ -454,6 +454,47 @@ const UserDashboard = (_props: { workers: Worker[]; userAppointments: Appointmen
 }
 
 const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isActive: boolean; onEdit: () => void }) => {
+	const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+	const [selectedDay, setSelectedDay] = useState<number | null>(null)
+	const [slots, setSlots] = useState<Array<any>>([])
+	const teacherId = String(profile?.userId || profile?.id || '')
+
+	useEffect(() => {
+		const load = async () => {
+			try {
+				const r = await fetch('/api/time-slots')
+				if (!r.ok) return
+				const d = await r.json().catch(() => null)
+				if (d && d.success && Array.isArray(d.timeSlots)) {
+					const mine = d.timeSlots.filter((s: any) => String(s.teacherId) === teacherId)
+					setSlots(mine)
+				}
+			} catch {}
+		}
+		if (teacherId) load()
+	}, [teacherId])
+
+	const getDaysInMonth = (date: Date) => {
+		const year = date.getFullYear()
+		const month = date.getMonth()
+		const firstDay = new Date(year, month, 1)
+		const lastDay = new Date(year, month + 1, 0)
+		const daysInMonth = lastDay.getDate()
+		const startingDay = (firstDay.getDay() + 6) % 7
+		return { daysInMonth, startingDay }
+	}
+
+	const getSlotsForDate = (dateStr: string) => {
+		return (slots || []).filter((s: any) => s?.date === dateStr)
+	}
+
+	const hasSlotsOn = (y: number, m: number, day: number) => {
+		const ds = `${y}-${String(m + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+		return getSlotsForDate(ds).length > 0
+	}
+
+	const { daysInMonth, startingDay } = getDaysInMonth(selectedDate)
+
 	return (
 		<div className="space-y-6">
 			<div className="bg-white rounded-2xl shadow p-6 space-y-4">
@@ -474,16 +515,64 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 						<div className="text-sm text-gray-700 whitespace-pre-line">{profile.description || '—'}</div>
 					</div>
 				</div>
-				<div>
-					<div className="font-semibold text-black mb-2">Pieejamie laiki</div>
-					{(profile.availability || []).length > 0 ? (
-						<div className="space-y-1 text-sm text-gray-700">
-							{profile.availability.map((a: any, idx: number) => (
-								<div key={idx}>{a.type === 'specific' ? `Diena ${a.date}` : `Dienas: ${(a.weekdays||[]).join(',')}`} • {a.from}-{a.to} {a.until ? `(līdz ${a.until})` : ''}</div>
-							))}
+
+				<div className="space-y-3">
+					<div className="flex items-center justify-between">
+						<button onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1))} className="p-2 hover:bg-gray-100 rounded-lg">←</button>
+						<div className="font-semibold text-black">{selectedDate.toLocaleString('lv-LV', { month: 'long' })} {selectedDate.getFullYear()}</div>
+						<button onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1))} className="p-2 hover:bg-gray-100 rounded-lg">→</button>
+					</div>
+					<div className="grid grid-cols-7 gap-1 text-center text-xs text-gray-600">
+						{['P','O','T','C','Pk','S','Sv'].map((d,i) => <div key={i} className="py-1 font-medium">{d}</div>)}
+					</div>
+					<div className="grid grid-cols-7 gap-1">
+						{Array.from({ length: startingDay }, (_, i) => <div key={`e-${i}`} className="h-10"></div>)}
+						{Array.from({ length: daysInMonth }, (_, i) => {
+							const day = i + 1
+							const has = hasSlotsOn(selectedDate.getFullYear(), selectedDate.getMonth(), day)
+							const isSel = selectedDay === day
+							return (
+								<div key={day} className={`h-10 border rounded ${isSel ? 'bg-yellow-400 text-black font-bold' : has ? 'bg-green-50 hover:bg-green-100' : 'bg-gray-50'}`} onClick={() => { setSelectedDay(day) }}>
+									<div className="text-[11px] pt-1">{day}</div>
+								</div>
+							)
+						})}
+					</div>
+
+					{selectedDay && (
+						<div className="mt-2 border-t pt-3">
+							{(() => {
+								const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`
+								const items = getSlotsForDate(dateStr)
+								if (!items.length) return <div className="text-sm text-gray-500">Šajā dienā nav pieejamu stundu</div>
+								return (
+									<div className="space-y-1">
+										{items.map((s: any) => {
+											const typeLabel = s?.lessonType === 'group' ? 'Grupu' : 'Individuāla'
+											const locLabel = s?.location === 'teacher' ? 'Privāti' : 'Uz vietas'
+											const modLabel = s?.modality === 'zoom' ? 'Zoom' : 'Klātienē'
+											const bookedBy = s?.studentName || s?.userName || s?.bookedByName || null
+											const isFree = Boolean(s?.available)
+											return (
+												<div key={s.id} className={`text-sm px-2 py-1 rounded border ${isFree ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white'}`}>
+													<div className="flex flex-wrap items-center gap-2">
+														<span className="font-medium text-black mr-2">{s.time}</span>
+														<span className="px-2 py-0.5 rounded-full border border-gray-200 text-gray-700">{typeLabel}</span>
+														<span className="px-2 py-0.5 rounded-full border border-gray-200 text-gray-700">{locLabel}</span>
+														<span className="px-2 py-0.5 rounded-full border border-gray-200 text-gray-700">{modLabel}</span>
+														{isFree ? (
+															<span className="ml-auto text-green-700">Pieejams</span>
+														) : (
+															<span className="ml-auto text-gray-700">Rezervēts{bookedBy ? ` – ${bookedBy}` : ''}</span>
+														)}
+													</div>
+												</div>
+											)
+										})}
+									</div>
+								)
+							})()}
 						</div>
-					) : (
-						<div className="text-sm text-gray-500">Nav norādīts</div>
 					)}
 				</div>
 			</div>
@@ -1086,92 +1175,152 @@ const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescriptio
 	const [firstName, setFirstName] = useState<string>(initialFirstName || '')
 	const [lastName, setLastName] = useState<string>(initialLastName || '')
 	const [saving, setSaving] = useState(false)
-	
-	// New availability state structure
-	const [weeklySchedule, setWeeklySchedule] = useState<Record<string, { enabled: boolean; startHour: string; endHour: string }>>({
-		'1': { enabled: false, startHour: '09:00', endHour: '17:00' }, // Monday
-		'2': { enabled: false, startHour: '09:00', endHour: '17:00' }, // Tuesday
-		'3': { enabled: false, startHour: '09:00', endHour: '17:00' }, // Wednesday
-		'4': { enabled: false, startHour: '09:00', endHour: '17:00' }, // Thursday
-		'5': { enabled: false, startHour: '09:00', endHour: '17:00' }, // Friday
-		'6': { enabled: false, startHour: '09:00', endHour: '17:00' }, // Saturday
-		'7': { enabled: false, startHour: '09:00', endHour: '17:00' }, // Sunday
-	})
+	const [scheduleTab, setScheduleTab] = useState<'weekly'|'specific'>('weekly')
+
+	// Hour-by-hour weekly schedule with options per hour
+	type HourKey = `${string}:${string}`
+	type HourOpts = { enabled: boolean; lessonType: 'individual' | 'group'; location: 'facility' | 'teacher'; modality: 'in_person' | 'zoom' }
+	const hourKeys: HourKey[] = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00` as HourKey)
+	const createDefaultDay = (): Record<HourKey, HourOpts> => hourKeys.reduce((acc, h) => {
+		acc[h] = { enabled: false, lessonType: 'individual', location: 'facility', modality: 'in_person' }
+		return acc
+	}, {} as Record<HourKey, HourOpts>)
+	const [weeklyHours, setWeeklyHours] = useState<Record<string, Record<HourKey, HourOpts>>>(() => ({
+		'1': createDefaultDay(),
+		'2': createDefaultDay(),
+		'3': createDefaultDay(),
+		'4': createDefaultDay(),
+		'5': createDefaultDay(),
+		'6': createDefaultDay(),
+		'7': createDefaultDay()
+	}))
+	const [openDay, setOpenDay] = useState<string | null>(null)
+
 	const [endDate, setEndDate] = useState<string>('')
 	const [startDate, setStartDate] = useState<string>('')
+
+	// Specific-day overrides (hour-by-hour per chosen calendar date)
+	const [overrideDate, setOverrideDate] = useState<string>('')
+	const [overrides, setOverrides] = useState<Record<string, Record<HourKey, HourOpts>>>({})
+
+	const toggleOverrideHour = (date: string, hour: HourKey, enabled: boolean) => {
+		setOverrides(prev => {
+			const day = prev[date] ? { ...prev[date] } : createDefaultDay()
+			day[hour] = { ...(day[hour] || { enabled: false, lessonType: 'individual', location: 'facility', modality: 'in_person' }), enabled }
+			return { ...prev, [date]: day }
+		})
+	}
+	const updateOverrideHourOpt = (date: string, hour: HourKey, field: 'lessonType'|'location'|'modality', value: any) => {
+		setOverrides(prev => {
+			const day = prev[date] ? { ...prev[date] } : createDefaultDay()
+			day[hour] = { ...(day[hour] || { enabled: false, lessonType: 'individual', location: 'facility', modality: 'in_person' }), [field]: value }
+			return { ...prev, [date]: day }
+		})
+	}
 
 	// Initialize from existing availability data
 	useEffect(() => {
 		if (initialAvailability && initialAvailability.length > 0) {
-			const newSchedule = { ...weeklySchedule }
-			let newEndDate = ''
-			let newStartDate = ''
-			
+			const draft: Record<string, Record<HourKey, HourOpts>> = {
+				'1': createDefaultDay(), '2': createDefaultDay(), '3': createDefaultDay(), '4': createDefaultDay(), '5': createDefaultDay(), '6': createDefaultDay(), '7': createDefaultDay()
+			}
+			const draftOverrides: Record<string, Record<HourKey, HourOpts>> = {}
+			let newEnd = ''
+			let newStart = ''
 			initialAvailability.forEach((avail: any) => {
-				if (avail.type === 'weekly' && avail.weekdays) {
-					avail.weekdays.forEach((day: string) => {
-						if (newSchedule[day]) {
-							newSchedule[day] = {
+				const days = Array.isArray(avail.weekdays) ? avail.weekdays : []
+				const from = (avail.from || '00:00') as HourKey
+				const to = (avail.to || '01:00') as HourKey
+				days.forEach((d: string) => {
+					if (draft[d]) {
+						const fromHour = Number(from.slice(0,2))
+						const toHour = Math.max(fromHour + 1, Number(to.slice(0,2)))
+						for (let h = fromHour; h < toHour; h++) {
+							const key = `${String(h).padStart(2,'0')}:00` as HourKey
+							draft[d][key] = {
 								enabled: true,
-								startHour: avail.from || '09:00',
-								endHour: avail.to || '17:00'
+								lessonType: avail.lessonType || 'individual',
+								location: avail.location || 'facility',
+								modality: avail.modality || 'in_person'
 							}
 						}
-					})
+					}
+				})
+				if (avail?.type === 'specific' && typeof avail?.date === 'string' && avail.date) {
+					const dateStr = avail.date
+					const fromHour = Number(from.slice(0,2))
+					const toHour = Math.max(fromHour + 1, Number(to.slice(0,2)))
+					const day = draftOverrides[dateStr] ? { ...draftOverrides[dateStr] } : createDefaultDay()
+					for (let h = fromHour; h < toHour; h++) {
+						const key = `${String(h).padStart(2,'0')}:00` as HourKey
+						day[key] = {
+							enabled: true,
+							lessonType: avail.lessonType || 'individual',
+							location: avail.location || 'facility',
+							modality: avail.modality || 'in_person'
+						}
+					}
+					draftOverrides[dateStr] = day
 				}
-				if (avail.until) {
-					newEndDate = avail.until
-				}
-				if (avail.fromDate) {
-					newStartDate = avail.fromDate
-				}
+				if (avail.until) newEnd = avail.until
+				if (avail.fromDate) newStart = avail.fromDate
 			})
-			
-			setWeeklySchedule(newSchedule)
-			setEndDate(newEndDate)
-			setStartDate(newStartDate)
+			setWeeklyHours(draft)
+			setOverrides(draftOverrides)
+			setEndDate(newEnd)
+			setStartDate(newStart)
 		}
 	}, [initialAvailability])
 
 	const dayNames = ['Pirmdiena', 'Otrdiena', 'Trešdiena', 'Ceturtdiena', 'Piektdiena', 'Sestdiena', 'Svētdiena']
 
-	const updateDaySchedule = (day: string, field: 'enabled' | 'startHour' | 'endHour', value: string | boolean) => {
-		setWeeklySchedule(prev => ({
-			...prev,
-			[day]: {
-				...prev[day],
-				[field]: value
-			}
-		}))
+	const toggleHour = (day: string, hour: HourKey, enabled: boolean) => {
+		setWeeklyHours(prev => ({ ...prev, [day]: { ...prev[day], [hour]: { ...prev[day][hour], enabled } } }))
+	}
+	const updateHourOpt = (day: string, hour: HourKey, field: 'lessonType'|'location'|'modality', value: any) => {
+		setWeeklyHours(prev => ({ ...prev, [day]: { ...prev[day], [hour]: { ...prev[day][hour], [field]: value } } }))
 	}
 
 	const generateAvailabilityData = () => {
-		const enabledDays = Object.entries(weeklySchedule)
-			.filter(([_, schedule]) => schedule.enabled)
-			.map(([day, schedule]) => ({ day, ...schedule }))
-
-		if (enabledDays.length === 0) return []
-
-		// Group days with same hours
-		const groupedByHours: Record<string, string[]> = {}
-		enabledDays.forEach(({ day, startHour, endHour }) => {
-			const key = `${startHour}-${endHour}`
-			if (!groupedByHours[key]) groupedByHours[key] = []
-			groupedByHours[key].push(day)
+		const out: any[] = []
+		Object.entries(weeklyHours).forEach(([day, hours]) => {
+			hourKeys.forEach((h, idx) => {
+				const o = hours[h]
+				if (o?.enabled) {
+					const nextHour = `${String((Number(h.slice(0,2)) + 1) % 24).padStart(2,'0')}:00`
+					out.push({
+						type: 'weekly',
+						weekdays: [day],
+						from: h,
+						to: nextHour,
+						fromDate: startDate || null,
+						until: endDate || null,
+						lessonType: o.lessonType,
+						location: o.location,
+						modality: o.modality
+					})
+				}
+			})
 		})
-
-		// Convert to availability format
-		return Object.entries(groupedByHours).map(([hours, days]) => {
-			const [startHour, endHour] = hours.split('-')
-			return {
-				type: 'weekly',
-				weekdays: days,
-				from: startHour, // This is already in "HH:00" format
-				to: endHour,    // This is already in "HH:00" format
-				fromDate: startDate || null,
-				until: endDate || null
-			}
+		// Specific-day overrides
+		Object.entries(overrides).forEach(([dateStr, hours]) => {
+			hourKeys.forEach((h) => {
+				const o = hours[h]
+				if (o?.enabled) {
+					const nextHour = `${String((Number(h.slice(0,2)) + 1) % 24).padStart(2,'0')}:00`
+					out.push({
+						type: 'specific',
+						date: dateStr,
+						from: h,
+						to: nextHour,
+						lessonType: o.lessonType,
+						location: o.location,
+						modality: o.modality
+					})
+				}
+			})
 		})
+		return out
 	}
 
 	const onPhotoSelect = (file: File) => {
@@ -1215,119 +1364,179 @@ const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescriptio
 		}
 	}
 
+	// Build baseline overrides for a given date from weekly settings (so weekly data is visible by default)
+	const buildBaselineForDate = (dateStr: string): Record<HourKey, HourOpts> => {
+		const baseline = createDefaultDay()
+		try {
+			if (!dateStr) return baseline
+			const d = new Date(dateStr)
+			if (isNaN(d.getTime())) return baseline
+			const jsWeekDay = d.getDay() // 0..6, where Mon=1
+			const dayIdx = ((jsWeekDay + 6) % 7) + 1 // 1..7 Mon..Sun
+			const weekly = weeklyHours[String(dayIdx)]
+			if (weekly) {
+				hourKeys.forEach(h => {
+					const w = weekly[h]
+					if (w?.enabled) {
+						baseline[h] = { enabled: true, lessonType: w.lessonType, location: w.location, modality: w.modality }
+					}
+				})
+			}
+		} catch {}
+		return baseline
+	}
+
+	// When user selects a date, seed overrides for that date from weekly if none exists
+	useEffect(() => {
+		if (!overrideDate) return
+		setOverrides(prev => {
+			if (prev[overrideDate]) return prev
+			return { ...prev, [overrideDate]: buildBaselineForDate(overrideDate) }
+		})
+	}, [overrideDate])
+
 	return (
 		<div className="space-y-6">
-			<div className="bg-white rounded-2xl shadow p-6">
-				<h2 className="text-2xl font-bold text-black mb-4">Pasniedzēja profils</h2>
-				<div className="grid md:grid-cols-3 gap-3">
-					<input className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Vārds" value={firstName} onChange={e => setFirstName(e.target.value)} />
-					<input className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Uzvārds" value={lastName} onChange={e => setLastName(e.target.value)} />
-					<label className="md:col-span-1 cursor-pointer bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium py-2 px-3 rounded-lg inline-block">
-						Augšupielādēt foto
-						<input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) onPhotoSelect(f) }} />
-					</label>
-					{photo && <img src={photo} alt="Foto" className="w-24 h-24 rounded-full object-cover border-2 border-yellow-200" />}
-					<textarea className="md:col-span-2 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" rows={4} placeholder="Apraksts" value={description} onChange={e => setDescription(e.target.value)} />
-							</div>
-						</div>
-
-			<div className="bg-white rounded-2xl shadow p-6">
-				<h3 className="text-lg font-semibold text-black mb-4">Darba grafiks</h3>
-				
-				{/* Weekly Schedule */}
-				<div className="space-y-3 mb-6">
-					{Object.entries(weeklySchedule).map(([dayNum, schedule]) => (
-						<div key={dayNum} className="flex items-center gap-4 p-3 border border-gray-200 rounded-lg">
-							<div className="flex items-center gap-2 min-w-[120px]">
-								<input
-									type="checkbox"
-									checked={schedule.enabled}
-									onChange={(e) => updateDaySchedule(dayNum, 'enabled', e.target.checked)}
-									className="w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
-								/>
-								<span className="text-sm font-medium text-gray-700">
-									{dayNames[parseInt(dayNum) - 1]}
-								</span>
-							</div>
-							
-							{schedule.enabled && (
-								<div className="flex items-center gap-2">
-									<span className="text-sm text-gray-600">No:</span>
-									<select
-										value={schedule.startHour}
-										onChange={(e) => updateDaySchedule(dayNum, 'startHour', e.target.value)}
-										className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-									>
-										{Array.from({ length: 24 }, (_, i) => {
-											const hour = String(i).padStart(2, '0')
-											return (
-												<option key={hour} value={`${hour}:00`}>{hour}:00</option>
-											)
-										})}
-									</select>
-									<span className="text-sm text-gray-600">Līdz:</span>
-									<select
-										value={schedule.endHour}
-										onChange={(e) => updateDaySchedule(dayNum, 'endHour', e.target.value)}
-										className="p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-									>
-										{Array.from({ length: 24 }, (_, i) => {
-											const hour = String(i).padStart(2, '0')
-											return (
-												<option key={hour} value={`${hour}:00`}>{hour}:00</option>
-											)
-										})}
-									</select>
-								</div>
-							)}
-						</div>
-					))}
-				</div>
-
-				{/* Date Range */}
-				<div className="border-t border-gray-200 pt-4">
-					<div className="grid md:grid-cols-2 gap-4">
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-2">
-								Sākuma datums (neobligāti)
-							</label>
-							<input
-								type="date"
-								value={startDate}
-								onChange={(e) => setStartDate(e.target.value)}
-								className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent w-full"
-							/>
-							<p className="text-xs text-gray-500 mt-1">
-								No šī datuma sāksies jūsu pieejamība
-							</p>
-						</div>
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-2">
-								Beigu datums (neobligāti)
-							</label>
-							<input
-								type="date"
-								value={endDate}
-								onChange={(e) => setEndDate(e.target.value)}
-								className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent w-full"
-							/>
-							<p className="text-xs text-gray-500 mt-1">
-								Pēc šī datuma jūs vairs nebūsiet pieejams jaunām rezervācijām
-							</p>
-						</div>
+			<div className="bg-white rounded-2xl shadow p-6 space-y-6">
+				{/* Basic Info */}
+				<div className="grid md:grid-cols-2 gap-4">
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">Vārds</label>
+						<input value={firstName} onChange={e => setFirstName(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Vārds" />
+					</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">Uzvārds</label>
+						<input value={lastName} onChange={e => setLastName(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Uzvārds" />
+					</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">Foto</label>
+						<input type="file" accept="image/*" onChange={e => { const f = e.target.files && e.target.files[0]; if (f) onPhotoSelect(f) }} className="w-full p-2 border border-gray-300 rounded-lg" />
+						{photo && <div className="mt-2"><img src={photo} alt="Priekšskatījums" className="w-20 h-20 rounded-full object-cover border-2 border-yellow-200" /></div>}
+					</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">Apraksts</label>
+						<textarea value={description} onChange={e => setDescription(e.target.value)} rows={4} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Par sevi, pieredze, pieejamība..." />
 					</div>
 				</div>
-			</div>
 
-			<div className="flex gap-2">
-				<button 
-					disabled={saving} 
-					className="bg-green-500 hover:bg-green-600 disabled:opacity-70 text-white font-semibold py-2 px-4 rounded-lg" 
-					onClick={handleSave}
-				>
-					{saving ? 'Saglabā...' : 'Saglabāt profilu'}
-				</button>
-				<button className="border border-gray-300 px-4 py-2 rounded-lg" onClick={onFinished}>Pagaidām izlaist</button>
+				{/* Schedule Tabs */}
+				<div className="flex gap-2">
+					<button type="button" onClick={() => setScheduleTab('weekly')} className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${scheduleTab === 'weekly' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Ik nedēļas grafiks</button>
+					<button type="button" onClick={() => setScheduleTab('specific')} className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${scheduleTab === 'specific' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Noteiktas dienas grafiks</button>
+				</div>
+
+				{/* Weekly schedule */}
+				{scheduleTab === 'weekly' && (
+					<>
+						<div className="space-y-3 mb-6">
+							{(['1','2','3','4','5','6','7'] as const).map((day) => (
+								<div key={day} className="border border-gray-200 rounded-lg">
+									<button type="button" className="w-full text-left p-3 flex items-center justify-between" onClick={() => setOpenDay(prev => prev === day ? null : day)}>
+										<span className="font-medium text-gray-800">{dayNames[Number(day)-1]}</span>
+										<span className="text-gray-500 text-sm">{Object.values(weeklyHours[day]).filter(o => o.enabled).length} h izvēlētas</span>
+									</button>
+									{openDay === day && (
+										<div className="p-3 border-t grid md:grid-cols-2 gap-2">
+											{hourKeys.map((h) => {
+												const o = weeklyHours[day][h]
+												return (
+													<div key={h} className="flex items-center gap-2 p-2 border border-gray-200 rounded-md">
+														<label className="flex items-center gap-2 min-w-[64px]">
+															<input type="checkbox" checked={o.enabled} onChange={e => toggleHour(day, h, e.target.checked)} />
+															<span className="text-sm text-gray-700">{h}</span>
+														</label>
+														{o.enabled && (
+															<div className="flex flex-wrap items-center gap-2">
+																<select value={o.lessonType} onChange={e => updateHourOpt(day, h, 'lessonType', e.target.value)} className="p-1 border border-gray-300 rounded text-xs">
+																	<option value="individual">Individuāla</option>
+																	<option value="group">Grupu</option>
+																</select>
+																<select value={o.location} onChange={e => updateHourOpt(day, h, 'location', e.target.value)} className="p-1 border border-gray-300 rounded text-xs">
+																	<option value="facility">Uz vietas</option>
+																	<option value="teacher">Privāti</option>
+																</select>
+																<select value={o.modality} onChange={e => updateHourOpt(day, h, 'modality', e.target.value)} className="p-1 border border-gray-300 rounded text-xs">
+																	<option value="in_person">Klātienē</option>
+																	<option value="zoom">Zoom</option>
+																</select>
+															</div>
+														)}
+													</div>
+												)
+											})}
+										</div>
+									)}
+								</div>
+							))}
+						</div>
+						{/* Date Range */}
+						<div className="border-t border-gray-200 pt-4">
+							<div className="grid md:grid-cols-2 gap-4">
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-2">Sākuma datums (neobligāti)</label>
+									<input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent w-full" />
+									<p className="text-xs text-gray-500 mt-1">No šī datuma sāksies jūsu pieejamība</p>
+								</div>
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-2">Beigu datums (neobligāti)</label>
+									<input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent w-full" />
+									<p className="text-xs text-gray-500 mt-1">Pēc šī datuma jūs vairs nebūsiet pieejams jaunām rezervācijām</p>
+								</div>
+							</div>
+						</div>
+					</>
+				)}
+
+				{/* Specific-day schedule */}
+				{scheduleTab === 'specific' && (
+					<div className="space-y-4">
+						<div className="grid md:grid-cols-2 gap-4">
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">Izvēlieties datumu</label>
+								<input type="date" value={overrideDate} onChange={e => setOverrideDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
+								<p className="text-xs text-gray-500 mt-1">Ja šai dienai nav iestatījumu, tie tiks aizpildīti no iknedēļas grafika</p>
+							</div>
+						</div>
+						{overrideDate && (
+							<div className="space-y-2">
+								{hourKeys.map((h) => {
+									const day = overrides[overrideDate] || buildBaselineForDate(overrideDate)
+									const o = day[h]
+									return (
+										<div key={h} className="flex items-center gap-2 p-2 border border-gray-200 rounded-md">
+											<label className="flex items-center gap-2 min-w-[64px]">
+												<input type="checkbox" checked={o.enabled} onChange={e => toggleOverrideHour(overrideDate, h, e.target.checked)} />
+												<span className="text-sm text-gray-700">{h}</span>
+											</label>
+											{o.enabled && (
+												<div className="flex flex-wrap items-center gap-2">
+													<select value={o.lessonType} onChange={e => updateOverrideHourOpt(overrideDate, h, 'lessonType', e.target.value)} className="p-1 border border-gray-300 rounded text-xs">
+														<option value="individual">Individuāla</option>
+														<option value="group">Grupu</option>
+													</select>
+													<select value={o.location} onChange={e => updateOverrideHourOpt(overrideDate, h, 'location', e.target.value)} className="p-1 border border-gray-300 rounded text-xs">
+														<option value="facility">Uz vietas</option>
+														<option value="teacher">Privāti</option>
+													</select>
+													<select value={o.modality} onChange={e => updateOverrideHourOpt(overrideDate, h, 'modality', e.target.value)} className="p-1 border border-gray-300 rounded text-xs">
+														<option value="in_person">Klātienē</option>
+														<option value="zoom">Zoom</option>
+													</select>
+												</div>
+											)}
+										</div>
+								)
+								})}
+							</div>
+						)}
+					</div>
+				)}
+
+				<div className="pt-2">
+					<button disabled={saving} onClick={handleSave} className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-black font-semibold py-2 px-4 rounded-lg">
+						{saving ? 'Saglabā...' : 'Saglabāt'}
+					</button>
+				</div>
 			</div>
 		</div>
 	)

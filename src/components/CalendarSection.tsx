@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 
 interface TimeSlot {
 	id: string
@@ -16,9 +16,11 @@ const CalendarSection = () => {
 	const [selectedDate, setSelectedDate] = useState(new Date())
 	const [selectedDay, setSelectedDay] = useState<number | null>(null)
 	const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
+	const [activeTeacherIds, setActiveTeacherIds] = useState<Record<string, boolean>>({})
 	const [loading, setLoading] = useState(true)
 	const [userRole, setUserRole] = useState<string | null>(null)
 	const [showMonthPicker, setShowMonthPicker] = useState(false)
+	const [selectedTeacherId, setSelectedTeacherId] = useState<string>('')
 
 	// Check if user is logged in
 	useEffect(() => {
@@ -54,15 +56,37 @@ const CalendarSection = () => {
 		const loadData = async () => {
 			try {
 				setLoading(true)
-				const response = await fetch('/api/time-slots')
-				if (response.ok) {
-					const data = await response.json()
-					if (data.success) {
-						setTimeSlots(data.timeSlots || [])
+				const [slotsRes, teachersRes] = await Promise.all([
+					fetch('/api/time-slots'),
+					fetch('/api/teachers')
+				]).catch(() => [null, null] as any)
+
+				let slots: TimeSlot[] = []
+				if (slotsRes && slotsRes.ok) {
+					const data = await slotsRes.json().catch(() => null)
+					slots = (data && data.success && Array.isArray(data.timeSlots)) ? data.timeSlots : []
+				}
+
+				let activeMap: Record<string, boolean> = {}
+				if (teachersRes && teachersRes.ok) {
+					const t = await teachersRes.json().catch(() => null)
+					if (t && Array.isArray(t.items)) {
+						activeMap = t.items.reduce((acc: Record<string, boolean>, it: any) => {
+							if (it && it.id) acc[String(it.id)] = Boolean(it.active)
+							return acc
+						}, {})
+						setActiveTeacherIds(activeMap)
 					}
 				}
+
+				// Filter out slots for inactive teachers (only keep active=true)
+				const filtered = activeMap && Object.keys(activeMap).length
+					? slots.filter(s => activeMap[String(s.teacherId)] === true)
+					: slots
+
+				setTimeSlots(filtered)
 			} catch (error) {
-				console.error('Failed to load time slots:', error)
+				console.error('Failed to load calendar data:', error)
 			} finally {
 				setLoading(false)
 			}
@@ -104,13 +128,22 @@ const CalendarSection = () => {
 
 	const hasAvailableSlots = (day: number) => {
 		const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-		return timeSlots.some(slot => slot.date === dateStr && slot.available)
+		return timeSlots.some(slot => slot.date === dateStr && slot.available && (!selectedTeacherId || String(slot.teacherId) === String(selectedTeacherId)))
 	}
 
 	const getSlotsForDate = (day: number) => {
 		const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-		return timeSlots.filter(slot => slot.date === dateStr)
+		return timeSlots.filter(slot => slot.date === dateStr && (!selectedTeacherId || String(slot.teacherId) === String(selectedTeacherId)))
 	}
+
+	// Build teacher options from current timeSlots
+	const teacherOptions = useMemo(() => {
+		const map: Record<string, string> = {};
+		(timeSlots || []).forEach(s => {
+			if (s && s.teacherId != null && s.teacherName) map[String(s.teacherId)] = s.teacherName
+		})
+		return Object.entries(map).map(([id, name]) => ({ id, name }))
+	}, [timeSlots])
 
 	const { daysInMonth, startingDay } = getDaysInMonth(selectedDate)
 
@@ -183,6 +216,19 @@ const CalendarSection = () => {
 									) : (
 										<p className="text-xs text-yellow-600 mt-1">Pašreizējais mēnesis</p>
 									)}
+									<div className="mt-3">
+										<label className="block text-xs font-medium text-gray-700 mb-1">Filtrēt pēc pasniedzēja</label>
+										<select
+											value={selectedTeacherId}
+											onChange={e => setSelectedTeacherId(e.target.value)}
+											className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-sm"
+										>
+											<option value="">Visi pasniedzēji</option>
+											{teacherOptions.map(t => (
+												<option key={t.id} value={t.id}>{t.name}</option>
+											))}
+										</select>
+									</div>
 									<button 
 										onClick={() => setShowMonthPicker(!showMonthPicker)}
 										className="text-xs text-blue-600 hover:text-blue-800 underline mt-1"

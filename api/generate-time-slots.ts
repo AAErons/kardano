@@ -29,55 +29,68 @@ export default async function handler(req: any, res: any) {
     const timeSlots: any[] = []
     const today = new Date()
     
+    // Helpers
+    const coerceWeekdaysToStrings = (weekdays: any): string[] => {
+      if (!Array.isArray(weekdays)) return []
+      return weekdays.map((d: any) => String(d))
+    }
+
+    const expandRuleForDate = (teacher: any, dateStr: string, rule: any) => {
+      const startHour = parseInt(rule.from?.split(':')[0] || '9')
+      const endHour = parseInt(rule.to?.split(':')[0] || '17')
+      const teacherName = teacher.firstName && teacher.lastName 
+        ? `${teacher.firstName} ${teacher.lastName}`.trim()
+        : 'Pasniedzējs'
+      for (let hour = startHour; hour < endHour; hour++) {
+        const timeStr = `${String(hour).padStart(2, '0')}:00`
+        timeSlots.push({
+          teacherId: teacher.userId,
+          teacherName,
+          teacherDescription: teacher.description || '',
+          date: dateStr,
+          time: timeStr,
+          duration: 45,
+          subject: 'Matemātika',
+          available: true,
+          lessonType: rule.lessonType || 'individual',
+          location: rule.location || 'facility',
+          modality: rule.modality || 'in_person',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+      }
+    }
+
     // Generate slots for the next 90 days
     for (let i = 0; i < 90; i++) {
       const date = new Date(today)
       date.setDate(today.getDate() + i)
       const dateStr = date.toISOString().split('T')[0] // YYYY-MM-DD format
-      const dayOfWeek = String(date.getDay() === 0 ? 7 : date.getDay()) // Convert Sunday=0 to Sunday=7
+      const dayOfWeek = String(date.getDay() === 0 ? 7 : date.getDay()) // 1..7, Monday=1
       
       for (const teacher of teachers) {
         if (!teacher.availability || !Array.isArray(teacher.availability)) continue
         
-        // Check if teacher is available on this day
-        for (const availability of teacher.availability) {
-          if (availability.type === 'weekly' && availability.weekdays) {
-            // Check if this day of week is in the availability
-            const isAvailableOnThisDay = availability.weekdays.includes(dayOfWeek)
-            
-            if (isAvailableOnThisDay) {
-              // Check date range
-              const startDate = availability.fromDate
-              const endDate = availability.until
-              
-              if (startDate && dateStr < startDate) continue
-              if (endDate && dateStr > endDate) continue
-              
-              // Generate hourly slots between start and end time
-              const startHour = parseInt(availability.from?.split(':')[0] || '9')
-              const endHour = parseInt(availability.to?.split(':')[0] || '17')
-              
-              for (let hour = startHour; hour < endHour; hour++) {
-                const timeStr = `${String(hour).padStart(2, '0')}:00`
-                const teacherName = teacher.firstName && teacher.lastName 
-                  ? `${teacher.firstName} ${teacher.lastName}`.trim()
-                  : 'Pasniedzējs'
-                
-                timeSlots.push({
-                  teacherId: teacher.userId,
-                  teacherName: teacherName,
-                  teacherDescription: teacher.description || '',
-                  date: dateStr,
-                  time: timeStr,
-                  duration: 45, // Fixed 45 minutes
-                  subject: 'Matemātika',
-                  available: true,
-                  createdAt: new Date(),
-                  updatedAt: new Date()
-                })
-              }
-            }
-          }
+        // Prefer specific-day overrides
+        const specific = teacher.availability.filter((a: any) => a?.type === 'specific' && a?.date === dateStr)
+        if (specific.length) {
+          specific.forEach((rule: any) => expandRuleForDate(teacher, dateStr, rule))
+          continue
+        }
+
+        // Weekly rules if no specific-day entry
+        const weekly = teacher.availability.filter((a: any) => a?.type === 'weekly' && Array.isArray(a?.weekdays))
+        for (const rule of weekly) {
+          const ruleDays = coerceWeekdaysToStrings(rule.weekdays)
+          const isAvailableOnThisDay = ruleDays.includes(dayOfWeek)
+          if (!isAvailableOnThisDay) continue
+
+          const startDate = rule.fromDate
+          const endDate = rule.until
+          if (startDate && dateStr < startDate) continue
+          if (endDate && dateStr > endDate) continue
+
+          expandRuleForDate(teacher, dateStr, rule)
         }
       }
     }

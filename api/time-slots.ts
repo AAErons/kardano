@@ -70,6 +70,9 @@ export default async function handler(req: any, res: any) {
       duration: slot.duration || 60,
       subject: slot.subject || 'Matemātika',
       available: Boolean(slot.available),
+      lessonType: slot.lessonType || 'individual',
+      location: slot.location || 'facility',
+      modality: slot.modality || 'in_person',
       createdAt: slot.createdAt
     }))
 
