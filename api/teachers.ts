@@ -37,7 +37,14 @@ export default async function handler(req: any, res: any) {
 
     if (req.method === 'GET') {
       const docs = await users.find({ role: 'worker' }).project({ password: 0, passwordHash: 0 }).sort({ createdAt: -1 }).toArray()
-      return res.status(200).json({ items: docs.map((d: any) => ({ id: String(d._id), name: d.name || d.username || '', username: d.username || '', description: d.description || '', active: Boolean(d.active) })) })
+      return res.status(200).json({ items: docs.map((d: any) => ({ 
+        id: String(d._id), 
+        name: d.name || `${d.firstName || ''} ${d.lastName || ''}`.trim() || d.email || '', 
+        username: d.username || '', 
+        description: d.description || '', 
+        active: Boolean(d.active),
+        email: d.email || ''
+      })) })
     }
 
     if (req.method === 'POST') {

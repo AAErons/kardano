@@ -541,11 +541,13 @@ const UserDashboard = ({ userId }: { userId: string }) => {
 													booking.status === 'accepted' ? 'bg-green-100 text-green-800' :
 													booking.status === 'declined' ? 'bg-red-100 text-red-800' :
 													booking.status === 'declined_conflict' ? 'bg-orange-100 text-orange-800' :
+													booking.status === 'pending_unavailable' ? 'bg-gray-100 text-gray-800' :
 													'bg-yellow-100 text-yellow-800'
 												}`}>
 													{booking.status === 'accepted' ? 'Pieņemts' :
 													 booking.status === 'declined' ? 'Noraidīts' :
 													 booking.status === 'declined_conflict' ? 'Noraidīts (konflikts)' :
+													 booking.status === 'pending_unavailable' ? 'Gaida (nav pieejams)' :
 													 'Gaida apstiprinājumu'}
 												</span>
 											</div>
@@ -871,11 +873,13 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 													booking.status === 'accepted' ? 'bg-green-100 text-green-800' :
 													booking.status === 'declined' ? 'bg-red-100 text-red-800' :
 													booking.status === 'declined_conflict' ? 'bg-orange-100 text-orange-800' :
+													booking.status === 'pending_unavailable' ? 'bg-gray-100 text-gray-800' :
 													'bg-yellow-100 text-yellow-800'
 												}`}>
 													{booking.status === 'accepted' ? 'Pieņemts' :
 													 booking.status === 'declined' ? 'Noraidīts' :
 													 booking.status === 'declined_conflict' ? 'Noraidīts (konflikts)' :
+													 booking.status === 'pending_unavailable' ? 'Gaida (nav pieejams)' :
 													 'Gaida apstiprinājumu'}
 												</span>
 											</div>
@@ -940,6 +944,16 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 												>
 													Pieņemt
 												</button>
+												<button 
+													onClick={() => handleBookingAction(booking._id, 'decline')}
+													className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded-lg"
+												>
+													Noraidīt
+												</button>
+											</div>
+										)}
+										{booking.status === 'pending_unavailable' && (
+											<div className="ml-4 flex gap-2">
 												<button 
 													onClick={() => handleBookingAction(booking._id, 'decline')}
 													className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded-lg"

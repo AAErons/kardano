@@ -166,11 +166,11 @@ export default async function handler(req: any, res: any) {
       }
 
       if (action === 'accept') {
-        // Accept this booking, lock the slot and decline others for same teacher/date/time
+        // Accept this booking, lock the slot and mark others as pending_unavailable
         const { date, time } = booking
         await bookings.updateOne({ _id }, { $set: { status: 'accepted', updatedAt: new Date() } })
         await timeSlots.updateMany({ teacherId: teacherIdEffective, date, time }, { $set: { available: false, updatedAt: new Date() } })
-        await bookings.updateMany({ _id: { $ne: _id }, teacherId: teacherIdEffective, date, time, status: { $in: ['pending'] } }, { $set: { status: 'declined_conflict', updatedAt: new Date() } })
+        await bookings.updateMany({ _id: { $ne: _id }, teacherId: teacherIdEffective, date, time, status: { $in: ['pending'] } }, { $set: { status: 'pending_unavailable', updatedAt: new Date() } })
         return res.status(200).json({ ok: true })
       }
 
