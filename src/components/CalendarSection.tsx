@@ -10,6 +10,9 @@ interface TimeSlot {
 	duration: number
 	subject: string
 	available: boolean
+	lessonType?: 'individual' | 'group'
+	location?: 'facility' | 'teacher'
+	modality?: 'in_person' | 'zoom'
 }
 
 const CalendarSection = () => {
@@ -21,6 +24,13 @@ const CalendarSection = () => {
 	const [userRole, setUserRole] = useState<string | null>(null)
 	const [showMonthPicker, setShowMonthPicker] = useState(false)
 	const [selectedTeacherId, setSelectedTeacherId] = useState<string>('')
+	
+	// Filter states
+	const [filters, setFilters] = useState({
+		lessonType: 'all' as 'all' | 'individual' | 'group',
+		location: 'all' as 'all' | 'facility' | 'teacher',
+		modality: 'all' as 'all' | 'in_person' | 'zoom'
+	})
 
 	// Check if user is logged in
 	useEffect(() => {
@@ -216,19 +226,6 @@ const CalendarSection = () => {
 									) : (
 										<p className="text-xs text-yellow-600 mt-1">Pašreizējais mēnesis</p>
 									)}
-									<div className="mt-3">
-										<label className="block text-xs font-medium text-gray-700 mb-1">Filtrēt pēc pasniedzēja</label>
-										<select
-											value={selectedTeacherId}
-											onChange={e => setSelectedTeacherId(e.target.value)}
-											className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-sm"
-										>
-											<option value="">Visi pasniedzēji</option>
-											{teacherOptions.map(t => (
-												<option key={t.id} value={t.id}>{t.name}</option>
-											))}
-										</select>
-									</div>
 									<button 
 										onClick={() => setShowMonthPicker(!showMonthPicker)}
 										className="text-xs text-blue-600 hover:text-blue-800 underline mt-1"
@@ -360,68 +357,153 @@ const CalendarSection = () => {
 										Pieejamie laiki - {selectedDay}. {getMonthName(selectedDate)} {selectedDate.getFullYear()}
 									</h3>
 									
+									{/* Filters */}
+									<div className="mb-6 p-4 bg-gray-50 rounded-lg">
+										<h4 className="text-sm font-semibold text-gray-700 mb-3">Filtri</h4>
+										<div className={`grid grid-cols-1 ${userRole === 'admin' || userRole === 'worker' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
+											<div>
+												<label className="block text-xs font-medium text-gray-600 mb-1">Pasniedzējs</label>
+												<select
+													value={selectedTeacherId}
+													onChange={e => setSelectedTeacherId(e.target.value)}
+													className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+												>
+													<option value="">Visi pasniedzēji</option>
+													{teacherOptions.map(t => (
+														<option key={t.id} value={t.id}>{t.name}</option>
+													))}
+												</select>
+											</div>
+											<div>
+												<label className="block text-xs font-medium text-gray-600 mb-1">Nodarbības veids</label>
+												<select 
+													value={filters.lessonType} 
+													onChange={(e) => setFilters(prev => ({ ...prev, lessonType: e.target.value as any }))}
+													className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+												>
+													<option value="all">Visi</option>
+													<option value="individual">Individuālas</option>
+													<option value="group">Grupu</option>
+												</select>
+											</div>
+											{(userRole === 'admin' || userRole === 'worker') && (
+												<div>
+													<label className="block text-xs font-medium text-gray-600 mb-1">Atrašanās vieta</label>
+													<select 
+														value={filters.location} 
+														onChange={(e) => setFilters(prev => ({ ...prev, location: e.target.value as any }))}
+														className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+													>
+														<option value="all">Visas</option>
+														<option value="facility">Uz vietas</option>
+														<option value="teacher">Privāti</option>
+													</select>
+												</div>
+											)}
+											<div>
+												<label className="block text-xs font-medium text-gray-600 mb-1">Veids</label>
+												<select 
+													value={filters.modality} 
+													onChange={(e) => setFilters(prev => ({ ...prev, modality: e.target.value as any }))}
+													className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+												>
+													<option value="all">Visi</option>
+													<option value="in_person">Klātienē</option>
+													<option value="zoom">Zoom</option>
+												</select>
+											</div>
+										</div>
+									</div>
+									
 									{(() => {
 										const slots = getSlotsForDate(selectedDay)
 										const availableSlots = slots.filter(slot => slot.available)
 										
-										if (availableSlots.length === 0) {
+										// Apply filters
+										const filteredSlots = availableSlots.filter(slot => {
+											if (filters.lessonType !== 'all' && slot.lessonType !== filters.lessonType) return false
+											if (filters.location !== 'all' && slot.location !== filters.location) return false
+											if (filters.modality !== 'all' && slot.modality !== filters.modality) return false
+											return true
+										})
+										
+										if (filteredSlots.length === 0) {
 											return (
 												<div className="text-center py-8 text-gray-500">
-													<p>Nav pieejamu laiku šajā datumā</p>
+													<p>Nav pieejamu laiku šajā datumā ar izvēlētajiem filtriem</p>
 												</div>
 											)
 										}
 
 										return (
 											<div className="space-y-3">
-												{availableSlots.map(slot => (
-													<div key={slot.id} className="border border-gray-200 rounded-lg p-4 hover:border-yellow-400 transition-colors">
-														<div className="flex items-start justify-between">
-															<div className="flex-1">
-																<div className="flex items-center gap-3 mb-2">
-																	<h4 className="font-semibold text-black">{slot.teacherName}</h4>
-																</div>
-																<p className="text-sm text-gray-600 mb-1">{slot.subject}</p>
-																{slot.teacherDescription && (
-																	<p className="text-xs text-gray-500 mb-2">{slot.teacherDescription}</p>
-																)}
-																<div className="text-lg font-bold text-yellow-600">
-																	{slot.time}
-																</div>
-															</div>
-															<div className="ml-4">
-																{userRole === 'admin' || userRole === 'worker' ? (
-																	<div className="text-sm text-gray-500 italic">
-																		Pasniedzēja laiks
+												{filteredSlots.map(slot => {
+													// Create lesson details display
+													const lessonTypeLabel = slot.lessonType === 'group' ? 'Grupu' : 'Individuāla'
+													const locationLabel = slot.location === 'teacher' ? 'Privāti' : 'Uz vietas'
+													const modalityLabel = slot.modality === 'zoom' ? 'Zoom' : 'Klātienē'
+													
+													return (
+														<div key={slot.id} className="border border-gray-200 rounded-lg p-4 hover:border-yellow-400 transition-colors">
+															<div className="flex items-start justify-between">
+																<div className="flex-1">
+																	<div className="flex items-center gap-3 mb-2">
+																		<h4 className="font-semibold text-black">{slot.teacherName}</h4>
 																	</div>
-																) : userRole === 'user' ? (
-																	<button 
-																		onClick={() => {
-																			alert(`Rezervācija veiksmīga!\n\nStunda: ${slot.teacherName}\nDatums: ${new Date(slot.date).toLocaleDateString('lv-LV')}\nLaiks: ${slot.time}\nTēma: ${slot.subject}`)
-																		}}
-																		className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg transition-colors"
-																	>
-																		Rezervēt
-																	</button>
-																) : (
-																	<div className="flex flex-col gap-2">
+																	<div className="flex flex-wrap gap-2 mb-2">
+																		<span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full border border-blue-200">
+																			{lessonTypeLabel}
+																		</span>
+																		{(userRole === 'admin' || userRole === 'worker') && (
+																			<span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full border border-green-200">
+																				{locationLabel}
+																			</span>
+																		)}
+																		<span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full border border-purple-200">
+																			{modalityLabel}
+																		</span>
+																	</div>
+																	{slot.teacherDescription && (
+																		<p className="text-xs text-gray-500 mb-2">{slot.teacherDescription}</p>
+																	)}
+																	<div className="text-lg font-bold text-yellow-600">
+																		{slot.time}
+																	</div>
+																</div>
+																<div className="ml-4">
+																	{userRole === 'admin' || userRole === 'worker' ? (
 																		<div className="text-sm text-gray-500 italic">
-																			Reģistrācija nepieciešama rezervācijai
+																			Pasniedzēja laiks
 																		</div>
+																	) : userRole === 'user' ? (
 																		<button 
 																			onClick={() => {
-																				window.location.href = '/?open=register'
+																				alert(`Rezervācija veiksmīga!\n\nStunda: ${slot.teacherName}\nDatums: ${new Date(slot.date).toLocaleDateString('lv-LV')}\nLaiks: ${slot.time}\nVeids: ${lessonTypeLabel}, ${modalityLabel}`)
 																			}}
-																			className="bg-blue-400 hover:bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
+																			className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg transition-colors"
 																		>
-																			Reģistrēties
+																			Rezervēt
 																		</button>
-																	</div>
-																)}
+																	) : (
+																		<div className="flex flex-col gap-2">
+																			<div className="text-sm text-gray-500 italic">
+																				Reģistrācija nepieciešama rezervācijai
+																			</div>
+																			<button 
+																				onClick={() => {
+																					window.location.href = '/?open=register'
+																				}}
+																				className="bg-blue-400 hover:bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
+																			>
+																				Reģistrēties
+																			</button>
+																		</div>
+																	)}
+																</div>
 															</div>
 														</div>
-													</div>
-												))}
+													)
+												})}
 											</div>
 										)
 									})()}
