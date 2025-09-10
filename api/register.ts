@@ -84,7 +84,7 @@ export default async function handler(req: any, res: any) {
       }
       
       for (const child of children) {
-        if (!child.name || !child.grade || child.age < 1 || child.age > 18) {
+        if (!child.firstName || !child.lastName || !child.grade || child.age < 1) {
           return res.status(400).json({ error: 'Invalid child information' })
         }
       }
@@ -157,11 +157,11 @@ export default async function handler(req: any, res: any) {
       for (const child of children) {
         const studentDoc = {
           userId: userId, // Link to the parent account
-          firstName: child.name.trim(),
-          lastName: lastName.trim(), // Use parent's last name
+          firstName: child.firstName.trim(),
+          lastName: child.lastName.trim(),
           age: child.age,
           grade: child.grade.trim(),
-          school: child.school?.trim() || null,
+          school: null, // No longer using school field
           isSelf: false, // Flag to indicate this is a child
           createdAt: now,
           updatedAt: now
@@ -169,7 +169,7 @@ export default async function handler(req: any, res: any) {
         
         const studentResult = await db.collection('students').insertOne(studentDoc as any)
         studentIds.push(String(studentResult.insertedId))
-        console.log('[register] child student created', { studentId: String(studentResult.insertedId), name: child.name })
+        console.log('[register] child student created', { studentId: String(studentResult.insertedId), name: `${child.firstName} ${child.lastName}` })
       }
     }
 

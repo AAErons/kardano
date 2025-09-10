@@ -17,10 +17,10 @@ const RegistrationModal = ({ isOpen, onClose, onSuccess }: RegistrationModalProp
 		confirmPassword: '',
 		phone: '',
 		children: [] as Array<{
-			name: string
+			firstName: string
+			lastName: string
 			age: number
 			grade: string
-			school: string
 		}>
 	})
 	const [errors, setErrors] = useState<Record<string, string>>({})
@@ -62,10 +62,13 @@ const RegistrationModal = ({ isOpen, onClose, onSuccess }: RegistrationModalProp
 			}
 			
 			formData.children.forEach((child, index) => {
-				if (!child.name.trim()) {
-					newErrors[`child_${index}_name`] = 'Bērna vārds ir obligāts'
+				if (!child.firstName.trim()) {
+					newErrors[`child_${index}_firstName`] = 'Bērna vārds ir obligāts'
 				}
-				if (!child.age || child.age < 1 || child.age > 18) {
+				if (!child.lastName.trim()) {
+					newErrors[`child_${index}_lastName`] = 'Bērna uzvārds ir obligāts'
+				}
+				if (!child.age || child.age < 1) {
 					newErrors[`child_${index}_age`] = 'Nepareizs vecums'
 				}
 				if (!child.grade.trim()) {
@@ -135,7 +138,7 @@ const RegistrationModal = ({ isOpen, onClose, onSuccess }: RegistrationModalProp
 	const addChild = () => {
 		setFormData(prev => ({
 			...prev,
-			children: [...prev.children, { name: '', age: 0, grade: '', school: '' }]
+			children: [...prev.children, { firstName: '', lastName: '', age: 0, grade: '' }]
 		}))
 	}
 
@@ -347,21 +350,33 @@ const RegistrationModal = ({ isOpen, onClose, onSuccess }: RegistrationModalProp
 												<label className="block text-sm font-medium text-gray-700 mb-2">Vārds *</label>
 												<input
 													type="text"
-													value={child.name}
-													onChange={(e) => updateChild(index, 'name', e.target.value)}
+													value={child.firstName}
+													onChange={(e) => updateChild(index, 'firstName', e.target.value)}
 													className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent ${
-														errors[`child_${index}_name`] ? 'border-red-500' : 'border-gray-300'
+														errors[`child_${index}_firstName`] ? 'border-red-500' : 'border-gray-300'
 													}`}
 													placeholder="Bērna vārds"
 												/>
-												{errors[`child_${index}_name`] && <p className="text-red-500 text-sm mt-1">{errors[`child_${index}_name`]}</p>}
+												{errors[`child_${index}_firstName`] && <p className="text-red-500 text-sm mt-1">{errors[`child_${index}_firstName`]}</p>}
+											</div>
+											<div>
+												<label className="block text-sm font-medium text-gray-700 mb-2">Uzvārds *</label>
+												<input
+													type="text"
+													value={child.lastName}
+													onChange={(e) => updateChild(index, 'lastName', e.target.value)}
+													className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent ${
+														errors[`child_${index}_lastName`] ? 'border-red-500' : 'border-gray-300'
+													}`}
+													placeholder="Bērna uzvārds"
+												/>
+												{errors[`child_${index}_lastName`] && <p className="text-red-500 text-sm mt-1">{errors[`child_${index}_lastName`]}</p>}
 											</div>
 											<div>
 												<label className="block text-sm font-medium text-gray-700 mb-2">Vecums *</label>
 												<input
 													type="number"
 													min="1"
-													max="18"
 													value={child.age || ''}
 													onChange={(e) => updateChild(index, 'age', parseInt(e.target.value) || 0)}
 													className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent ${
@@ -373,26 +388,31 @@ const RegistrationModal = ({ isOpen, onClose, onSuccess }: RegistrationModalProp
 											</div>
 											<div>
 												<label className="block text-sm font-medium text-gray-700 mb-2">Klase *</label>
-												<input
-													type="text"
+												<select
 													value={child.grade}
 													onChange={(e) => updateChild(index, 'grade', e.target.value)}
 													className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent ${
 														errors[`child_${index}_grade`] ? 'border-red-500' : 'border-gray-300'
 													}`}
-													placeholder="1. klase, 2. klase..."
-												/>
+												>
+													<option value="">Izvēlieties klasi</option>
+													<option value="pirmskolas">Pirmskolas</option>
+													<option value="1.klase">1. klase</option>
+													<option value="2.klase">2. klase</option>
+													<option value="3.klase">3. klase</option>
+													<option value="4.klase">4. klase</option>
+													<option value="5.klase">5. klase</option>
+													<option value="6.klase">6. klase</option>
+													<option value="7.klase">7. klase</option>
+													<option value="8.klase">8. klase</option>
+													<option value="9.klase">9. klase</option>
+													<option value="10.klase">10. klase</option>
+													<option value="11.klase">11. klase</option>
+													<option value="12.klase">12. klase</option>
+													<option value="augstskola">Augstskola</option>
+													<option value="nav_skola">Nav skola</option>
+												</select>
 												{errors[`child_${index}_grade`] && <p className="text-red-500 text-sm mt-1">{errors[`child_${index}_grade`]}</p>}
-											</div>
-											<div>
-												<label className="block text-sm font-medium text-gray-700 mb-2">Skolas nosaukums</label>
-												<input
-													type="text"
-													value={child.school}
-													onChange={(e) => updateChild(index, 'school', e.target.value)}
-													className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-													placeholder="Skolas nosaukums"
-												/>
 											</div>
 										</div>
 									</div>

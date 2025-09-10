@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import RegistrationModal from './RegistrationModal.js'
 
 type Role = 'admin' | 'worker' | 'user' | null
@@ -35,7 +35,7 @@ interface Worker {
 	appointments: Appointment[]
 }
 
-const createInitialWorkers = (): Worker[] => {
+// const createInitialWorkers = (): Worker[] => {
 	const now = new Date()
 	const year = now.getFullYear()
 	const month = String(now.getMonth() + 1).padStart(2, '0')
@@ -125,30 +125,8 @@ const createInitialWorkers = (): Worker[] => {
 		})
 	}
 
-	return workers
-}
-
-const initialWorkersData: Worker[] = createInitialWorkers()
-
-const createMockUserAppointments = (workers: Worker[]): Appointment[] => {
-	const now = new Date()
-	const format = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-	const addDays = (days: number) => {
-		const d = new Date(now)
-		d.setDate(d.getDate() + days)
-		return d
-	}
-	const w1 = workers[0]
-	const w2 = workers[1] || workers[0]
-	return [
-		{ id: 2001, workerId: w1.id, workerName: w1.name, userName: 'Es', date: format(addDays(2)), time: '15:00', duration: 60, subject: 'Algebra', status: 'scheduled' },
-		{ id: 2002, workerId: w2.id, workerName: w2.name, userName: 'Es', date: format(addDays(5)), time: '11:30', duration: 90, subject: 'Ģeometrija', status: 'scheduled' },
-		{ id: 2003, workerId: w1.id, workerName: w1.name, userName: 'Es', date: format(addDays(-3)), time: '10:00', duration: 60, subject: 'Trijstūri', status: 'completed' },
-		{ id: 2004, workerId: w2.id, workerName: w2.name, userName: 'Es', date: format(addDays(-10)), time: '14:00', duration: 60, subject: 'Daļskaitļi', status: 'completed' },
-	]
-}
-
-let nextAppointmentId = 100
+// return workers
+// }
 
 const ProfileSection = () => {
 	const [role, setRole] = useState<Role>(null)
@@ -157,9 +135,6 @@ const ProfileSection = () => {
 	const [authError, setAuthError] = useState('')
 	const [isRegistrationOpen, setIsRegistrationOpen] = useState(false)
 
-	const [workers, setWorkers] = useState<Worker[]>(initialWorkersData)
-	const [loggedInWorkerId, setLoggedInWorkerId] = useState<number | null>(null)
-	const [userAppointments, setUserAppointments] = useState<Appointment[]>(createMockUserAppointments(initialWorkersData))
 	const [userId, setUserId] = useState<string | null>(null)
 	const [isWorkerActive, setIsWorkerActive] = useState<boolean | null>(null)
 	const [teacherProfile, setTeacherProfile] = useState<any | null>(null)
@@ -220,31 +195,6 @@ const ProfileSection = () => {
 		}
 	}, [role, userId])
 
-	const loggedInWorker = useMemo(() => {
-		return workers.find(w => w.id === loggedInWorkerId) || null
-	}, [workers, loggedInWorkerId])
-
-	// Worker stats for quick profile summary
-	const workerScheduledCount = useMemo(() => {
-		if (!loggedInWorker) return 0
-		return loggedInWorker.appointments.filter(a => a.status === 'scheduled').length
-	}, [loggedInWorker])
-
-	const workerCompletedCount = useMemo(() => {
-		if (!loggedInWorker) return 0
-		return loggedInWorker.appointments.filter(a => a.status === 'completed').length
-	}, [loggedInWorker])
-
-	// User upcoming info for quick profile summary
-	const userUpcomingAppointments = useMemo(() => {
-		const nowTs = Date.now()
-		return userAppointments
-			.filter(a => a.status !== 'completed' && new Date(`${a.date}T${a.time}:00`).getTime() >= nowTs)
-			.sort((a, b) => new Date(`${a.date}T${a.time}:00`).getTime() - new Date(`${b.date}T${b.time}:00`).getTime())
-	}, [userAppointments])
-
-	const userUpcomingCount = userUpcomingAppointments.length
-	const nextUserAppointment = userUpcomingAppointments[0] || null
 
 	const handleLogin = async () => {
 		try {
@@ -264,7 +214,6 @@ const ProfileSection = () => {
 			setUserId(data?.userId || null)
 			if (typeof data?.active === 'boolean') setIsWorkerActive(data.active)
 			try { localStorage.setItem('auth', JSON.stringify({ role: (data?.role as Role) || 'user', userId: data?.userId, active: data?.active })) } catch {}
-			setLoggedInWorkerId(null)
 		} catch (e) {
 			setAuthError('Neizdevās pieteikties')
 		}
@@ -283,36 +232,6 @@ const ProfileSection = () => {
 		alert('Reģistrācija veiksmīga! Tagad varat pieslēgties ar saviem datiem.')
 	}
 
-	const bookAppointment = (data: { workerId: number; userName: string; date: string; time: string; duration: number; subject: string }) => {
-		const worker = workers.find(w => w.id === data.workerId)
-		if (!worker) return
-		const appointment: Appointment = {
-			id: nextAppointmentId++,
-			workerId: worker.id,
-			workerName: worker.name,
-			userName: data.userName,
-			date: data.date,
-			time: data.time,
-			duration: data.duration,
-			subject: data.subject,
-			status: 'scheduled',
-		}
-		setWorkers(prev => prev.map(w => (w.id === worker.id ? { ...w, appointments: [...w.appointments, appointment] } : w)))
-		setUserAppointments(prev => [...prev, appointment])
-	}
-
-	const addReview = (data: { workerId: number; studentName: string; rating: number; comment: string }) => {
-		const now = new Date()
-		const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-		const newReview: Review = {
-			id: Math.floor(Math.random() * 1000000),
-			studentName: data.studentName || 'Es',
-			rating: data.rating,
-			comment: data.comment,
-			date: dateStr,
-		}
-		setWorkers(prev => prev.map(w => (w.id === data.workerId ? { ...w, reviews: [...w.reviews, newReview] } : w)))
-	}
 
 	return (
 		<div className="min-h-screen bg-gray-50 py-8 lg:py-16 px-4">
@@ -328,51 +247,9 @@ const ProfileSection = () => {
 					)}
 				</div>
 
-				{/* Worker profile info */}
-				{role === 'worker' && loggedInWorker && (
-					<div className="mb-6 lg:mb-10">
-					<div className="bg-white rounded-2xl shadow-xl p-4 lg:p-6 flex items-start sm:items-center gap-4 lg:gap-6">
-							<img src={loggedInWorker.image} alt={loggedInWorker.name} className="w-20 h-20 lg:w-24 lg:h-24 rounded-full object-cover border-2 border-yellow-200" />
-							<div className="flex-1">
-								<div className="flex flex-wrap items-center justify-between gap-2">
-									<div>
-										<div className="text-xl lg:text-2xl font-bold text-black">{loggedInWorker.name}</div>
-										<div className="text-gray-600">{loggedInWorker.subject}</div>
-									</div>
-									<div className="text-yellow-600 font-semibold">★ {loggedInWorker.rating.toFixed(1)}</div>
-								</div>
-								<p className="text-sm lg:text-base text-gray-700 mt-2">{loggedInWorker.description}</p>
-								<div className="mt-3 flex flex-wrap gap-2">
-									<span className="bg-gray-50 border border-gray-200 text-gray-700 text-xs lg:text-sm px-3 py-1 rounded-full">Plānoti: {workerScheduledCount}</span>
-									<span className="bg-gray-50 border border-gray-200 text-gray-700 text-xs lg:text-sm px-3 py-1 rounded-full">Pabeigti: {workerCompletedCount}</span>
-								</div>
-							</div>
-						</div>
-					</div>
-				)}
+				{/* Worker profile info - removed mock data */}
 
-				{/* User profile info */}
-				{role === 'user' && (
-					<div className="mb-6 lg:mb-10">
-					<div className="bg-white rounded-2xl shadow-xl p-4 lg:p-6 flex items-start sm:items-center gap-4 lg:gap-6">
-							<div className="w-20 h-20 lg:w-24 lg:h-24 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-700 font-bold text-xl">ES</div>
-							<div className="flex-1">
-								<div className="flex flex-wrap items-center justify-between gap-2">
-									<div>
-										<div className="text-xl lg:text-2xl font-bold text-black">Es</div>
-										<div className="text-gray-600">Lietotājs</div>
-									</div>
-									<div className="text-gray-700 text-sm">{userUpcomingCount} gaidošie</div>
-								</div>
-								{nextUserAppointment && (
-									<div className="mt-2 text-sm text-gray-700">
-										Nākamais: {new Date(nextUserAppointment.date).toLocaleDateString('lv-LV')} {nextUserAppointment.time} • {nextUserAppointment.subject}
-									</div>
-								)}
-							</div>
-						</div>
-					</div>
-				)}
+				{/* User profile info - removed mock data */}
 
 				{!role && (
 					<div className="max-w-xl mx-auto bg-white rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8">
@@ -413,8 +290,8 @@ const ProfileSection = () => {
 				)}
 				*/}
 
-				{role === 'user' && (
-					<UserDashboard workers={workers} userAppointments={userAppointments} onBook={bookAppointment} onAddReview={addReview} />
+				{role === 'user' && userId && (
+					<UserDashboard userId={userId} />
 				)}
 
 				{role === 'worker' && userId && (
@@ -449,14 +326,265 @@ const ProfileSection = () => {
 	)
 }
 
-const UserDashboard = (_props: { workers: Worker[]; userAppointments: Appointment[]; onBook: (data: any) => void; onAddReview: (data: any) => void }) => {
-	return null
+const UserDashboard = ({ userId }: { userId: string }) => {
+	const [activeTab, setActiveTab] = useState<'profile' | 'children' | 'bookings'>('profile')
+	const [userInfo, setUserInfo] = useState<any>(null)
+	const [children, setChildren] = useState<any[]>([])
+	const [bookings, setBookings] = useState<any[]>([])
+	const [loadingUserInfo, setLoadingUserInfo] = useState(false)
+	const [loadingChildren, setLoadingChildren] = useState(false)
+	const [loadingBookings, setLoadingBookings] = useState(false)
+
+	// Load user info
+	const loadUserInfo = async () => {
+		if (!userId) return
+		setLoadingUserInfo(true)
+		try {
+			const r = await fetch(`/api/user-info?userId=${encodeURIComponent(userId)}`)
+			if (r.ok) {
+				const d = await r.json().catch(() => null)
+				if (d && d.success && d.user) {
+					setUserInfo(d.user)
+				}
+			}
+		} catch {}
+		setLoadingUserInfo(false)
+	}
+
+	// Load children
+	const loadChildren = async () => {
+		if (!userId) return
+		setLoadingChildren(true)
+		try {
+			const r = await fetch(`/api/students?userId=${encodeURIComponent(userId)}`)
+			if (r.ok) {
+				const d = await r.json().catch(() => null)
+				if (d && d.success && Array.isArray(d.students)) {
+					setChildren(d.students)
+				}
+			}
+		} catch {}
+		setLoadingChildren(false)
+	}
+
+	// Load bookings
+	const loadBookings = async () => {
+		if (!userId) return
+		setLoadingBookings(true)
+		try {
+			const r = await fetch(`/api/bookings?role=user&userId=${encodeURIComponent(userId)}`)
+			if (r.ok) {
+				const d = await r.json().catch(() => null)
+				if (d && Array.isArray(d.items)) {
+					setBookings(d.items)
+				}
+			}
+		} catch {}
+		setLoadingBookings(false)
+	}
+
+	// Load data when component mounts
+	useEffect(() => {
+		loadUserInfo()
+	}, [userId])
+
+	// Load data when tab changes
+	useEffect(() => {
+		if (activeTab === 'children') loadChildren()
+		if (activeTab === 'bookings') loadBookings()
+	}, [activeTab, userId])
+
+	return (
+		<div className="space-y-6">
+			{/* Profile Header */}
+			<div className="bg-white rounded-2xl shadow p-6 space-y-4">
+				<div className="flex items-start gap-4">
+					<div className="w-24 h-24 rounded-full bg-gray-100 border-2 border-yellow-200 flex items-center justify-center">
+						<span className="text-2xl font-bold text-gray-600">
+							{userInfo ? `${userInfo.firstName?.[0] || ''}${userInfo.lastName?.[0] || ''}` : '—'}
+						</span>
+					</div>
+					<div className="flex-1">
+						<div className="flex items-center justify-between">
+							<div className="flex items-center gap-2">
+								<div className="font-semibold text-black mb-1">
+									{userInfo ? `${userInfo.firstName || ''} ${userInfo.lastName || ''}` : '—'}
+								</div>
+							</div>
+						</div>
+						<div className="text-sm text-gray-700">
+							{userInfo?.email || '—'}
+						</div>
+						{userInfo?.phone && (
+							<div className="text-sm text-gray-700">
+								{userInfo.phone}
+							</div>
+						)}
+					</div>
+				</div>
+			</div>
+
+			{/* Tabs */}
+			<div className="bg-white rounded-2xl shadow-xl p-2">
+				<div className="flex gap-2">
+					<button onClick={() => setActiveTab('profile')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'profile' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Profils</button>
+					{userInfo?.accountType === 'children' && (
+						<button onClick={() => setActiveTab('children')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'children' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>
+							Bērni ({children.length})
+						</button>
+					)}
+					<button onClick={() => setActiveTab('bookings')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'bookings' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>
+						Rezervācijas ({bookings.length})
+					</button>
+				</div>
+			</div>
+
+			{/* Tab Content */}
+			{activeTab === 'profile' && (
+				<div className="bg-white rounded-2xl shadow p-6">
+					<h3 className="text-lg font-semibold text-black mb-4">Profila informācija</h3>
+					{loadingUserInfo ? (
+						<div className="text-center py-8 text-gray-500">Ielādē...</div>
+					) : userInfo ? (
+						<div className="space-y-4">
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+								<div>
+									<label className="block text-sm font-medium text-gray-600 mb-1">Vārds</label>
+									<div className="text-sm text-gray-900">{userInfo.firstName || '—'}</div>
+								</div>
+								<div>
+									<label className="block text-sm font-medium text-gray-600 mb-1">Uzvārds</label>
+									<div className="text-sm text-gray-900">{userInfo.lastName || '—'}</div>
+								</div>
+								<div>
+									<label className="block text-sm font-medium text-gray-600 mb-1">E-pasts</label>
+									<div className="text-sm text-gray-900">{userInfo.email || '—'}</div>
+								</div>
+								<div>
+									<label className="block text-sm font-medium text-gray-600 mb-1">Telefons</label>
+									<div className="text-sm text-gray-900">{userInfo.phone || '—'}</div>
+								</div>
+								<div>
+									<label className="block text-sm font-medium text-gray-600 mb-1">Reģistrācijas datums</label>
+									<div className="text-sm text-gray-900">
+										{userInfo.createdAt ? new Date(userInfo.createdAt).toLocaleDateString('lv-LV') : '—'}
+									</div>
+								</div>
+							</div>
+						</div>
+					) : (
+						<div className="text-center py-8 text-gray-500">Neizdevās ielādēt profila informāciju</div>
+					)}
+				</div>
+			)}
+
+			{activeTab === 'children' && userInfo?.accountType === 'children' && (
+				<div className="bg-white rounded-2xl shadow p-6">
+					<h3 className="text-lg font-semibold text-black mb-4">Mani bērni</h3>
+					{loadingChildren ? (
+						<div className="text-center py-8 text-gray-500">Ielādē...</div>
+					) : children.length === 0 ? (
+						<div className="text-center py-8 text-gray-500">Nav bērnu</div>
+					) : (
+						<div className="space-y-4">
+							{children.map(child => (
+								<div key={child.id} className="border border-gray-200 rounded-lg p-4">
+									<div className="flex items-start justify-between">
+										<div className="flex-1">
+											<h4 className="font-semibold text-black mb-2">
+												{child.firstName} {child.lastName}
+											</h4>
+											<div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+												{child.age && (
+													<div>
+														<label className="block text-xs font-medium text-gray-600 mb-1">Vecums</label>
+														<div className="text-gray-900">{child.age} gadi</div>
+													</div>
+												)}
+												{child.grade && (
+													<div>
+														<label className="block text-xs font-medium text-gray-600 mb-1">Klase</label>
+														<div className="text-gray-900">{child.grade}</div>
+													</div>
+												)}
+												{child.school && (
+													<div>
+														<label className="block text-xs font-medium text-gray-600 mb-1">Skola</label>
+														<div className="text-gray-900">{child.school}</div>
+													</div>
+												)}
+											</div>
+										</div>
+									</div>
+								</div>
+							))}
+						</div>
+					)}
+				</div>
+			)}
+
+			{activeTab === 'bookings' && (
+				<div className="bg-white rounded-2xl shadow p-6">
+					<h3 className="text-lg font-semibold text-black mb-4">Majas rezervācijas</h3>
+					{loadingBookings ? (
+						<div className="text-center py-8 text-gray-500">Ielādē...</div>
+					) : bookings.length === 0 ? (
+						<div className="text-center py-8 text-gray-500">Nav rezervāciju</div>
+					) : (
+						<div className="space-y-3">
+							{bookings.map(booking => (
+								<div key={booking._id} className="border border-gray-200 rounded-lg p-4">
+									<div className="flex items-start justify-between">
+										<div className="flex-1">
+											<div className="flex items-center gap-2 mb-2">
+												<span className={`px-2 py-1 text-xs rounded-full ${
+													booking.status === 'accepted' ? 'bg-green-100 text-green-800' :
+													booking.status === 'declined' ? 'bg-red-100 text-red-800' :
+													booking.status === 'declined_conflict' ? 'bg-orange-100 text-orange-800' :
+													'bg-yellow-100 text-yellow-800'
+												}`}>
+													{booking.status === 'accepted' ? 'Pieņemts' :
+													 booking.status === 'declined' ? 'Noraidīts' :
+													 booking.status === 'declined_conflict' ? 'Noraidīts (konflikts)' :
+													 'Gaida apstiprinājumu'}
+												</span>
+											</div>
+											<p className="text-sm text-gray-600">
+												<strong>Datums:</strong> {new Date(booking.date).toLocaleDateString('lv-LV')} {booking.time}
+											</p>
+											<p className="text-sm text-gray-600">
+												<strong>Pasniedzējs:</strong> {booking.teacherName || '—'}
+											</p>
+											{booking.studentName && (
+												<p className="text-sm text-gray-600">
+													<strong>Skolēns:</strong> {booking.studentName}
+												</p>
+											)}
+											<p className="text-sm text-gray-600">
+												<strong>Izveidots:</strong> {new Date(booking.createdAt).toLocaleString('lv-LV')}
+											</p>
+										</div>
+									</div>
+								</div>
+							))}
+						</div>
+					)}
+				</div>
+			)}
+		</div>
+	)
 }
 
 const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isActive: boolean; onEdit: () => void }) => {
 	const [selectedDate, setSelectedDate] = useState<Date>(new Date())
 	const [selectedDay, setSelectedDay] = useState<number | null>(null)
 	const [slots, setSlots] = useState<Array<any>>([])
+	const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'bookings'>('profile')
+	const [notifications, setNotifications] = useState<any[]>([])
+	const [bookings, setBookings] = useState<any[]>([])
+	const [loadingNotifications, setLoadingNotifications] = useState(false)
+	const [loadingBookings, setLoadingBookings] = useState(false)
+	const [expandedNotifications, setExpandedNotifications] = useState<Set<string>>(new Set())
 	const teacherId = String(profile?.userId || profile?.id || '')
 
 	useEffect(() => {
@@ -473,6 +601,88 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 		}
 		if (teacherId) load()
 	}, [teacherId])
+
+	// Load notifications
+	const loadNotifications = async () => {
+		if (!teacherId) return
+		setLoadingNotifications(true)
+		try {
+			const r = await fetch(`/api/notifications?recipientRole=worker&recipientUserId=${encodeURIComponent(teacherId)}`)
+			if (r.ok) {
+				const d = await r.json().catch(() => null)
+				if (d && Array.isArray(d.items)) {
+					setNotifications(d.items.filter((n: any) => n.type === 'booking_request'))
+				}
+			}
+		} catch {}
+		setLoadingNotifications(false)
+	}
+
+	// Load bookings
+	const loadBookings = async () => {
+		if (!teacherId) return
+		setLoadingBookings(true)
+		try {
+			const r = await fetch(`/api/bookings?role=worker&userId=${encodeURIComponent(teacherId)}`)
+			if (r.ok) {
+				const d = await r.json().catch(() => null)
+				if (d && Array.isArray(d.items)) {
+					setBookings(d.items)
+				}
+			}
+		} catch {}
+		setLoadingBookings(false)
+	}
+
+	// Load data when tab changes
+	useEffect(() => {
+		if (activeTab === 'notifications') loadNotifications()
+		if (activeTab === 'bookings') loadBookings()
+	}, [activeTab, teacherId])
+
+	// Handle booking accept/decline
+	const handleBookingAction = async (bookingId: string, action: 'accept' | 'decline') => {
+		try {
+			const r = await fetch('/api/bookings', {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ bookingId, action, teacherId })
+			})
+			if (r.ok) {
+				// Reload data
+				loadNotifications()
+				loadBookings()
+			}
+		} catch {}
+	}
+
+	// Handle notification expansion and marking as read
+	const handleNotificationClick = async (notificationId: string) => {
+		const isExpanded = expandedNotifications.has(notificationId)
+		
+		if (!isExpanded) {
+			// Expand notification
+			setExpandedNotifications(prev => new Set([...prev, notificationId]))
+			
+			// Mark as read
+			try {
+				await fetch('/api/notifications', {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ id: notificationId, unread: false })
+				})
+				// Reload notifications to update unread status
+				loadNotifications()
+			} catch {}
+		} else {
+			// Collapse notification
+			setExpandedNotifications(prev => {
+				const newSet = new Set(prev)
+				newSet.delete(notificationId)
+				return newSet
+			})
+		}
+	}
 
 	const getDaysInMonth = (date: Date) => {
 		const year = date.getFullYear()
@@ -497,6 +707,7 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 
 	return (
 		<div className="space-y-6">
+			{/* Profile Header */}
 			<div className="bg-white rounded-2xl shadow p-6 space-y-4">
 				<div className="flex items-start gap-4">
 					{profile.photo ? (
@@ -515,67 +726,235 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 						<div className="text-sm text-gray-700 whitespace-pre-line">{profile.description || '—'}</div>
 					</div>
 				</div>
+			</div>
 
-				<div className="space-y-3">
-					<div className="flex items-center justify-between">
-						<button onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1))} className="p-2 hover:bg-gray-100 rounded-lg">←</button>
-						<div className="font-semibold text-black">{selectedDate.toLocaleString('lv-LV', { month: 'long' })} {selectedDate.getFullYear()}</div>
-						<button onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1))} className="p-2 hover:bg-gray-100 rounded-lg">→</button>
-					</div>
-					<div className="grid grid-cols-7 gap-1 text-center text-xs text-gray-600">
-						{['P','O','T','C','Pk','S','Sv'].map((d,i) => <div key={i} className="py-1 font-medium">{d}</div>)}
-					</div>
-					<div className="grid grid-cols-7 gap-1">
-						{Array.from({ length: startingDay }, (_, i) => <div key={`e-${i}`} className="h-10"></div>)}
-						{Array.from({ length: daysInMonth }, (_, i) => {
-							const day = i + 1
-							const has = hasSlotsOn(selectedDate.getFullYear(), selectedDate.getMonth(), day)
-							const isSel = selectedDay === day
-							return (
-								<div key={day} className={`h-10 border rounded ${isSel ? 'bg-yellow-400 text-black font-bold' : has ? 'bg-green-50 hover:bg-green-100' : 'bg-gray-50'}`} onClick={() => { setSelectedDay(day) }}>
-									<div className="text-[11px] pt-1">{day}</div>
-								</div>
-							)
-						})}
-					</div>
+			{/* Tabs */}
+			<div className="bg-white rounded-2xl shadow-xl p-2">
+				<div className="flex gap-2">
+					<button onClick={() => setActiveTab('profile')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'profile' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Profils</button>
+					<button onClick={() => setActiveTab('notifications')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'notifications' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>
+						Paziņojumi {notifications.filter(n => n.unread).length > 0 && <span className="ml-2 inline-block text-xs bg-red-500 text-white rounded-full px-2 py-0.5">{notifications.filter(n => n.unread).length}</span>}
+					</button>
+					<button onClick={() => setActiveTab('bookings')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'bookings' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Rezervācijas</button>
+				</div>
+			</div>
 
-					{selectedDay && (
-						<div className="mt-2 border-t pt-3">
-							{(() => {
-								const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`
-								const items = getSlotsForDate(dateStr)
-								if (!items.length) return <div className="text-sm text-gray-500">Šajā dienā nav pieejamu stundu</div>
+			{/* Tab Content */}
+			{activeTab === 'profile' && (
+				<div className="bg-white rounded-2xl shadow p-6 space-y-4">
+					<div className="space-y-3">
+						<div className="flex items-center justify-between">
+							<button onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 1, 1))} className="p-2 hover:bg-gray-100 rounded-lg">←</button>
+							<div className="font-semibold text-black">{selectedDate.toLocaleString('lv-LV', { month: 'long' })} {selectedDate.getFullYear()}</div>
+							<button onClick={() => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1))} className="p-2 hover:bg-gray-100 rounded-lg">→</button>
+						</div>
+						<div className="grid grid-cols-7 gap-1 text-center text-xs text-gray-600">
+							{['P','O','T','C','Pk','S','Sv'].map((d,i) => <div key={i} className="py-1 font-medium">{d}</div>)}
+						</div>
+						<div className="grid grid-cols-7 gap-1">
+							{Array.from({ length: startingDay }, (_, i) => <div key={`e-${i}`} className="h-10"></div>)}
+							{Array.from({ length: daysInMonth }, (_, i) => {
+								const day = i + 1
+								const has = hasSlotsOn(selectedDate.getFullYear(), selectedDate.getMonth(), day)
+								const isSel = selectedDay === day
 								return (
-									<div className="space-y-1">
-										{items.map((s: any) => {
-											const typeLabel = s?.lessonType === 'group' ? 'Grupu' : 'Individuāla'
-											const locLabel = s?.location === 'teacher' ? 'Privāti' : 'Uz vietas'
-											const modLabel = s?.modality === 'zoom' ? 'Zoom' : 'Klātienē'
-											const bookedBy = s?.studentName || s?.userName || s?.bookedByName || null
-											const isFree = Boolean(s?.available)
-											return (
-												<div key={s.id} className={`text-sm px-2 py-1 rounded border ${isFree ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white'}`}>
-													<div className="flex flex-wrap items-center gap-2">
-														<span className="font-medium text-black mr-2">{s.time}</span>
-														<span className="px-2 py-0.5 rounded-full border border-gray-200 text-gray-700">{typeLabel}</span>
-														<span className="px-2 py-0.5 rounded-full border border-gray-200 text-gray-700">{locLabel}</span>
-														<span className="px-2 py-0.5 rounded-full border border-gray-200 text-gray-700">{modLabel}</span>
-														{isFree ? (
-															<span className="ml-auto text-green-700">Pieejams</span>
-														) : (
-															<span className="ml-auto text-gray-700">Rezervēts{bookedBy ? ` – ${bookedBy}` : ''}</span>
-														)}
-													</div>
-												</div>
-											)
-										})}
+									<div key={day} className={`h-10 border rounded ${isSel ? 'bg-yellow-400 text-black font-bold' : has ? 'bg-green-50 hover:bg-green-100' : 'bg-gray-50'}`} onClick={() => { setSelectedDay(day) }}>
+										<div className="text-[11px] pt-1">{day}</div>
 									</div>
 								)
-							})()}
+							})}
+						</div>
+
+						{selectedDay && (
+							<div className="mt-2 border-t pt-3">
+								{(() => {
+									const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth()+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`
+									const items = getSlotsForDate(dateStr)
+									if (!items.length) return <div className="text-sm text-gray-500">Šajā dienā nav pieejamu stundu</div>
+									return (
+										<div className="space-y-1">
+											{items.map((s: any) => {
+												const typeLabel = s?.lessonType === 'group' ? 'Grupu' : 'Individuāla'
+												const locLabel = s?.location === 'teacher' ? 'Privāti' : 'Uz vietas'
+												const modLabel = s?.modality === 'zoom' ? 'Zoom' : 'Klātienē'
+												const bookedBy = s?.studentName || s?.userName || s?.bookedByName || null
+												const isFree = Boolean(s?.available)
+												return (
+													<div key={s.id} className={`text-sm px-2 py-1 rounded border ${isFree ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white'}`}>
+														<div className="flex flex-wrap items-center gap-2">
+															<span className="font-medium text-black mr-2">{s.time}</span>
+															<span className="px-2 py-0.5 rounded-full border border-gray-200 text-gray-700">{typeLabel}</span>
+															<span className="px-2 py-0.5 rounded-full border border-gray-200 text-gray-700">{locLabel}</span>
+															<span className="px-2 py-0.5 rounded-full border border-gray-200 text-gray-700">{modLabel}</span>
+															{isFree ? (
+																<span className="ml-auto text-green-700">Pieejams</span>
+															) : (
+																<span className="ml-auto text-gray-700">Rezervēts{bookedBy ? ` – ${bookedBy}` : ''}</span>
+															)}
+														</div>
+													</div>
+												)
+											})}
+										</div>
+									)
+								})()}
+							</div>
+						)}
+					</div>
+				</div>
+			)}
+
+			{activeTab === 'notifications' && (
+				<div className="bg-white rounded-2xl shadow p-6">
+					<h3 className="text-lg font-semibold text-black mb-4">Rezervāciju pieprasījumi</h3>
+					{loadingNotifications ? (
+						<div className="text-center py-8 text-gray-500">Ielādē...</div>
+					) : notifications.length === 0 ? (
+						<div className="text-center py-8 text-gray-500">Nav jaunu pieprasījumu</div>
+					) : (
+						<div className="space-y-3">
+							{notifications.map(notification => {
+								const isExpanded = expandedNotifications.has(notification.id)
+								return (
+									<div key={notification.id} className={`border rounded-lg p-4 ${notification.unread ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200 bg-white'}`}>
+										<div className="flex items-start justify-between">
+											<div className="flex-1">
+												<button 
+													onClick={() => handleNotificationClick(notification.id)}
+													className="text-left w-full"
+												>
+													<h4 className={`font-semibold text-black hover:text-blue-600 transition-colors ${notification.unread ? 'font-bold' : ''}`}>
+														{notification.title}
+														{notification.unread && <span className="ml-2 text-xs bg-red-500 text-white rounded-full px-2 py-0.5">Jauns</span>}
+													</h4>
+												</button>
+												
+												{isExpanded && (
+													<div className="mt-3 pt-3 border-t border-gray-200">
+														<p className="text-sm text-gray-600 mb-2">{notification.message}</p>
+														<p className="text-xs text-gray-500">
+															{new Date(notification.createdAt).toLocaleString('lv-LV')}
+														</p>
+													</div>
+												)}
+												
+												{!isExpanded && (
+													<p className="text-xs text-gray-500 mt-1">
+														{new Date(notification.createdAt).toLocaleString('lv-LV')}
+													</p>
+												)}
+											</div>
+										</div>
+									</div>
+								)
+							})}
 						</div>
 					)}
 				</div>
-			</div>
+			)}
+
+			{activeTab === 'bookings' && (
+				<div className="bg-white rounded-2xl shadow p-6">
+					<h3 className="text-lg font-semibold text-black mb-4">Visas rezervācijas</h3>
+					{loadingBookings ? (
+						<div className="text-center py-8 text-gray-500">Ielādē...</div>
+					) : bookings.length === 0 ? (
+						<div className="text-center py-8 text-gray-500">Nav rezervāciju</div>
+					) : (
+						<div className="space-y-3">
+							{bookings.map(booking => (
+								<div key={booking._id} className="border border-gray-200 rounded-lg p-4">
+									<div className="flex items-start justify-between">
+										<div className="flex-1">
+											<div className="flex items-center gap-2 mb-2">
+												<span className={`px-2 py-1 text-xs rounded-full ${
+													booking.status === 'accepted' ? 'bg-green-100 text-green-800' :
+													booking.status === 'declined' ? 'bg-red-100 text-red-800' :
+													booking.status === 'declined_conflict' ? 'bg-orange-100 text-orange-800' :
+													'bg-yellow-100 text-yellow-800'
+												}`}>
+													{booking.status === 'accepted' ? 'Pieņemts' :
+													 booking.status === 'declined' ? 'Noraidīts' :
+													 booking.status === 'declined_conflict' ? 'Noraidīts (konflikts)' :
+													 'Gaida apstiprinājumu'}
+												</span>
+											</div>
+											<p className="text-sm text-gray-600">
+												<strong>Datums:</strong> {new Date(booking.date).toLocaleDateString('lv-LV')} {booking.time}
+											</p>
+											<p className="text-sm text-gray-600">
+												<strong>Izveidots:</strong> {new Date(booking.createdAt).toLocaleString('lv-LV')}
+											</p>
+											
+											{/* Show different info based on account type */}
+											{booking.studentId ? (
+												/* Parent account - show both student and parent info */
+												<>
+													{booking.studentName && (
+														<p className="text-sm text-gray-600">
+															<strong>Skolēns:</strong> {booking.studentName}
+														</p>
+													)}
+													{booking.userName && (
+														<p className="text-sm text-gray-600">
+															<strong>Vecāks:</strong> {booking.userName}
+														</p>
+													)}
+													{booking.userEmail && (
+														<p className="text-sm text-gray-600">
+															<strong>E-pasts:</strong> {booking.userEmail}
+														</p>
+													)}
+													{booking.userPhone && (
+														<p className="text-sm text-gray-600">
+															<strong>Telefons:</strong> {booking.userPhone}
+														</p>
+													)}
+												</>
+											) : (
+												/* Student account - show only student info */
+												<>
+													{booking.userName && (
+														<p className="text-sm text-gray-600">
+															<strong>Skolēns:</strong> {booking.userName}
+														</p>
+													)}
+													{booking.userEmail && (
+														<p className="text-sm text-gray-600">
+															<strong>E-pasts:</strong> {booking.userEmail}
+														</p>
+													)}
+													{booking.userPhone && (
+														<p className="text-sm text-gray-600">
+															<strong>Telefons:</strong> {booking.userPhone}
+														</p>
+													)}
+												</>
+											)}
+										</div>
+										{booking.status === 'pending' && (
+											<div className="ml-4 flex gap-2">
+												<button 
+													onClick={() => handleBookingAction(booking._id, 'accept')}
+													className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg"
+												>
+													Pieņemt
+												</button>
+												<button 
+													onClick={() => handleBookingAction(booking._id, 'decline')}
+													className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded-lg"
+												>
+													Noraidīt
+												</button>
+											</div>
+										)}
+									</div>
+								</div>
+							))}
+						</div>
+					)}
+				</div>
+			)}
 		</div>
 	)
 }

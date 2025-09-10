@@ -20,7 +20,14 @@ export default async function handler(req: any, res: any) {
 
 	if (req.method === 'GET') {
 		const role = (req.query.recipientRole as string) || 'admin'
-		const docs = await collection.find({ recipientRole: role }).sort({ createdAt: -1 }).toArray()
+		const userId = req.query.recipientUserId as string
+		
+		const query: any = { recipientRole: role }
+		if (userId) {
+			query.recipientUserId = userId
+		}
+		
+		const docs = await collection.find(query).sort({ createdAt: -1 }).toArray()
 		return res.status(200).json({
 			items: docs.map((d: any) => ({
 				id: String(d._id),
@@ -30,6 +37,7 @@ export default async function handler(req: any, res: any) {
 				unread: d.unread !== false,
 				createdAt: d.createdAt || null,
 				actorUserId: d.actorUserId || null,
+				related: d.related || null,
 			})),
 		})
 	}

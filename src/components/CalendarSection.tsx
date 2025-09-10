@@ -22,6 +22,7 @@ const CalendarSection = () => {
 	const [, setActiveTeacherIds] = useState<Record<string, boolean>>({})
 	const [loading, setLoading] = useState(true)
 	const [userRole, setUserRole] = useState<string | null>(null)
+	const [userId, setUserId] = useState<string | null>(null)
 	const [showMonthPicker, setShowMonthPicker] = useState(false)
 	const [selectedTeacherId, setSelectedTeacherId] = useState<string>('')
 	
@@ -40,6 +41,7 @@ const CalendarSection = () => {
 				const saved = JSON.parse(raw)
 				if (saved && saved.role) {
 					setUserRole(saved.role)
+					if (saved.userId) setUserId(String(saved.userId))
 				}
 			}
 		} catch {}
@@ -156,6 +158,27 @@ const CalendarSection = () => {
 	}, [timeSlots])
 
 	const { daysInMonth, startingDay } = getDaysInMonth(selectedDate)
+
+	// Booking modal state
+	const [bookingSlot, setBookingSlot] = useState<TimeSlot | null>(null)
+	const [children, setChildren] = useState<any[]>([])
+	const [selectedChildId, setSelectedChildId] = useState<string>('')
+	const [bookingLoading, setBookingLoading] = useState(false)
+	const [bookingError, setBookingError] = useState<string | null>(null)
+	const [bookingSuccess, setBookingSuccess] = useState<string | null>(null)
+
+	useEffect(() => {
+		// Load children list when booking starts
+		if (!bookingSlot || !userId) return
+		setChildren([])
+		setSelectedChildId('')
+		fetch(`/api/students?userId=${encodeURIComponent(userId)}`)
+			.then(r => r.ok ? r.json() : null)
+			.then(d => {
+				if (d && d.success && Array.isArray(d.students)) setChildren(d.students)
+			})
+			.catch(() => {})
+	}, [bookingSlot, userId])
 
 	if (loading) {
 		return (
@@ -477,9 +500,7 @@ const CalendarSection = () => {
 																		</div>
 																	) : userRole === 'user' ? (
 																		<button 
-																			onClick={() => {
-																				alert(`Rezervācija veiksmīga!\n\nStunda: ${slot.teacherName}\nDatums: ${new Date(slot.date).toLocaleDateString('lv-LV')}\nLaiks: ${slot.time}\nVeids: ${lessonTypeLabel}, ${modalityLabel}`)
-																			}}
+																			onClick={() => setBookingSlot(slot)}
 																			className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg transition-colors"
 																		>
 																			Rezervēt
@@ -512,6 +533,66 @@ const CalendarSection = () => {
 						</div>
 					</div>
 
+					{/* Booking Modal */}
+					{bookingSlot && userRole === 'user' && (
+						<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+							<div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
+								<h3 className="text-lg font-semibold text-black mb-4">Apstiprināt rezervāciju</h3>
+								<div className="space-y-3 text-sm text-gray-700">
+									<div><span className="font-medium">Pasniedzējs:</span> {bookingSlot.teacherName}</div>
+									<div><span className="font-medium">Datums:</span> {new Date(bookingSlot.date).toLocaleDateString('lv-LV')}</div>
+									<div><span className="font-medium">Laiks:</span> {bookingSlot.time}</div>
+								</div>
+
+								{/* Child selection for parents */}
+								{children.length > 0 && (
+									<div className="mt-4">
+										<label className="block text-xs font-medium text-gray-700 mb-1">Izvēlieties bērnu</label>
+										<select value={selectedChildId} onChange={e => setSelectedChildId(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-sm">
+											<option value="">—</option>
+											{children.map((c: any) => (
+												<option key={c.id || c._id} value={String(c.id || c._id)}>{c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim()}</option>
+											))}
+										</select>
+										<p className="text-xs text-gray-500 mt-1">Ja rezervējat bērnam, izvēlieties to no saraksta.</p>
+									</div>
+								)}
+
+								{bookingError && <div className="mt-3 text-sm text-red-600">{bookingError}</div>}
+								{bookingSuccess && <div className="mt-3 text-sm text-green-700">{bookingSuccess}</div>}
+
+								<div className="mt-6 flex items-center justify-end gap-2">
+									<button onClick={() => { setBookingSlot(null); setBookingError(null); setBookingSuccess(null); }} className="px-4 py-2 border border-gray-300 rounded-lg">Atcelt</button>
+									<button disabled={bookingLoading || !userId} onClick={async () => {
+										if (!bookingSlot || !userId) return
+										setBookingLoading(true)
+										setBookingError(null)
+										try {
+											const r = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+												userId,
+												teacherId: String(bookingSlot.teacherId),
+												date: bookingSlot.date,
+												time: bookingSlot.time,
+												studentId: selectedChildId || null
+											}) })
+											if (!r.ok) {
+												const e = await r.json().catch(() => ({}))
+												throw new Error(e.error || 'Neizdevās izveidot rezervāciju')
+											}
+											setBookingSuccess('Pieprasījums nosūtīts pasniedzējam apstiprināšanai')
+											setTimeout(() => { setBookingSlot(null); setBookingSuccess(null) }, 1200)
+										} catch (e: any) {
+											setBookingError(e?.message || 'Kļūda')
+										} finally {
+											setBookingLoading(false)
+										}
+									}} className="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-black font-semibold rounded-lg disabled:opacity-60">
+										{bookingLoading ? 'Sūta...' : 'Apstiprināt'}
+									</button>
+								</div>
+							</div>
+						</div>
+					)}
 				</div>
 			</div>
 		</div>
