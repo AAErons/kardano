@@ -16,7 +16,7 @@ const CalendarSection = () => {
 	const [selectedDate, setSelectedDate] = useState(new Date())
 	const [selectedDay, setSelectedDay] = useState<number | null>(null)
 	const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
-	const [activeTeacherIds, setActiveTeacherIds] = useState<Record<string, boolean>>({})
+	const [, setActiveTeacherIds] = useState<Record<string, boolean>>({})
 	const [loading, setLoading] = useState(true)
 	const [userRole, setUserRole] = useState<string | null>(null)
 	const [showMonthPicker, setShowMonthPicker] = useState(false)

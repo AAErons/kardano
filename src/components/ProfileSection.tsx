@@ -1129,8 +1129,8 @@ const AdminTeachers = () => {
 															<div className="font-semibold text-black mb-1">Pieejamie laiki</div>
 															{(p.availability || []).length > 0 ? (
 																<div className="mt-3 grid md:grid-cols-2 gap-2">
-																	{p.availability.map((a: any, idx: number) => (
-																		<div key={idx} className="text-sm text-gray-800 flex items-center justify-between border border-gray-200 rounded-lg p-3 bg-white">
+																	{p.availability.map((a: any, _idx: number) => (
+																		<div key={_idx} className="text-sm text-gray-800 flex items-center justify-between border border-gray-200 rounded-lg p-3 bg-white">
 																			<div className="truncate">
 																				{a.type === 'specific' ? (
 																					<span>Konkrēta diena: <b>{a.date}</b></span>
@@ -1144,7 +1144,7 @@ const AdminTeachers = () => {
 																				...prev,
 																				[t.id]: {
 																					...prev[t.id],
-																					availability: (prev?.[t.id]?.availability || []).filter((_: any, i: number) => i !== idx)
+																					availability: (prev?.[t.id]?.availability || []).filter((x: any) => x !== a)
 																				}
 																			}))}>Noņemt</button>
 																		</div>
@@ -1284,7 +1284,7 @@ const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescriptio
 	const generateAvailabilityData = () => {
 		const out: any[] = []
 		Object.entries(weeklyHours).forEach(([day, hours]) => {
-			hourKeys.forEach((h, idx) => {
+			hourKeys.forEach((h) => {
 				const o = hours[h]
 				if (o?.enabled) {
 					const nextHour = `${String((Number(h.slice(0,2)) + 1) % 24).padStart(2,'0')}:00`
