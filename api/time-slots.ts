@@ -73,6 +73,7 @@ export default async function handler(req: any, res: any) {
       lessonType: slot.lessonType || 'individual',
       location: slot.location || 'facility',
       modality: slot.modality || 'in_person',
+      groupSize: typeof slot.groupSize === 'number' ? slot.groupSize : undefined,
       createdAt: slot.createdAt
     }))
 

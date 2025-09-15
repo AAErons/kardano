@@ -19,6 +19,7 @@ type CreateBookingBody = {
   date: string // YYYY-MM-DD
   time: string // HH:MM
   studentId?: string | null
+  batchId?: string | null
 }
 
 export default async function handler(req: any, res: any) {
@@ -39,9 +40,18 @@ export default async function handler(req: any, res: any) {
       const date = String(body.date || '')
       const time = String(body.time || '')
       const studentId = body.studentId ? String(body.studentId) : null
+      const batchId = body.batchId ? String(body.batchId) : null
       if (!userId || !teacherId || !date || !time) {
         return res.status(400).json({ error: 'Missing userId, teacherId, date or time' })
       }
+      // If the user account is a parent/children account, enforce studentId
+      try {
+        const userDoc = await users.findOne({ _id: new (await import('mongodb')).ObjectId(userId) })
+        const accountType = (userDoc && (userDoc as any).accountType) || null
+        if (accountType === 'children' && !studentId) {
+          return res.status(400).json({ error: 'StudentId is required for parent accounts' })
+        }
+      } catch {}
 
       const now = new Date()
 
@@ -54,16 +64,21 @@ export default async function handler(req: any, res: any) {
         return res.status(409).json({ error: 'Time slot is no longer available' })
       }
 
-      // Create booking with pending status
+      // Create booking with pending status; include slot attributes for later logic
       const bookingDoc = {
         userId,
         teacherId,
         date,
         time,
         studentId: studentId || null,
+        lessonType: slot.lessonType || 'individual',
+        groupSize: typeof slot.groupSize === 'number' ? slot.groupSize : undefined,
+        location: slot.location || 'facility',
+        modality: slot.modality || 'in_person',
         status: 'pending', // pending | accepted | declined | declined_conflict | cancelled
         createdAt: now,
         updatedAt: now,
+        batchId: batchId || undefined,
       }
       const result = await bookings.insertOne(bookingDoc as any)
 
@@ -151,8 +166,9 @@ export default async function handler(req: any, res: any) {
     }
 
     if (req.method === 'PATCH') {
-      const { bookingId, action, teacherId } = (req.body || {}) as { bookingId?: string; action?: 'accept' | 'decline'; teacherId?: string }
-      if (!bookingId || !action) return res.status(400).json({ error: 'Missing bookingId or action' })
+      const { bookingId, action, teacherId, newDate, newTime, date: groupDate, time: groupTime, amount, newSize, zoomLink, address, attended, paid, extendPreferred, batchId } = (req.body || {}) as { bookingId?: string; action?: 'accept' | 'decline' | 'reschedule_accept' | 'cancel' | 'increase_group_size' | 'report' | 'accept_batch'; teacherId?: string; newDate?: string; newTime?: string; date?: string; time?: string; amount?: number; newSize?: number; zoomLink?: string; address?: string; attended?: boolean; paid?: boolean; extendPreferred?: boolean; batchId?: string }
+      if (!action) return res.status(400).json({ error: 'Missing action' })
+      if (action !== 'accept_batch' && !bookingId) return res.status(400).json({ error: 'Missing bookingId' })
       const { ObjectId } = await import('mongodb')
       const _id = new ObjectId(String(bookingId))
 
@@ -166,12 +182,228 @@ export default async function handler(req: any, res: any) {
       }
 
       if (action === 'accept') {
-        // Accept this booking, lock the slot and mark others as pending_unavailable
+        // Accept booking. For group slots, keep accepting until capacity reached.
         const { date, time } = booking
-        await bookings.updateOne({ _id }, { $set: { status: 'accepted', updatedAt: new Date() } })
-        await timeSlots.updateMany({ teacherId: teacherIdEffective, date, time }, { $set: { available: false, updatedAt: new Date() } })
-        await bookings.updateMany({ _id: { $ne: _id }, teacherId: teacherIdEffective, date, time, status: { $in: ['pending'] } }, { $set: { status: 'pending_unavailable', updatedAt: new Date() } })
+        const slot = await timeSlots.findOne({ teacherId: teacherIdEffective, date, time })
+        const lessonType = (slot && slot.lessonType) || booking.lessonType || 'individual'
+        const groupSize = Number((slot && slot.groupSize) || booking.groupSize || 1)
+
+        // Validate meeting info and enrich booking
+        let meetingFields: any = {}
+        if (lessonType && lessonType === 'group') {
+          // ok
+        }
+        if ((slot && slot.modality) || booking.modality) {
+          const modality = (slot && slot.modality) || booking.modality
+          const location = (slot && slot.location) || booking.location
+          if (modality === 'zoom') {
+            if (!zoomLink || typeof zoomLink !== 'string' || !zoomLink.trim()) {
+              return res.status(400).json({ error: 'Missing zoomLink' })
+            }
+            meetingFields.zoomLink = zoomLink.trim()
+          } else {
+            if (location === 'teacher') {
+              if (!address || typeof address !== 'string' || !address.trim()) {
+                return res.status(400).json({ error: 'Missing address' })
+              }
+              meetingFields.address = address.trim()
+              meetingFields.addressSource = 'teacher'
+            } else {
+              // facility: fetch admin address
+              try {
+                const adminData = await db.collection('admin_data').findOne({ _id: 'school' })
+                if (adminData && typeof adminData.address === 'string' && adminData.address.trim()) {
+                  meetingFields.address = adminData.address.trim()
+                  meetingFields.addressSource = 'admin'
+                }
+              } catch {}
+            }
+          }
+        }
+
+        // Accept this booking with meeting fields
+        await bookings.updateOne({ _id }, { $set: { status: 'accepted', updatedAt: new Date(), ...meetingFields } })
+
+        if (lessonType === 'group' && groupSize > 1) {
+          const acceptedCount = await bookings.countDocuments({ teacherId: teacherIdEffective, date, time, status: 'accepted' })
+          if (acceptedCount >= groupSize) {
+            // Capacity reached: lock slot and mark others unavailable
+            await timeSlots.updateMany({ teacherId: teacherIdEffective, date, time }, { $set: { available: false, updatedAt: new Date() } })
+            await bookings.updateMany({ _id: { $ne: _id }, teacherId: teacherIdEffective, date, time, status: { $in: ['pending'] } }, { $set: { status: 'pending_unavailable', updatedAt: new Date() } })
+          } else {
+            // Still capacity: keep slot available and leave others pending
+            await timeSlots.updateMany({ teacherId: teacherIdEffective, date, time }, { $set: { available: true, updatedAt: new Date() } })
+          }
+        } else {
+          // Individual or no group capacity: lock immediately
+          await timeSlots.updateMany({ teacherId: teacherIdEffective, date, time }, { $set: { available: false, updatedAt: new Date() } })
+          await bookings.updateMany({ _id: { $ne: _id }, teacherId: teacherIdEffective, date, time, status: { $in: ['pending'] } }, { $set: { status: 'pending_unavailable', updatedAt: new Date() } })
+        }
         return res.status(200).json({ ok: true })
+      }
+
+      if (action === 'reschedule_accept') {
+        // Teacher proposes a new time and accepts the booking
+        const date = String(newDate || '')
+        const time = String(newTime || '')
+        if (!date || !time) return res.status(400).json({ error: 'Missing newDate or newTime' })
+
+        // Ensure new slot exists and is available
+        const slot = await timeSlots.findOne({ teacherId: teacherIdEffective, date, time })
+        if (!slot) return res.status(404).json({ error: 'Time slot not found' })
+        if (slot.available === false) return res.status(409).json({ error: 'Time slot is no longer available' })
+
+        const lessonType = slot.lessonType || booking.lessonType || 'individual'
+        const groupSize = Number(slot.groupSize || booking.groupSize || 1)
+        const modality = slot.modality || booking.modality || 'in_person'
+        const location = slot.location || booking.location || 'facility'
+
+        // Validate and build meeting fields
+        let meetingFields2: any = {}
+        if (modality === 'zoom') {
+          if (!zoomLink || typeof zoomLink !== 'string' || !zoomLink.trim()) {
+            return res.status(400).json({ error: 'Missing zoomLink' })
+          }
+          meetingFields2.zoomLink = zoomLink.trim()
+        } else {
+          if (location === 'teacher') {
+            if (!address || typeof address !== 'string' || !address.trim()) {
+              return res.status(400).json({ error: 'Missing address' })
+            }
+            meetingFields2.address = address.trim()
+            meetingFields2.addressSource = 'teacher'
+          } else {
+            try {
+              const adminData = await db.collection('admin_data').findOne({ _id: 'school' })
+              if (adminData && typeof adminData.address === 'string' && adminData.address.trim()) {
+                meetingFields2.address = adminData.address.trim()
+                meetingFields2.addressSource = 'admin'
+              }
+            } catch {}
+          }
+        }
+
+        // Update booking to new date/time, copy slot attributes, and accept
+        await bookings.updateOne({ _id }, { $set: { date, time, status: 'accepted', lessonType, groupSize: groupSize > 0 ? groupSize : undefined, modality, location, updatedAt: new Date(), ...meetingFields2 } })
+
+        if (lessonType === 'group' && groupSize > 1) {
+          const acceptedCount = await bookings.countDocuments({ teacherId: teacherIdEffective, date, time, status: 'accepted' })
+          if (acceptedCount >= groupSize) {
+            await timeSlots.updateMany({ teacherId: teacherIdEffective, date, time }, { $set: { available: false, updatedAt: new Date() } })
+            await bookings.updateMany({ _id: { $ne: _id }, teacherId: teacherIdEffective, date, time, status: { $in: ['pending'] } }, { $set: { status: 'pending_unavailable', updatedAt: new Date() } })
+          } else {
+            await timeSlots.updateMany({ teacherId: teacherIdEffective, date, time }, { $set: { available: true, updatedAt: new Date() } })
+          }
+        } else {
+          await timeSlots.updateMany({ teacherId: teacherIdEffective, date, time }, { $set: { available: false, updatedAt: new Date() } })
+          await bookings.updateMany({ _id: { $ne: _id }, teacherId: teacherIdEffective, date, time, status: { $in: ['pending'] } }, { $set: { status: 'pending_unavailable', updatedAt: new Date() } })
+        }
+        return res.status(200).json({ ok: true })
+      }
+
+      if (action === 'cancel') {
+        // Allow cancel only if booking is not accepted yet
+        if (booking.status !== 'pending' && booking.status !== 'pending_unavailable') {
+          return res.status(400).json({ error: 'Only pending bookings can be cancelled' })
+        }
+        await bookings.updateOne({ _id }, { $set: { status: 'cancelled', updatedAt: new Date() } })
+        return res.status(200).json({ ok: true })
+      }
+      
+      if (action === 'report') {
+        const setDoc: any = { updatedAt: new Date() }
+        if (typeof attended === 'boolean') setDoc.attended = attended
+        if (typeof paid === 'boolean') setDoc.paid = paid
+        if (typeof extendPreferred === 'boolean') setDoc.extendPreferred = extendPreferred
+        await bookings.updateOne({ _id }, { $set: setDoc })
+        return res.status(200).json({ ok: true })
+      }
+
+      if (action === 'increase_group_size') {
+        // Increase capacity for a specific group time slot
+        const date = String(groupDate || booking.date)
+        const time = String(groupTime || booking.time)
+        const teacher = String(teacherId || booking.teacherId)
+        const slot = await timeSlots.findOne({ teacherId: teacher, date, time })
+        if (!slot) return res.status(404).json({ error: 'Time slot not found' })
+        const currentSize = Number(slot.groupSize || booking.groupSize || 1)
+        const delta = typeof amount === 'number' && amount > 0 ? amount : 1
+        const target = typeof newSize === 'number' && newSize > currentSize ? newSize : currentSize + delta
+
+        // Update time slot capacity
+        await timeSlots.updateMany({ teacherId: teacher, date, time }, { $set: { groupSize: target, updatedAt: new Date() } })
+
+        // Recompute availability
+        const acceptedCount = await bookings.countDocuments({ teacherId: teacher, date, time, status: 'accepted' })
+        const available = acceptedCount < target
+        await timeSlots.updateMany({ teacherId: teacher, date, time }, { $set: { available, updatedAt: new Date() } })
+
+        // Reopen pending_unavailable back to pending so teacher can continue processing
+        if (available) {
+          await bookings.updateMany({ teacherId: teacher, date, time, status: 'pending_unavailable' }, { $set: { status: 'pending', updatedAt: new Date() } })
+        }
+
+        return res.status(200).json({ ok: true, groupSize: target, available })
+      }
+
+      if (action === 'accept_batch') {
+        // Accept all pending bookings in a batch for this teacher.
+        if (!batchId) return res.status(400).json({ error: 'Missing batchId' })
+        const teacherIdEffective2 = String(teacherId || '')
+        if (!teacherIdEffective2) return res.status(400).json({ error: 'Missing teacherId' })
+        const list = await bookings.find({ teacherId: teacherIdEffective2, batchId, status: { $in: ['pending','pending_unavailable'] } }).toArray()
+        if (!list || list.length === 0) return res.status(404).json({ error: 'No pending bookings in this batch' })
+        // Validate required meeting info across modalities/locations
+        const slotMap: Record<string, any> = {}
+        for (const b of list) {
+          const key = `${b.date}|${b.time}`
+          if (!slotMap[key]) slotMap[key] = await timeSlots.findOne({ teacherId: teacherIdEffective2, date: b.date, time: b.time })
+        }
+        const needsZoom = list.some((b: any) => (slotMap[`${b.date}|${b.time}`]?.modality || b.modality) === 'zoom')
+        const locations = list.map((b: any) => slotMap[`${b.date}|${b.time}`]?.location || b.location)
+        const needsTeacherAddress = locations.some((l: any) => l === 'teacher')
+        if (needsZoom && (!zoomLink || !String(zoomLink).trim())) return res.status(400).json({ error: 'Missing zoomLink' })
+        if (!needsZoom && needsTeacherAddress && (!address || !String(address).trim())) return res.status(400).json({ error: 'Missing address' })
+        // Accept each booking with appropriate meeting fields (recompute per booking)
+        for (const b of list) {
+          const _idEach = new (await import('mongodb')).ObjectId(String(b._id))
+          const slot = slotMap[`${b.date}|${b.time}`]
+          const lessonType = (slot && slot.lessonType) || b.lessonType || 'individual'
+          const groupSize2 = Number((slot && slot.groupSize) || b.groupSize || 1)
+          const modality2 = (slot && slot.modality) || b.modality || 'in_person'
+          const location2 = (slot && slot.location) || b.location || 'facility'
+          const meetingFieldsAny: any = {}
+          if (modality2 === 'zoom') {
+            meetingFieldsAny.zoomLink = String(zoomLink).trim()
+          } else {
+            if (location2 === 'teacher') {
+              meetingFieldsAny.address = String(address).trim()
+              meetingFieldsAny.addressSource = 'teacher'
+            } else {
+              try {
+                const adminData = await db.collection('admin_data').findOne({ _id: 'school' })
+                if (adminData && typeof adminData.address === 'string' && adminData.address.trim()) {
+                  meetingFieldsAny.address = adminData.address.trim()
+                  meetingFieldsAny.addressSource = 'admin'
+                }
+              } catch {}
+            }
+          }
+          await bookings.updateOne({ _id: _idEach }, { $set: { status: 'accepted', updatedAt: new Date(), ...meetingFieldsAny } })
+          if (lessonType === 'group' && groupSize2 > 1) {
+            const acceptedCount = await bookings.countDocuments({ teacherId: teacherIdEffective2, date: b.date, time: b.time, status: 'accepted' })
+            if (acceptedCount >= groupSize2) {
+              await timeSlots.updateMany({ teacherId: teacherIdEffective2, date: b.date, time: b.time }, { $set: { available: false, updatedAt: new Date() } })
+              await bookings.updateMany({ _id: { $ne: _idEach }, teacherId: teacherIdEffective2, date: b.date, time: b.time, status: { $in: ['pending'] } }, { $set: { status: 'pending_unavailable', updatedAt: new Date() } })
+            } else {
+              await timeSlots.updateMany({ teacherId: teacherIdEffective2, date: b.date, time: b.time }, { $set: { available: true, updatedAt: new Date() } })
+            }
+          } else {
+            await timeSlots.updateMany({ teacherId: teacherIdEffective2, date: b.date, time: b.time }, { $set: { available: false, updatedAt: new Date() } })
+            await bookings.updateMany({ _id: { $ne: _idEach }, teacherId: teacherIdEffective2, date: b.date, time: b.time, status: { $in: ['pending'] } }, { $set: { status: 'pending_unavailable', updatedAt: new Date() } })
+          }
+        }
+        return res.status(200).json({ ok: true, count: list.length })
       }
 
       return res.status(400).json({ error: 'Invalid action' })

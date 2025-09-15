@@ -166,18 +166,25 @@ const CalendarSection = () => {
 	const [bookingLoading, setBookingLoading] = useState(false)
 	const [bookingError, setBookingError] = useState<string | null>(null)
 	const [bookingSuccess, setBookingSuccess] = useState<string | null>(null)
+	const [modalChildrenLoading, setModalChildrenLoading] = useState<boolean>(false)
 
 	useEffect(() => {
 		// Load children list when booking starts
 		if (!bookingSlot || !userId) return
 		setChildren([])
 		setSelectedChildId('')
+		setModalChildrenLoading(true)
 		fetch(`/api/students?userId=${encodeURIComponent(userId)}`)
 			.then(r => r.ok ? r.json() : null)
 			.then(d => {
-				if (d && d.success && Array.isArray(d.students)) setChildren(d.students)
+				if (d && d.success && Array.isArray(d.students)) {
+					// Show only actual children, exclude self entries
+					const onlyChildren = d.students.filter((s: any) => s && s.isSelf !== true)
+					setChildren(onlyChildren)
+				}
 			})
 			.catch(() => {})
+			.finally(() => setModalChildrenLoading(false))
 	}, [bookingSlot, userId])
 
 	if (loading) {
@@ -563,8 +570,9 @@ const CalendarSection = () => {
 
 								<div className="mt-6 flex items-center justify-end gap-2">
 									<button onClick={() => { setBookingSlot(null); setBookingError(null); setBookingSuccess(null); }} className="px-4 py-2 border border-gray-300 rounded-lg">Atcelt</button>
-									<button disabled={bookingLoading || !userId} onClick={async () => {
+									<button disabled={bookingLoading || !userId || (userRole === 'user' && children.length > 0 && !selectedChildId) || (userRole === 'user' && modalChildrenLoading)} onClick={async () => {
 										if (!bookingSlot || !userId) return
+										if (userRole === 'user' && children.length > 0 && !selectedChildId) { setBookingError('Lūdzu izvēlieties bērnu pirms apstiprināšanas'); return }
 										setBookingLoading(true)
 										setBookingError(null)
 										try {

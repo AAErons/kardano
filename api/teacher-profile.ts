@@ -71,6 +71,7 @@ async function generateTimeSlotsFromAvailability(db: any, userId: string, availa
         lessonType: rule.lessonType || 'individual',
         location: rule.location || 'facility',
         modality: rule.modality || 'in_person',
+        groupSize: typeof rule.groupSize === 'number' ? rule.groupSize : undefined,
         createdAt: new Date(),
         updatedAt: new Date()
       })
