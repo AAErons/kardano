@@ -5,82 +5,14 @@ type TeacherProfileProps = {
 	isActive?: boolean
 }
 
-type AvailabilityEntry = {
-	type: 'weekly' | 'specific'
-	weekdays?: string[]
-	date?: string
-	from: string
-	to: string
-	fromDate?: string | null
-	until?: string | null
-	lessonType?: 'individual' | 'group'
-	location?: 'facility' | 'teacher'
-	modality?: 'in_person' | 'zoom'
-	groupSize?: number
-}
-
-const dayLabels: Record<string, string> = {
-	'1': 'Pr', '2': 'Ot', '3': 'Tr', '4': 'Ce', '5': 'Pk', '6': 'Se', '7': 'Sv'
-}
+// AvailabilityEntry is handled inside TeacherOnboarding
 
 const TeacherProfile = ({ userId, isActive }: TeacherProfileProps) => {
 	const [isLoadingProfile, setIsLoadingProfile] = useState(false)
 	const [isEditingProfile, setIsEditingProfile] = useState(false)
 	const [teacherProfile, setTeacherProfile] = useState<any | null>(null)
-	const [teacherName, setTeacherName] = useState<string | null>(null)
 
-	// Basic editable fields
-	const [firstName, setFirstName] = useState('')
-	const [lastName, setLastName] = useState('')
-	const [description, setDescription] = useState('')
-	const [photo, setPhoto] = useState('')
-	const [saving, setSaving] = useState(false)
-
-	// Availability draft (for editing)
-	const [availabilityDraft, setAvailabilityDraft] = useState<AvailabilityEntry[]>([])
-	const [scheduleTab, setScheduleTab] = useState<'weekly'|'specific'>('weekly')
-
-	// Weekly form
-	const [weeklyForm, setWeeklyForm] = useState<{
-		weekdays: Record<string, boolean>
-		from: string
-		to: string
-		fromDate: string
-		until: string
-		lessonType: 'individual' | 'group'
-		location: 'facility' | 'teacher'
-		modality: 'in_person' | 'zoom'
-		groupSize: number | ''
-	}>({
-		weekdays: { '1': false, '2': false, '3': false, '4': false, '5': false, '6': false, '7': false },
-		from: '09:00',
-		to: '10:00',
-		fromDate: '',
-		until: '',
-		lessonType: 'individual',
-		location: 'facility',
-		modality: 'in_person',
-		groupSize: ''
-	})
-
-	// Specific form
-	const [specificForm, setSpecificForm] = useState<{
-		date: string
-		from: string
-		to: string
-		lessonType: 'individual' | 'group'
-		location: 'facility' | 'teacher'
-		modality: 'in_person' | 'zoom'
-		groupSize: number | ''
-	}>({
-		date: '',
-		from: '09:00',
-		to: '10:00',
-		lessonType: 'individual',
-		location: 'facility',
-		modality: 'in_person',
-		groupSize: ''
-	})
+	// Removed unused editing helpers from wrapper; editing is handled in TeacherOnboarding
 
 	useEffect(() => {
 		let active = true
@@ -91,103 +23,16 @@ const TeacherProfile = ({ userId, isActive }: TeacherProfileProps) => {
 				if (!active) return
 				if (prof && prof.profile) {
 					setTeacherProfile(prof.profile)
-					setFirstName(prof.profile.firstName || '')
-					setLastName(prof.profile.lastName || '')
-					setDescription(prof.profile.description || '')
-					setPhoto(prof.profile.photo || '')
-					setAvailabilityDraft(Array.isArray(prof.profile.availability) ? prof.profile.availability : [])
 				}
 			} finally {
 				if (active) setIsLoadingProfile(false)
 			}
-			try {
-				const list = await fetch('/api/teachers').then(r => r.json()).catch(() => null)
-				if (!active) return
-				if (list && Array.isArray(list.items)) {
-					const me = list.items.find((t: any) => t.id === userId)
-					if (me && me.name) setTeacherName(me.name)
-				}
-			} catch {}
 		}
 		load()
 		return () => { active = false }
 	}, [userId])
 
-	const onPhotoSelect = (file: File) => {
-		const reader = new FileReader()
-		reader.onload = () => setPhoto((reader.result as string) || '')
-		reader.readAsDataURL(file)
-	}
-
-	const addWeeklyAvailability = () => {
-		const days = Object.keys(weeklyForm.weekdays).filter(k => weeklyForm.weekdays[k])
-		if (days.length === 0) return
-		const entry: AvailabilityEntry = {
-			type: 'weekly',
-			weekdays: days,
-			from: weeklyForm.from,
-			to: weeklyForm.to,
-			fromDate: weeklyForm.fromDate || null,
-			until: weeklyForm.until || null,
-			lessonType: weeklyForm.lessonType,
-			location: weeklyForm.location,
-			modality: weeklyForm.modality,
-			groupSize: weeklyForm.lessonType === 'group' && typeof weeklyForm.groupSize === 'number' ? weeklyForm.groupSize : undefined
-		}
-		setAvailabilityDraft(prev => [...prev, entry])
-	}
-
-	const addSpecificAvailability = () => {
-		if (!specificForm.date) return
-		const entry: AvailabilityEntry = {
-			type: 'specific',
-			date: specificForm.date,
-			from: specificForm.from,
-			to: specificForm.to,
-			lessonType: specificForm.lessonType,
-			location: specificForm.location,
-			modality: specificForm.modality,
-			groupSize: specificForm.lessonType === 'group' && typeof specificForm.groupSize === 'number' ? specificForm.groupSize : undefined
-		}
-		setAvailabilityDraft(prev => [...prev, entry])
-	}
-
-	const removeAvailabilityAt = (idx: number) => {
-		setAvailabilityDraft(prev => prev.filter((_, i) => i !== idx))
-	}
-
-	const handleSave = async () => {
-		if (!firstName.trim() || !lastName.trim()) {
-			alert('Lūdzu aizpildiet vārdu un uzvārdu')
-			return
-		}
-		setSaving(true)
-		try {
-			const response = await fetch('/api/teacher-profile', {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					userId,
-					firstName: firstName.trim(),
-					lastName: lastName.trim(),
-					photo,
-					description: description.trim(),
-					availability: availabilityDraft
-				})
-			})
-			if (response.ok) {
-				setIsEditingProfile(false)
-				const prof = await fetch(`/api/teacher-profile?userId=${encodeURIComponent(userId)}`).then(r => r.json()).catch(() => null)
-				if (prof && prof.profile) setTeacherProfile(prof.profile)
-			} else {
-				alert('Kļūda saglabājot profilu')
-			}
-		} catch {
-			alert('Kļūda savienojumā')
-		} finally {
-			setSaving(false)
-		}
-	}
+	// Removed unused editing helpers from wrapper; editing is handled in TeacherOnboarding
 
 	return (
 		<div className="mb-6 lg:mb-10">
@@ -223,7 +68,7 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 	const [loadingBookings, setLoadingBookings] = useState(false)
 	const [expandedNotifications, setExpandedNotifications] = useState<Set<string>>(new Set())
 	const teacherId = String(profile?.userId || profile?.id || '')
-	const [meetingInputs, setMeetingInputs] = useState<Record<string, { zoomLink?: string; address?: string }>>({})
+	// Using prompts for meeting details in batch/single actions; no state needed
 	const [expandedSlots, setExpandedSlots] = useState<Set<string>>(new Set())
 
 	useEffect(() => {
@@ -569,7 +414,6 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 
       {singles.map(b => {
         const dateStr = new Date(b.date).toLocaleDateString('lv-LV')
-        const isPending = b.status === 'pending'
         return (
           <div key={b._id} className="border border-gray-200 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
