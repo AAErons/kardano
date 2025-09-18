@@ -45,12 +45,12 @@ const TeacherProfile = ({ userId, isActive }: TeacherProfileProps) => {
 			) : teacherProfile && !isEditingProfile ? (
 				<TeacherProfileView profile={teacherProfile} isActive={Boolean(isActive)} onEdit={() => setIsEditingProfile(true)} />
 			) : (
-				<TeacherOnboarding userId={userId} initialPhoto={teacherProfile?.photo} initialDescription={teacherProfile?.description} initialAvailability={teacherProfile?.availability || []} initialFirstName={teacherProfile?.firstName} initialLastName={teacherProfile?.lastName} onFinished={async () => {
+				<TeacherOnboarding userId={userId} allowProfileEdit={!(((teacherProfile?.firstName || '').trim() || (teacherProfile?.lastName || '').trim() || (teacherProfile?.name || '').trim()))} initialPhoto={teacherProfile?.photo} initialDescription={teacherProfile?.description} initialAvailability={teacherProfile?.availability || []} initialFirstName={teacherProfile?.firstName} initialLastName={teacherProfile?.lastName} onFinished={async () => {
 					try {
 						const prof = await fetch(`/api/teacher-profile?userId=${encodeURIComponent(userId)}`).then(r => r.json()).catch(() => null)
 						if (prof && prof.profile) { setTeacherProfile(prof.profile); setIsEditingProfile(false) }
 					} catch {}
-				}} />
+				}} onCancel={() => setIsEditingProfile(false)} />
 			)}
 		</div>
 	)
@@ -70,6 +70,13 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 	const teacherId = String(profile?.userId || profile?.id || '')
 	// Using prompts for meeting details in batch/single actions; no state needed
 	const [expandedSlots, setExpandedSlots] = useState<Set<string>>(new Set())
+	// Attendance draft state
+	const [attendanceDraft, setAttendanceDraft] = useState<Record<string, { attended?: boolean; extendPreferred?: boolean }>>({})
+	const [attendanceSaving, setAttendanceSaving] = useState(false)
+	const [attendanceMsg, setAttendanceMsg] = useState<string | null>(null)
+	const [attendanceSavingIds, setAttendanceSavingIds] = useState<Record<string, boolean>>({})
+	const [attendanceItemMsg, setAttendanceItemMsg] = useState<Record<string, string>>({})
+	const [bookingInputs, setBookingInputs] = useState<Record<string, { zoomLink?: string; address?: string }>>({})
 
 	useEffect(() => {
 		const load = async () => {
@@ -124,6 +131,22 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 	// Ensure bookings are available in profile calendar
 	useEffect(() => { if (teacherId) loadBookings() }, [teacherId])
 
+	// Background refresh for badges (notifications only)
+	useEffect(() => {
+		if (!teacherId) return
+		let timer: any
+		const tick = async () => {
+			try {
+				await loadNotifications()
+			} catch {}
+		}
+		tick()
+		timer = setInterval(tick, 15000)
+		const onFocus = () => { tick() }
+		window.addEventListener('focus', onFocus)
+		return () => { if (timer) clearInterval(timer); window.removeEventListener('focus', onFocus) }
+	}, [teacherId])
+
 	const handleNotificationClick = async (notificationId: string) => {
 		const isExpanded = expandedNotifications.has(notificationId)
 		if (!isExpanded) {
@@ -172,7 +195,7 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 								<div className="font-semibold text-black mb-1">{(profile?.name && String(profile.name).trim()) || `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || '—'}</div>
 								<span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-yellow-100 text-yellow-800 border border-yellow-200'}`}>{isActive ? 'Aktīvs' : 'Neaktīvs'}</span>
 							</div>
-							<button className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50" onClick={onEdit}>Labot profīlu</button>
+							<button className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50" onClick={onEdit}>Mainīt grafiku</button>
 						</div>
 						<div className="text-sm text-gray-700 whitespace-pre-line">{profile.description || '—'}</div>
 					</div>
@@ -323,7 +346,12 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
   }
 
   // --- compute data first ---
-  const pending = bookings.filter(x => x.status === 'pending' || x.status === 'pending_unavailable');
+  const getTs = (v: any) => {
+    try { return new Date(v?.createdAt || 0).getTime() || 0 } catch { return 0 }
+  };
+  const pending = bookings
+    .filter(x => x.status === 'pending' || x.status === 'pending_unavailable')
+    .sort((a, b) => getTs(b) - getTs(a));
   const grouped: Record<string, any[]> = {};
   pending.forEach(b => {
     const k = b.batchId ? String(b.batchId) : `__single__${b._id}`;
@@ -331,16 +359,31 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
   });
 
   const batchKeys = Object.keys(grouped);
-  const batchGroups = batchKeys.filter(k => !k.startsWith('__single__') && grouped[k].length > 1);
+  // Sort batch groups by newest createdAt among items in the group
+  const batchGroups = batchKeys
+    .filter(k => !k.startsWith('__single__') && grouped[k].length > 1)
+    .sort((ka, kb) => {
+      const maxA = Math.max(...grouped[ka].map(getTs));
+      const maxB = Math.max(...grouped[kb].map(getTs));
+      return maxB - maxA;
+    });
   const nonBatchPending = batchKeys
     .filter(k => k.startsWith('__single__') || grouped[k].length <= 1)
-    .flatMap(k => grouped[k]);
-  const others = bookings.filter(x => x.status !== 'pending' && x.status !== 'pending_unavailable');
-  const singles = [...nonBatchPending, ...others];
+    .flatMap(k => grouped[k])
+    .sort((a, b) => getTs(b) - getTs(a));
+  const others = bookings
+    .filter(x => x.status !== 'pending' && x.status !== 'pending_unavailable')
+    .sort((a, b) => getTs(b) - getTs(a));
+  const singles = [...nonBatchPending, ...others].sort((a, b) => getTs(b) - getTs(a));
 
   // --- return valid JSX ---
   return (
     <div className="space-y-3">
+      <div className="flex items-center justify-end">
+        <button onClick={() => loadBookings()} disabled={loadingBookings} className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50 disabled:opacity-60">
+          {loadingBookings ? 'Ielādē...' : 'Atjaunot'}
+        </button>
+      </div>
       {batchGroups.map(k => {
         const list = grouped[k];
         const tid = String(list[0].teacherId);
@@ -377,11 +420,15 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
  															}} className="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-3 py-1.5 rounded">Apstiprināt visus</button>
  														</div>
 														<div className="mt-3 space-y-2">
-															{list.map((bi: any) => {
+															{[...list].sort((a: any, b: any) => getTs(b) - getTs(a)).map((bi: any) => {
 																const label = `${new Date(bi.date).toLocaleDateString('lv-LV')} ${bi.time} — ${bi.studentName || bi.userName || '—'}`
+																const createdStr = bi.createdAt ? new Date(bi.createdAt).toLocaleString('lv-LV') : ''
 																return (
 																	<div key={bi._id} className="flex items-center justify-between text-sm">
-																		<div className="text-gray-700">{label}</div>
+																		<div className="text-gray-700">
+																			<div>{label}</div>
+																			{createdStr && <div className="text-sm text-gray-700"><strong>Izveidots:</strong> {createdStr}</div>}
+																		</div>
 																		<div className="flex gap-2">
 																			<button onClick={async () => {
 																				try {
@@ -414,6 +461,13 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 
       {singles.map(b => {
         const dateStr = new Date(b.date).toLocaleDateString('lv-LV')
+        const isPending = b.status === 'pending' || b.status === 'pending_unavailable'
+        const tid = String(teacherId)
+        const slot = slots.find(s => String(s.teacherId) === tid && s.date === b.date && s.time === b.time)
+        const mod = (slot?.modality || b.modality)
+        const loc = (slot?.location || b.location)
+        const needsZoom = mod === 'zoom'
+        const needsAddress = mod !== 'zoom' && loc === 'teacher'
         return (
           <div key={b._id} className="border border-gray-200 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
@@ -422,12 +476,65 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
                 {b.status === 'accepted' ? 'Apstiprināts' : b.status === 'declined' ? 'Noraidīts' : 'Gaida'}
               </span>
             </div>
+            {b.createdAt && (
+              <div className="text-sm text-gray-700"><strong>Izveidots:</strong> {new Date(b.createdAt).toLocaleString('lv-LV')}</div>
+            )}
             <div className="text-sm text-gray-700"><strong>Skolēns:</strong> {b.studentName || b.userName || '—'}</div>
             {b.userRole === 'children' && (
               <div className="text-sm text-gray-700"><strong>Vecāks:</strong> {b.userName || '—'}</div>
             )}
             <div className="text-sm text-gray-700"><strong>Phone:</strong> {b.userPhone || '—'}</div>
             <div className="text-sm text-gray-700"><strong>Email:</strong> {b.userEmail || '—'}</div>
+            {isPending && (
+              <div className="mt-2 space-y-2">
+                {needsZoom && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Zoom saite</label>
+                    <input value={bookingInputs[String(b._id)]?.zoomLink || ''} onChange={e => setBookingInputs(prev => ({ ...prev, [String(b._id)]: { ...(prev[String(b._id)] || {}), zoomLink: e.target.value } }))} placeholder="https://..." className="w-full max-w-md p-2 border border-gray-300 rounded-lg text-sm" />
+                  </div>
+                )}
+                {needsAddress && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Adrese</label>
+                    <input value={bookingInputs[String(b._id)]?.address || ''} onChange={e => setBookingInputs(prev => ({ ...prev, [String(b._id)]: { ...(prev[String(b._id)] || {}), address: e.target.value } }))} placeholder="Adrese" className="w-full max-w-md p-2 border border-gray-300 rounded-lg text-sm" />
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button onClick={async () => {
+                    try {
+                      const id = String(b._id)
+                      const val = bookingInputs[id] || {}
+                      const zoomLink = val.zoomLink || ''
+                      const address = val.address || ''
+                      if (needsZoom && !zoomLink) { alert('Lūdzu ievadiet Zoom saiti'); return }
+                      if (needsAddress && !address) { alert('Lūdzu ievadiet adresi'); return }
+                      const r = await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'accept', bookingId: id, teacherId: tid, zoomLink, address }) })
+                      if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās apstiprināt'); return }
+                      loadBookings()
+                    } catch { alert('Kļūda') }
+                  }} className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded">Apstiprināt</button>
+                  <button onClick={async () => {
+                    try {
+                      const id = String(b._id)
+                      const r = await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'decline', bookingId: id, teacherId: tid }) })
+                      if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās noraidīt'); return }
+                      loadBookings()
+                    } catch { alert('Kļūda') }
+                  }} className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded">Noraidīt</button>
+                </div>
+              </div>
+            )}
+            {(b.status === 'accepted' || isPending) && (
+              <div className="mt-2">
+                <button onClick={async () => {
+                  try {
+                    const r = await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', bookingId: String(b._id), teacherId: String(teacherId) }) })
+                    if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās atcelt'); return }
+                    loadBookings()
+                  } catch { alert('Kļūda') }
+                }} className="text-xs bg-red-500 hover:bg-red-600 text-white rounded-md px-3 py-1">Atcelt</button>
+              </div>
+            )}
             {b.status === 'accepted' && (b.modality === 'zoom') && b.zoomLink && (
               <div className="text-sm text-gray-700"><strong>Zoom:</strong> <a href={b.zoomLink} target="_blank" rel="noreferrer" className="text-blue-600 underline">{b.zoomLink}</a></div>
             )}
@@ -449,49 +556,110 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 						<div className="text-center py-8 text-gray-500">Ielādē...</div>
 					) : (() => {
 						const nowTs = Date.now()
-						const pastAccepted = bookings.filter(b => b.status === 'accepted' && new Date(`${b.date}T${b.time}:00`).getTime() < nowTs)
-						// Determine earliest accepted booking per participant and whether already confirmed long-term
+						const accepted = bookings.filter(b => b.status === 'accepted')
 						const keyOf = (x: any) => String(x.studentId || x.userId || '')
-						const earliestByParticipant: Record<string, { ts: number; id: string }> = {}
-						const hasConfirmed: Record<string, boolean> = {}
-						pastAccepted.forEach(b => {
+						const firstByParticipant: Record<string, any> = {}
+						accepted.forEach(b => {
 							const k = keyOf(b)
 							const ts = new Date(`${b.date}T${b.time}:00`).getTime()
-							if (!earliestByParticipant[k] || ts < earliestByParticipant[k].ts) earliestByParticipant[k] = { ts, id: String(b._id) }
-							if (b.extendPreferred === true) hasConfirmed[k] = true
+							const existing = firstByParticipant[k]
+							if (!existing || ts < new Date(`${existing.date}T${existing.time}:00`).getTime()) firstByParticipant[k] = b
 						})
-						if (pastAccepted.length === 0) return <div className="text-center py-8 text-gray-500">Nav pagājušu nodarbību</div>
+						const allFirsts = Object.values(firstByParticipant).filter((b: any) => new Date(`${b.date}T${b.time}:00`).getTime() < nowTs)
+						const items = allFirsts.filter((b: any) => (typeof b.attended === 'undefined' || typeof b.extendPreferred === 'undefined'))
+						const decided = allFirsts
+							.filter((b: any) => (typeof b.attended !== 'undefined' && typeof b.extendPreferred !== 'undefined'))
+							.sort((a: any, b: any) => new Date(`${b.date}T${b.time}:00`).getTime() - new Date(`${a.date}T${a.time}:00`).getTime())
+						if (items.length === 0) return <div className="text-center py-8 text-gray-500">Nav pirmo nodarbību, kurām jāziņo</div>
 						return (
-							<div className="space-y-3">
-								{pastAccepted.map(b => {
-									const dateStr = new Date(b.date).toLocaleDateString('lv-LV')
-									const isGroup = (b.lessonType || 'individual') === 'group'
-									const participants = isGroup ? bookings.filter(x => x.date === b.date && x.time === b.time && x.status === 'accepted') : [b]
-									return (
-										<div key={`${b._id}-att`} className="border border-gray-200 rounded-lg p-4">
-											<div className="flex items-center justify-between mb-2">
-												<div className="text-sm text-gray-700"><strong>Datums:</strong> {dateStr} {b.time}</div>
-												<span className="px-2 py-0.5 text-xs rounded-full border bg-green-50 text-green-800 border-green-200">Apstiprināts</span>
+							<div className="space-y-6">
+								<div className="flex items-center justify-between">
+									<div className="text-sm text-gray-700">Nepabeigti: {items.length}</div>
+									<div className="flex items-center gap-2">
+										{attendanceMsg && <div className={`text-xs ${attendanceMsg === 'Saglabāts' ? 'text-green-700' : 'text-red-600'}`}>{attendanceMsg}</div>}
+										<button onClick={async () => {
+											setAttendanceSaving(true)
+											setAttendanceMsg(null)
+											try {
+												const updates = items.map((b: any) => {
+													const d = attendanceDraft[String(b._id)] || {}
+													const attended = typeof d.attended === 'boolean' ? d.attended : Boolean(b.attended)
+													const extendPreferred = typeof d.extendPreferred === 'boolean' ? d.extendPreferred : Boolean(b.extendPreferred)
+													return { id: String(b._id), attended, extendPreferred }
+												})
+												await Promise.all(updates.map(u => fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: u.id, action: 'report', attended: u.attended, extendPreferred: u.extendPreferred }) })))
+												setAttendanceMsg('Saglabāts')
+												setAttendanceDraft({})
+												await loadBookings()
+											} catch {
+												setAttendanceMsg('Kļūda')
+											} finally {
+												setAttendanceSaving(false)
+											}
+										}} disabled={attendanceSaving} className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50 disabled:opacity-60">{attendanceSaving ? 'Sūta...' : 'Iesniegt visus'}</button>
+									</div>
+								</div>
+								<div className="space-y-3">
+									{items.map((b: any) => {
+										const dateStr = new Date(b.date).toLocaleDateString('lv-LV')
+										return (
+											<div key={`${b._id}-att`} className="border border-gray-200 rounded-lg p-4">
+												<div className="flex items-center justify-between mb-2">
+													<div className="text-sm text-gray-700"><strong>Datums:</strong> {dateStr} {b.time}</div>
+													<span className="px-2 py-0.5 text-xs rounded-full border bg-green-50 text-green-800 border-green-200">Pirmā nodarbība</span>
+												</div>
+												<div className="flex flex-wrap items-center gap-3 text-xs">
+													<span className="font-medium text-gray-800 mr-2">{b.studentName || b.userName || '—'}</span>
+													<label className="inline-flex items-center gap-1"><input type="checkbox" checked={attendanceDraft[String(b._id)]?.attended ?? Boolean(b.attended)} onChange={(e) => { const v = e.target.checked; setAttendanceDraft(prev => ({ ...prev, [String(b._id)]: { ...(prev[String(b._id)] || {}), attended: v } })) }} /> Apmeklēja</label>
+													<label className="inline-flex items-center gap-1"><input type="checkbox" checked={attendanceDraft[String(b._id)]?.extendPreferred ?? Boolean(b.extendPreferred)} onChange={(e) => { const v = e.target.checked; setAttendanceDraft(prev => ({ ...prev, [String(b._id)]: { ...(prev[String(b._id)] || {}), extendPreferred: v } })) }} /> Apstiprinu sadarbību ilgtermiņā</label>
+													<div className="ml-auto flex items-center gap-2">
+														{attendanceItemMsg[String(b._id)] && (
+															<div className={`text-xs ${attendanceItemMsg[String(b._id)] === 'Saglabāts' ? 'text-green-700' : 'text-red-600'}`}>{attendanceItemMsg[String(b._id)]}</div>
+														)}
+														<button onClick={async () => {
+															const id = String(b._id)
+															setAttendanceSavingIds(prev => ({ ...prev, [id]: true }))
+															setAttendanceItemMsg(prev => ({ ...prev, [id]: '' }))
+															try {
+																const d = attendanceDraft[id] || {}
+																const attended = typeof d.attended === 'boolean' ? d.attended : Boolean(b.attended)
+																const extendPreferred = typeof d.extendPreferred === 'boolean' ? d.extendPreferred : Boolean(b.extendPreferred)
+																await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: id, action: 'report', attended, extendPreferred }) })
+																setAttendanceItemMsg(prev => ({ ...prev, [id]: 'Saglabāts' }))
+																setAttendanceDraft(prev => { const next = { ...prev }; delete next[id]; return next })
+																await loadBookings()
+															} catch {
+																setAttendanceItemMsg(prev => ({ ...prev, [id]: 'Kļūda' }))
+															} finally {
+																setAttendanceSavingIds(prev => ({ ...prev, [id]: false }))
+															}
+														}} disabled={Boolean(attendanceSavingIds[String(b._id)])} className="text-xs border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50 disabled:opacity-60">{attendanceSavingIds[String(b._id)] ? 'Sūta...' : 'Iesniegt'}</button>
+													</div>
+												</div>
 											</div>
-											<div className="space-y-2">
-												{participants.map(p => {
-													const pk = keyOf(p)
-													const showExtend = !hasConfirmed[pk] && earliestByParticipant[pk]?.id === String(p._id)
-													return (
-														<div key={p._id} className="flex flex-wrap items-center gap-3 text-xs">
-															<span className="font-medium text-gray-800 mr-2">{p.studentName || p.userName || '—'}</span>
-															<label className="inline-flex items-center gap-1"><input type="checkbox" checked={Boolean(p.attended)} onChange={async (e) => { await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: String(p._id), action: 'report', attended: e.target.checked }) }); loadBookings() }} /> Apmeklēja</label>
-															<label className="inline-flex items-center gap-1"><input type="checkbox" checked={Boolean(p.paid)} onChange={async (e) => { await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: String(p._id), action: 'report', paid: e.target.checked }) }); loadBookings() }} /> Samaksāja</label>
-															{showExtend && (
-																<label className="inline-flex items-center gap-1"><input type="checkbox" checked={Boolean(p.extendPreferred)} onChange={async (e) => { await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: String(p._id), action: 'report', extendPreferred: e.target.checked }) }); loadBookings() }} /> Apstiprinu sadarbību ilgtermiņā</label>
-															)}
+										)
+									})}
+								</div>
+								{decided.length > 0 && (
+									<div className="pt-4 border-t border-gray-200">
+										<h4 className="text-sm font-semibold text-gray-800 mb-2">Iepriekšējie lēmumi</h4>
+										<div className="space-y-2">
+											{decided.map((b: any) => {
+												const dateStr = new Date(b.date).toLocaleDateString('lv-LV')
+												return (
+													<div key={`${b._id}-dec`} className="border border-gray-100 rounded-lg p-3 bg-gray-50">
+														<div className="flex flex-wrap items-center gap-3 text-xs text-gray-700">
+															<span className="font-medium text-gray-800">{b.studentName || b.userName || '—'}</span>
+															<span>({dateStr} {b.time})</span>
+															<span className={`px-2 py-0.5 rounded-full border ${b.attended ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>Apmeklēja: {b.attended ? 'Jā' : 'Nē'}</span>
+															<span className={`px-2 py-0.5 rounded-full border ${b.extendPreferred ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>Sadarbība: {b.extendPreferred ? 'Jā' : 'Nē'}</span>
 														</div>
-													)
-												})}
-											</div>
+													</div>
+												)
+											})}
 										</div>
-									)
-								})}
+									</div>
+								)}
 							</div>
 						)
 					})()}
@@ -502,7 +670,7 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 }
 
 // === Onboarding component from OldProfileSection ===
-const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescription, initialAvailability, initialFirstName, initialLastName }: { userId: string; onFinished: () => void; initialPhoto?: string; initialDescription?: string; initialAvailability?: any[]; initialFirstName?: string; initialLastName?: string; displayName?: string; isActive?: boolean }) => {
+const TeacherOnboarding = ({ userId, onFinished, onCancel, allowProfileEdit = false, initialPhoto, initialDescription, initialAvailability, initialFirstName, initialLastName }: { userId: string; onFinished: () => void; onCancel: () => void; allowProfileEdit?: boolean; initialPhoto?: string; initialDescription?: string; initialAvailability?: any[]; initialFirstName?: string; initialLastName?: string; displayName?: string; isActive?: boolean }) => {
 	const [photo, setPhoto] = useState<string>(initialPhoto || '')
 	const [description, setDescription] = useState(initialDescription || '')
 	const [firstName, setFirstName] = useState<string>(initialFirstName || '')
@@ -594,11 +762,13 @@ const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescriptio
 	const onPhotoSelect = (file: File) => { const reader = new FileReader(); reader.onload = () => setPhoto((reader.result as string) || ''); reader.readAsDataURL(file) }
 
 	const handleSave = async () => {
-		if (!firstName.trim() || !lastName.trim()) { alert('Lūdzu aizpildiet vārdu un uzvārdu'); return }
+		if (allowProfileEdit && (!firstName.trim() || !lastName.trim())) { alert('Lūdzu aizpildiet vārdu un uzvārdu'); return }
 		setSaving(true)
 		try {
 			const availabilityData = generateAvailabilityData()
-			const response = await fetch('/api/teacher-profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, firstName: firstName.trim(), lastName: lastName.trim(), photo, description: description.trim(), availability: availabilityData }) })
+			const payload: any = { userId, availability: availabilityData }
+			if (allowProfileEdit) { payload.firstName = firstName.trim(); payload.lastName = lastName.trim(); payload.photo = photo; payload.description = description.trim() }
+			const response = await fetch('/api/teacher-profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
 			if (response.ok) onFinished(); else alert('Kļūda saglabājot profilu')
 		} catch { alert('Kļūda savienojumā') } finally { setSaving(false) }
 	}
@@ -623,23 +793,31 @@ const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescriptio
 		<div className="space-y-6">
 			<div className="bg-white rounded-2xl shadow p-6 space-y-6">
 				<div className="grid md:grid-cols-2 gap-4">
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">Vārds</label>
-						<input value={firstName} onChange={e => setFirstName(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Vārds" />
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">Uzvārds</label>
-						<input value={lastName} onChange={e => setLastName(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Uzvārds" />
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">Foto</label>
-						<input type="file" accept="image/*" onChange={e => { const f = e.target.files && e.target.files[0]; if (f) onPhotoSelect(f) }} className="w-full p-2 border border-gray-300 rounded-lg" />
-						{photo && <div className="mt-2"><img src={photo} alt="Priekšskatījums" className="w-20 h-20 rounded-full object-cover border-2 border-yellow-200" /></div>}
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">Apraksts</label>
-						<textarea value={description} onChange={e => setDescription(e.target.value)} rows={4} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Par sevi, pieredze, pieejamība..." />
-					</div>
+					{allowProfileEdit && (
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Vārds</label>
+							<input value={firstName} onChange={e => setFirstName(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Vārds" />
+						</div>
+					)}
+					{allowProfileEdit && (
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Uzvārds</label>
+							<input value={lastName} onChange={e => setLastName(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Uzvārds" />
+						</div>
+					)}
+					{allowProfileEdit && (
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Foto</label>
+							<input type="file" accept="image/*" onChange={e => { const f = e.target.files && e.target.files[0]; if (f) onPhotoSelect(f) }} className="w-full p-2 border border-gray-300 rounded-lg" />
+							{photo && <div className="mt-2"><img src={photo} alt="Priekšskatījums" className="w-20 h-20 rounded-full object-cover border-2 border-yellow-200" /></div>}
+						</div>
+					)}
+					{allowProfileEdit && (
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Apraksts</label>
+							<textarea value={description} onChange={e => setDescription(e.target.value)} rows={4} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent" placeholder="Par sevi, pieredze, pieejamība..." />
+						</div>
+					)}
 				</div>
 
 				<div className="flex gap-2">
@@ -763,8 +941,9 @@ const TeacherOnboarding = ({ userId, onFinished, initialPhoto, initialDescriptio
 					</div>
 				)}
 
-				<div className="pt-2">
+				<div className="pt-2 flex gap-2">
 					<button disabled={saving} onClick={handleSave} className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-black font-semibold py-2 px-4 rounded-lg">{saving ? 'Saglabā...' : 'Saglabāt'}</button>
+					<button type="button" onClick={onCancel} className="border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold py-2 px-4 rounded-lg">Atcelt</button>
 				</div>
 			</div>
 		</div>

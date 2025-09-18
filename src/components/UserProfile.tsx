@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 type UserProfileProps = { userId: string }
 
 const UserProfile = ({ userId }: UserProfileProps) => {
-	const [activeTab, setActiveTab] = useState<'profile' | 'children' | 'bookings' | 'collab'>('profile')
+	const [activeTab, setActiveTab] = useState<'children' | 'bookings' | 'collab'>('bookings')
 	const [userInfo, setUserInfo] = useState<any>(null)
 	const [children, setChildren] = useState<any[]>([])
 	const [bookings, setBookings] = useState<any[]>([])
@@ -19,13 +19,11 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 		const to = toDate.toISOString().slice(0,10)
 		return { from, to, lessonType: 'all', modality: 'all' }
 	})
-	const [loadingUserInfo, setLoadingUserInfo] = useState(false)
 	const [loadingChildren, setLoadingChildren] = useState(false)
 	const [loadingBookings, setLoadingBookings] = useState(false)
 
 	const loadUserInfo = async () => {
 		if (!userId) return
-		setLoadingUserInfo(true)
 		try {
 			const r = await fetch(`/api/user-info?userId=${encodeURIComponent(userId)}`)
 			if (r.ok) {
@@ -35,7 +33,6 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 				}
 			}
 		} catch {}
-		setLoadingUserInfo(false)
 	}
 
 	const loadChildren = async () => {
@@ -78,14 +75,10 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 		} catch {}
 	}
 
-	useEffect(() => {
-		loadUserInfo()
-	}, [userId])
+	useEffect(() => { loadUserInfo() }, [userId])
 
 	// Prefetch bookings so Sadarbības tab visibility is correct on first render
-	useEffect(() => {
-		if (userId) loadBookings()
-	}, [userId])
+	useEffect(() => { if (userId) loadBookings() }, [userId])
 
 	useEffect(() => {
 		if (activeTab === 'children') loadChildren()
@@ -96,6 +89,9 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 			if (userInfo?.accountType === 'children') loadChildren()
 		}
 	}, [activeTab, userId])
+
+	// Removed background polling; we refresh when tabs open and on demand via buttons
+	useEffect(() => {}, [userId, userInfo?.accountType, activeTab])
 
 	return (
 		<div className="space-y-6">
@@ -122,13 +118,17 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 								{userInfo.phone}
 							</div>
 						)}
+						{userInfo?.createdAt && (
+							<div className="text-sm text-gray-700">
+								<strong>Reģistrācijas datums:</strong> {new Date(userInfo.createdAt).toLocaleDateString('lv-LV')}
+							</div>
+						)}
 					</div>
 				</div>
 			</div>
 
 			<div className="bg-white rounded-2xl shadow-xl p-2">
 				<div className="flex gap-2">
-					<button onClick={() => setActiveTab('profile')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'profile' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Profils</button>
 					{userInfo?.accountType === 'children' && (
 						<button onClick={() => setActiveTab('children')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'children' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>
 							Bērni ({children.length})
@@ -147,44 +147,6 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 					})()}
 				</div>
 			</div>
-
-			{activeTab === 'profile' && (
-				<div className="bg-white rounded-2xl shadow p-6">
-					<h3 className="text-lg font-semibold text-black mb-4">Profila informācija</h3>
-					{loadingUserInfo ? (
-						<div className="text-center py-8 text-gray-500">Ielādē...</div>
-					) : userInfo ? (
-						<div className="space-y-4">
-							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-								<div>
-									<label className="block text-sm font-medium text-gray-600 mb-1">Vārds</label>
-									<div className="text-sm text-gray-900">{userInfo.firstName || '—'}</div>
-								</div>
-								<div>
-									<label className="block text-sm font-medium text-gray-600 mb-1">Uzvārds</label>
-									<div className="text-sm text-gray-900">{userInfo.lastName || '—'}</div>
-								</div>
-								<div>
-									<label className="block text sm font-medium text-gray-600 mb-1">E-pasts</label>
-									<div className="text-sm text-gray-900">{userInfo.email || '—'}</div>
-								</div>
-								<div>
-									<label className="block text-sm font-medium text-gray-600 mb-1">Telefons</label>
-									<div className="text-sm text-gray-900">{userInfo.phone || '—'}</div>
-								</div>
-								<div>
-									<label className="block text-sm font-medium text-gray-600 mb-1">Reģistrācijas datums</label>
-									<div className="text-sm text-gray-900">
-										{userInfo.createdAt ? new Date(userInfo.createdAt).toLocaleDateString('lv-LV') : '—'}
-									</div>
-								</div>
-							</div>
-						</div>
-					) : (
-						<div className="text-center py-8 text-gray-500">Neizdevās ielādēt profila informāciju</div>
-					)}
-				</div>
-			)}
 
 			{activeTab === 'children' && userInfo?.accountType === 'children' && (
 				<div className="bg-white rounded-2xl shadow p-6">
@@ -233,7 +195,13 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 
 			{activeTab === 'bookings' && (
 				<div className="bg-white rounded-2xl shadow p-6">
-					<h3 className="text-lg font-semibold text-black mb-4">Majas rezervācijas</h3>
+					<div className="flex items-center justify-between mb-4">
+						<h3 className="text-lg font-semibold text-black">Manas rezervācijas</h3>
+						<div className="flex items-center gap-2">
+							<button onClick={() => { window.location.href = '/?open=calendar' }} className="text-sm bg-yellow-400 hover:bg-yellow-500 text-black rounded-md px-3 py-1">Rezervē nodarbību</button>
+							<button onClick={() => loadBookings()} disabled={loadingBookings} className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50 disabled:opacity-60">{loadingBookings ? 'Ielādē...' : 'Atjaunot'}</button>
+						</div>
+					</div>
 					{loadingBookings ? (
 						<div className="text-center py-8 text-gray-500">Ielādē...</div>
 					) : bookings.length === 0 ? (
@@ -287,6 +255,25 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 															<strong>Adrese:</strong> {booking.address || '—'}
 														</p>
 													)}
+												</div>
+											)}
+											{(booking.status === 'pending' || booking.status === 'pending_unavailable' || booking.status === 'accepted') && (
+												<div className="pt-2">
+													<button onClick={async () => {
+														try {
+															// After-midnight same-day policy
+															const now = new Date()
+															const bookingDate = new Date(booking.date + 'T00:00:00')
+															const isSameDay = now.getFullYear() === bookingDate.getFullYear() && now.getMonth() === bookingDate.getMonth() && now.getDate() === bookingDate.getDate()
+															if (isSameDay) {
+																const ok = confirm('Atcelot pēc 00:00 šīs pašas dienas laikā, nauda netiks atgriezta. Vai turpināt?')
+																if (!ok) return
+															}
+															const r = await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', bookingId: String(booking._id) }) })
+															if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās atcelt'); return }
+															await loadBookings()
+														} catch { alert('Kļūda') }
+													}} className="text-sm bg-red-500 hover:bg-red-600 text-white rounded-md px-3 py-1">Atcelt</button>
 												</div>
 											)}
 										</div>

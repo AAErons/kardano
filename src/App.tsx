@@ -14,7 +14,9 @@ function App() {
 		try {
 			const params = new URLSearchParams(window.location.search)
 			const open = params.get('open')
-			if (open === 'login' || open === 'register' || params.has('invite')) {
+			if (open === 'calendar') {
+				setActiveSection('calendar')
+			} else if (open === 'login' || open === 'register' || params.has('invite')) {
 				setActiveSection('profile')
 			}
 		} catch {}

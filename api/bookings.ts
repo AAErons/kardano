@@ -302,12 +302,43 @@ export default async function handler(req: any, res: any) {
       }
 
       if (action === 'cancel') {
-        // Allow cancel only if booking is not accepted yet
-        if (booking.status !== 'pending' && booking.status !== 'pending_unavailable') {
-          return res.status(400).json({ error: 'Only pending bookings can be cancelled' })
-        }
+        // Cancel booking (pending or accepted). Free slot availability if needed.
+        const { date, time } = booking
+        const teacher = String(booking.teacherId)
+        const slot = await timeSlots.findOne({ teacherId: teacher, date, time })
+        const lessonType = (slot && slot.lessonType) || booking.lessonType || 'individual'
+        const groupSize = Number((slot && slot.groupSize) || booking.groupSize || 1)
+
         await bookings.updateOne({ _id }, { $set: { status: 'cancelled', updatedAt: new Date() } })
-        return res.status(200).json({ ok: true })
+
+        // Re-evaluate availability only if previously accepted affected capacity, or generally ensure availability when capacity not full
+        const acceptedCount = await bookings.countDocuments({ teacherId: teacher, date, time, status: 'accepted' })
+        const available = lessonType === 'group' ? (acceptedCount < Math.max(1, groupSize)) : (acceptedCount === 0)
+        if (available) {
+          await timeSlots.updateMany({ teacherId: teacher, date, time }, { $set: { available: true, updatedAt: new Date() } })
+          // Reopen queue
+          await bookings.updateMany({ teacherId: teacher, date, time, status: 'pending_unavailable' }, { $set: { status: 'pending', updatedAt: new Date() } })
+        }
+
+        // Notify teacher about cancellation
+        try {
+          const actor = await users.findOne({ _id: new (await import('mongodb')).ObjectId(String(booking.userId)) }).catch(() => null as any)
+          const actorName = (actor && (actor.name || actor.username || actor.email)) || null
+          await notifications.insertOne({
+            type: 'booking_cancelled',
+            title: 'Rezervācija atcelta',
+            message: `${actorName || 'Lietotājs'} atcēla rezervāciju ${date} ${time}.`,
+            recipientRole: 'worker',
+            recipientUserId: teacher,
+            actorUserId: String(booking.userId),
+            actorName,
+            unread: true,
+            related: { bookingId: String(booking._id), date, time },
+            createdAt: new Date(),
+          })
+        } catch {}
+
+        return res.status(200).json({ ok: true, available })
       }
       
       if (action === 'report') {
