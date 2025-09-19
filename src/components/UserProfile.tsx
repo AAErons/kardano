@@ -21,6 +21,8 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 	})
 	const [loadingChildren, setLoadingChildren] = useState(false)
 	const [loadingBookings, setLoadingBookings] = useState(false)
+	// Filters for Reservations tab
+	const [bookingStatusFilter, setBookingStatusFilter] = useState<Record<string, boolean>>({})
 
 	const loadUserInfo = async () => {
 		if (!userId) return
@@ -198,6 +200,25 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 					<div className="flex items-center justify-between mb-4">
 						<h3 className="text-lg font-semibold text-black">Manas rezervācijas</h3>
 						<div className="flex items-center gap-2">
+							{/* Status filters: Gaida, Pieņemts, Notikusi, Noraidīts */}
+							<div className="hidden md:flex items-center gap-3 mr-2">
+								<label className="flex items-center gap-1 text-xs text-gray-700">
+									<input type="checkbox" checked={Boolean(bookingStatusFilter['gaida'])} onChange={e => setBookingStatusFilter(prev => ({ ...prev, ['gaida']: e.target.checked }))} />
+									<span>Gaida</span>
+								</label>
+								<label className="flex items-center gap-1 text-xs text-gray-700">
+									<input type="checkbox" checked={Boolean(bookingStatusFilter['accepted'])} onChange={e => setBookingStatusFilter(prev => ({ ...prev, ['accepted']: e.target.checked }))} />
+									<span>Pieņemts</span>
+								</label>
+								<label className="flex items-center gap-1 text-xs text-gray-700">
+									<input type="checkbox" checked={Boolean(bookingStatusFilter['notikusi'])} onChange={e => setBookingStatusFilter(prev => ({ ...prev, ['notikusi']: e.target.checked }))} />
+									<span>Notikusi</span>
+								</label>
+								<label className="flex items-center gap-1 text-xs text-gray-700">
+									<input type="checkbox" checked={Boolean(bookingStatusFilter['declined'])} onChange={e => setBookingStatusFilter(prev => ({ ...prev, ['declined']: e.target.checked }))} />
+									<span>Noraidīts</span>
+								</label>
+							</div>
 							<button onClick={() => { window.location.href = '/?open=calendar' }} className="text-sm bg-yellow-400 hover:bg-yellow-500 text-black rounded-md px-3 py-1">Rezervē nodarbību</button>
 							<button onClick={() => loadBookings()} disabled={loadingBookings} className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50 disabled:opacity-60">{loadingBookings ? 'Ielādē...' : 'Atjaunot'}</button>
 						</div>
@@ -207,80 +228,116 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 					) : bookings.length === 0 ? (
 						<div className="text-center py-8 text-gray-500">Nav rezervāciju</div>
 					) : (
-						<div className="space-y-3">
-							{bookings.map(booking => (
-								<div key={booking._id} className="border border-gray-200 rounded-lg p-4">
-									<div className="flex items-start justify-between">
-										<div className="flex-1">
-											<div className="flex items-center gap-2 mb-2">
-												<span className={`px-2 py-1 text-xs rounded-full ${
-													booking.status === 'accepted' ? 'bg-green-100 text-green-800' :
-													booking.status === 'declined' ? 'bg-red-100 text-red-800' :
-													booking.status === 'declined_conflict' ? 'bg-orange-100 text-orange-800' :
-													booking.status === 'pending_unavailable' ? 'bg-gray-100 text-gray-800' :
-													'bg-yellow-100 text-yellow-800'
-												}`}>
-													{booking.status === 'accepted' ? 'Pieņemts' :
-													 booking.status === 'declined' ? 'Noraidīts' :
-													 booking.status === 'declined_conflict' ? 'Noraidīts (konflikts)' :
-													 booking.status === 'pending_unavailable' ? 'Gaida (nav pieejams)' :
-													 'Gaida apstiprinājumu'}
-												</span>
-											</div>
-											<p className="text-sm text-gray-600">
-												<strong>Datums:</strong> {new Date(booking.date).toLocaleDateString('lv-LV')} {booking.time}
-											</p>
-											<p className="text-sm text-gray-600">
-												<strong>Pasniedzējs:</strong> {booking.teacherName || '—'}
-											</p>
-											{booking.studentName && (
-												<p className="text-sm text-gray-600">
-													<strong>Skolēns:</strong> {booking.studentName}
-												</p>
-											)}
-											<p className="text-sm text-gray-600">
-												<strong>Izveidots:</strong> {new Date(booking.createdAt).toLocaleString('lv-LV')}
-											</p>
-											{booking.status === 'accepted' && (
-												<div className="mt-2 space-y-1">
-													<p className="text-sm text-gray-700">
-														<strong>Tikšanās veids:</strong> {(booking.modality === 'zoom') ? 'Attālināti' : 'Klātienē'}
-													</p>
-													{booking.modality === 'zoom' ? (
-														<p className="text-sm text-gray-700">
-															<strong>Zoom saite:</strong> {booking.zoomLink ? (<a href={booking.zoomLink} target="_blank" rel="noreferrer" className="text-blue-600 underline">{booking.zoomLink}</a>) : '—'}
-														</p>
-													) : (
-														<p className="text-sm text-gray-700">
-															<strong>Adrese:</strong> {booking.address || '—'}
-														</p>
-													)}
-												</div>
-											)}
-											{(booking.status === 'pending' || booking.status === 'pending_unavailable' || booking.status === 'accepted') && (
-												<div className="pt-2">
-													<button onClick={async () => {
-														try {
-															// After-midnight same-day policy
-															const now = new Date()
-															const bookingDate = new Date(booking.date + 'T00:00:00')
-															const isSameDay = now.getFullYear() === bookingDate.getFullYear() && now.getMonth() === bookingDate.getMonth() && now.getDate() === bookingDate.getDate()
-															if (isSameDay) {
-																const ok = confirm('Atcelot pēc 00:00 šīs pašas dienas laikā, nauda netiks atgriezta. Vai turpināt?')
-																if (!ok) return
-															}
-															const r = await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', bookingId: String(booking._id) }) })
-															if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās atcelt'); return }
-															await loadBookings()
-														} catch { alert('Kļūda') }
-													}} className="text-sm bg-red-500 hover:bg-red-600 text-white rounded-md px-3 py-1">Atcelt</button>
-												</div>
-											)}
-										</div>
-									</div>
-								</div>
-							))}
-						</div>
+							<div className="space-y-3">
+								{[...bookings]
+									.filter(b => {
+										// If any filter is checked, show only selected groups; otherwise show all
+										const anyChecked = Object.values(bookingStatusFilter).some(Boolean)
+										if (!anyChecked) return true
+										const s = b.status
+										const dt = new Date(`${b.date}T${b.time || '00:00'}:00`)
+										const isPastAccepted = s === 'accepted' && !isNaN(dt.getTime()) && dt.getTime() < Date.now()
+										if (bookingStatusFilter['gaida'] && (s === 'pending' || s === 'pending_unavailable')) return true
+										if (bookingStatusFilter['accepted'] && s === 'accepted' && !isPastAccepted) return true
+										if (bookingStatusFilter['notikusi'] && isPastAccepted) return true
+										if (bookingStatusFilter['declined'] && (s === 'declined' || s === 'declined_conflict')) return true
+										return false
+									})
+									.sort((a, b) => {
+										const ta = new Date(`${a.date}T${a.time || '00:00'}:00`).getTime()
+										const tb = new Date(`${b.date}T${b.time || '00:00'}:00`).getTime()
+										return tb - ta // newest first
+									})
+									.map(booking => {
+                                const bookingDateTime = new Date(`${booking.date}T${booking.time}:00`)
+                                const isPast = !isNaN(bookingDateTime.getTime()) && bookingDateTime.getTime() < Date.now()
+                                const isPastAccepted = isPast && booking.status === 'accepted'
+                                const statusClass = isPastAccepted
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : booking.status === 'accepted'
+                                        ? 'bg-green-100 text-green-800'
+                                        : booking.status === 'declined'
+                                            ? 'bg-red-100 text-red-800'
+                                            : booking.status === 'declined_conflict'
+                                                ? 'bg-orange-100 text-orange-800'
+                                                : booking.status === 'pending_unavailable'
+                                                    ? 'bg-gray-100 text-gray-800'
+                                                    : 'bg-yellow-100 text-yellow-800'
+                                const statusLabel = isPastAccepted
+                                    ? 'Notikusi'
+                                    : booking.status === 'accepted'
+                                        ? 'Pieņemts'
+                                        : booking.status === 'declined'
+                                            ? 'Noraidīts'
+                                            : booking.status === 'declined_conflict'
+                                                ? 'Noraidīts (konflikts)'
+                                                : booking.status === 'pending_unavailable'
+                                                    ? 'Gaida (nav pieejams)'
+                                                    : 'Gaida apstiprinājumu'
+                                return (
+                                    <div key={booking._id} className="border border-gray-200 rounded-lg p-4">
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className={`px-2 py-1 text-xs rounded-full ${statusClass}`}>
+                                                        {statusLabel}
+                                                    </span>
+                                                </div>
+                                                <p className="text-sm text-gray-600">
+                                                    <strong>Datums:</strong> {new Date(booking.date).toLocaleDateString('lv-LV')} {booking.time}
+                                                </p>
+                                                <p className="text-sm text-gray-600">
+                                                    <strong>Pasniedzējs:</strong> {booking.teacherName || '—'}
+                                                </p>
+                                                {booking.studentName && (
+                                                    <p className="text-sm text-gray-600">
+                                                        <strong>Skolēns:</strong> {booking.studentName}
+                                                    </p>
+                                                )}
+                                                <p className="text-sm text-gray-600">
+                                                    <strong>Izveidots:</strong> {new Date(booking.createdAt).toLocaleString('lv-LV')}
+                                                </p>
+                                                {booking.status === 'accepted' && (
+                                                    <div className="mt-2 space-y-1">
+                                                        <p className="text-sm text-gray-700">
+                                                            <strong>Tikšanās veids:</strong> {(booking.modality === 'zoom') ? 'Attālināti' : 'Klātienē'}
+                                                        </p>
+                                                        {booking.modality === 'zoom' ? (
+                                                            <p className="text-sm text-gray-700">
+                                                                <strong>Zoom saite:</strong> {booking.zoomLink ? (<a href={booking.zoomLink} target="_blank" rel="noreferrer" className="text-blue-600 underline">{booking.zoomLink}</a>) : '—'}
+                                                            </p>
+                                                        ) : (
+                                                            <p className="text-sm text-gray-700">
+                                                                <strong>Adrese:</strong> {booking.address || '—'}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {(booking.status === 'pending' || booking.status === 'pending_unavailable' || booking.status === 'accepted') && (
+                                                    <div className="pt-2">
+                                                        <button onClick={async () => {
+                                                            try {
+                                                                // After-midnight same-day policy
+                                                                const now = new Date()
+                                                                const bookingDate = new Date(booking.date + 'T00:00:00')
+                                                                const isSameDay = now.getFullYear() === bookingDate.getFullYear() && now.getMonth() === bookingDate.getMonth() && now.getDate() === bookingDate.getDate()
+                                                                if (isSameDay) {
+                                                                    const ok = confirm('Atcelot pēc 00:00 šīs pašas dienas laikā, nauda netiks atgriezta. Vai turpināt?')
+                                                                    if (!ok) return
+                                                                }
+                                                                const r = await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', bookingId: String(booking._id) }) })
+                                                                if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās atcelt'); return }
+                                                                await loadBookings()
+                                                            } catch { alert('Kļūda') }
+                                                        }} className="text-sm bg-red-500 hover:bg-red-600 text-white rounded-md px-3 py-1">Atcelt</button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                                })}
+                        </div>
 					)}
 				</div>
 			)}
@@ -333,8 +390,8 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 										</select>
 									</div>
 								)}
-								{collabIds.map(tid => {
-									const teacherSlots = (timeSlots || []).filter(s => {
+                                {collabIds.map(tid => {
+                                    const teacherSlots = (timeSlots || []).filter(s => {
 										if (String(s.teacherId) !== tid) return false
 										if (s.available === false) return false
 										if (s.date < todayStr) return false
@@ -345,24 +402,33 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 										return true
 									})
 									const teacherName = (bookings.find(b => String(b.teacherId) === tid && b.teacherName)?.teacherName) || 'Pasniedzējs'
-									const sel = selectedCollab[tid] || {}
-									const toggle = (slotId: string) => setSelectedCollab(prev => ({ ...prev, [tid]: { ...(prev[tid] || {}), [slotId]: !(prev[tid]?.[slotId]) } }))
+                                    // Group available slots by time across the selected date range
+                                    const groupedByTime: Record<string, any[]> = {}
+                                    teacherSlots.forEach(s => { const key = String(s.time); (groupedByTime[key] ||= []).push(s) })
+                                    const orderTimes = Object.keys(groupedByTime).sort((a, b) => {
+                                        const [ah, am] = a.split(':').map(Number)
+                                        const [bh, bm] = b.split(':').map(Number)
+                                        return (ah * 60 + am) - (bh * 60 + bm)
+                                    })
+                                    const sel = selectedCollab[tid] || {}
+                                    const toggleTime = (timeKey: string) => setSelectedCollab(prev => ({ ...prev, [tid]: { ...(prev[tid] || {}), [timeKey]: !(prev[tid]?.[timeKey]) } }))
 									const reserve = async () => {
-										const ids = Object.entries(sel).filter(([,v]) => v).map(([k]) => k)
-										if (ids.length === 0) return
+                                        const selectedTimes = Object.entries(sel).filter(([,v]) => v).map(([k]) => k)
+                                        if (selectedTimes.length === 0) return
 										if (userInfo?.accountType === 'children' && children.length > 0 && !selectedChildIdCollab) { setCollabMessage('Lūdzu izvēlieties bērnu'); return }
 										setLoadingCollab(true)
 										setCollabMessage(null)
 										try {
 											const batchId = `${tid}-${Date.now()}`
-											for (const sid of ids) {
-												const s = teacherSlots.find(x => String(x.id) === sid)
-												if (!s) continue
-												const r = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, teacherId: String(tid), date: s.date, time: s.time, studentId: (userInfo?.accountType === 'children' ? (selectedChildIdCollab || null) : null), batchId }) })
-												if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Neizdevās izveidot rezervāciju') }
-											}
+                                            for (const timeKey of selectedTimes) {
+                                                const slotsForTime = groupedByTime[timeKey] || []
+                                                for (const s of slotsForTime) {
+                                                    const r = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, teacherId: String(tid), date: s.date, time: s.time, studentId: (userInfo?.accountType === 'children' ? (selectedChildIdCollab || null) : null), batchId }) })
+                                                    if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Neizdevās izveidot rezervāciju') }
+                                                }
+                                            }
 											setCollabMessage('Rezervācijas izveidotas')
-											setSelectedCollab(prev => ({ ...prev, [tid]: {} }))
+                                            setSelectedCollab(prev => ({ ...prev, [tid]: {} }))
 											loadBookings(); loadTimeSlots()
 										} catch (e: any) {
 											setCollabMessage(e?.message || 'Kļūda')
@@ -371,20 +437,25 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 									return (
 										<div key={tid} className="border border-gray-200 rounded-lg p-4">
 											<div className="font-semibold text-black mb-3">{teacherName}</div>
-											{teacherSlots.length === 0 ? (
+                                            {teacherSlots.length === 0 ? (
 												<div className="text-sm text-gray-500">Nav pieejamu laiku</div>
 											) : (
 												<div className="space-y-2">
-													{teacherSlots.map(s => (
-														<label key={s.id} className="flex items-center gap-2 text-sm">
-															<input type="checkbox" checked={Boolean(sel[String(s.id)])} onChange={() => toggle(String(s.id))} />
-															<span>{new Date(s.date).toLocaleDateString('lv-LV')} {s.time}</span>
-															<span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">{s.lessonType === 'group' ? 'Grupu' : 'Individuāla'}</span>
-															<span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">{s.modality === 'zoom' ? 'Attālināti' : 'Klātienē'}</span>
-														</label>
-													))}
+                                                    {orderTimes.map(timeKey => {
+                                                        const list = groupedByTime[timeKey]
+                                                        const count = list.length
+                                                        const sample = list[0]
+                                                        return (
+                                                            <label key={`${tid}-${timeKey}`} className="flex items-center gap-2 text-sm">
+                                                                <input type="checkbox" checked={Boolean(sel[timeKey])} onChange={() => toggleTime(timeKey)} />
+                                                                <span>{timeKey} ({count} dienas)</span>
+                                                                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">{sample?.lessonType === 'group' ? 'Grupu' : 'Individuāla'}</span>
+                                                                <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">{sample?.modality === 'zoom' ? 'Attālināti' : 'Klātienē'}</span>
+                                                            </label>
+                                                        )
+                                                    })}
 													<div className="pt-2">
-														<button disabled={loadingCollab || Object.values(sel).every(v => !v) || (userInfo?.accountType === 'children' && children.length > 0 && !selectedChildIdCollab)} onClick={reserve} className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-black font-semibold px-4 py-2 rounded-lg">Rezervēt izvēlētos</button>
+                                                        <button disabled={loadingCollab || Object.values(sel).every(v => !v) || (userInfo?.accountType === 'children' && children.length > 0 && !selectedChildIdCollab)} onClick={reserve} className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-black font-semibold px-4 py-2 rounded-lg">Rezervēt izvēlētos laikus</button>
 													</div>
 												</div>
 											)}
