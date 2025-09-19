@@ -313,7 +313,7 @@ const UserProfile = ({ userId }: UserProfileProps) => {
                                                         )}
                                                     </div>
                                                 )}
-                                                {(booking.status === 'pending' || booking.status === 'pending_unavailable' || booking.status === 'accepted') && (
+                                                {(booking.status === 'pending' || booking.status === 'pending_unavailable' || (booking.status === 'accepted' && !isPastAccepted)) && (
                                                     <div className="pt-2">
                                                         <button onClick={async () => {
                                                             try {
@@ -402,27 +402,40 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 										return true
 									})
 									const teacherName = (bookings.find(b => String(b.teacherId) === tid && b.teacherName)?.teacherName) || 'Pasniedzējs'
-                                    // Group available slots by time across the selected date range
-                                    const groupedByTime: Record<string, any[]> = {}
-                                    teacherSlots.forEach(s => { const key = String(s.time); (groupedByTime[key] ||= []).push(s) })
-                                    const orderTimes = Object.keys(groupedByTime).sort((a, b) => {
-                                        const [ah, am] = a.split(':').map(Number)
-                                        const [bh, bm] = b.split(':').map(Number)
-                                        return (ah * 60 + am) - (bh * 60 + bm)
+									// Group available slots by (weekday + time) across the selected date range
+									const dayNames = ['Pirmdiena','Otrdiena','Trešdiena','Ceturtdiena','Piektdiena','Sestdiena','Svētdiena']
+									const groupedByWeekday: Record<number, Record<string, any[]>> = {}
+                                    teacherSlots.forEach((s: any) => {
+                                        try {
+                                            const d = new Date(String(s.date))
+                                            const jsDay = d.getDay()
+                                            const wd = ((jsDay + 6) % 7) + 1
+                                            const slotTimeKey: string = typeof s.time === 'string' ? s.time : String(s.time || '')
+                                            if (!groupedByWeekday[wd]) groupedByWeekday[wd] = {}
+                                            if (!groupedByWeekday[wd][slotTimeKey]) groupedByWeekday[wd][slotTimeKey] = []
+                                            groupedByWeekday[wd][slotTimeKey].push(s)
+                                        } catch {}
                                     })
-                                    const sel = selectedCollab[tid] || {}
-                                    const toggleTime = (timeKey: string) => setSelectedCollab(prev => ({ ...prev, [tid]: { ...(prev[tid] || {}), [timeKey]: !(prev[tid]?.[timeKey]) } }))
+									const orderTimes = (times: string[]) => times.sort((a, b) => {
+										const [ah, am] = a.split(':').map(Number)
+										const [bh, bm] = b.split(':').map(Number)
+										return (ah * 60 + am) - (bh * 60 + bm)
+									})
+									const sel = selectedCollab[tid] || {}
+									const toggleKey = (key: string) => setSelectedCollab(prev => ({ ...prev, [tid]: { ...(prev[tid] || {}), [key]: !(prev[tid]?.[key]) } }))
 									const reserve = async () => {
-                                        const selectedTimes = Object.entries(sel).filter(([,v]) => v).map(([k]) => k)
+										const selectedTimes = Object.entries(sel).filter(([,v]) => v).map(([k]) => k)
                                         if (selectedTimes.length === 0) return
 										if (userInfo?.accountType === 'children' && children.length > 0 && !selectedChildIdCollab) { setCollabMessage('Lūdzu izvēlieties bērnu'); return }
 										setLoadingCollab(true)
 										setCollabMessage(null)
 										try {
 											const batchId = `${tid}-${Date.now()}`
-                                            for (const timeKey of selectedTimes) {
-                                                const slotsForTime = groupedByTime[timeKey] || []
-                                                for (const s of slotsForTime) {
+                                            for (const composite of selectedTimes) {
+                                                const [wdStr, timePart] = `${composite}`.split('|')
+												const wd = Number(wdStr)
+                                                const slotsForKey = (groupedByWeekday[wd] && groupedByWeekday[wd][timePart]) ? groupedByWeekday[wd][timePart] : []
+												for (const s of slotsForKey) {
                                                     const r = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, teacherId: String(tid), date: s.date, time: s.time, studentId: (userInfo?.accountType === 'children' ? (selectedChildIdCollab || null) : null), batchId }) })
                                                     if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Neizdevās izveidot rezervāciju') }
                                                 }
@@ -440,22 +453,33 @@ const UserProfile = ({ userId }: UserProfileProps) => {
                                             {teacherSlots.length === 0 ? (
 												<div className="text-sm text-gray-500">Nav pieejamu laiku</div>
 											) : (
-												<div className="space-y-2">
-                                                    {orderTimes.map(timeKey => {
-                                                        const list = groupedByTime[timeKey]
-                                                        const count = list.length
-                                                        const sample = list[0]
-                                                        return (
-                                                            <label key={`${tid}-${timeKey}`} className="flex items-center gap-2 text-sm">
-                                                                <input type="checkbox" checked={Boolean(sel[timeKey])} onChange={() => toggleTime(timeKey)} />
-                                                                <span>{timeKey} ({count} dienas)</span>
-                                                                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">{sample?.lessonType === 'group' ? 'Grupu' : 'Individuāla'}</span>
-                                                                <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">{sample?.modality === 'zoom' ? 'Attālināti' : 'Klātienē'}</span>
-                                                            </label>
-                                                        )
-                                                    })}
+                                                <div className="space-y-3">
+                                                    {([1,2,3,4,5,6,7] as const).map((wd: number) => {
+														const timesMap = groupedByWeekday[wd] || {}
+                                                        const times = orderTimes(Object.keys(timesMap))
+														if (times.length === 0) return null
+														return (
+															<div key={`${tid}-wd-${wd}`} className="space-y-1">
+																<div className="text-sm font-semibold text-gray-800">{dayNames[wd - 1]}</div>
+                                                                {times.map((tKey: string) => {
+                                                                    const list = timesMap[tKey]
+																	const count = list.length
+																	const sample = list[0]
+                                                                    const key = `${wd}|${tKey}`
+																	return (
+																		<label key={key} className="flex items-center gap-2 text-sm">
+																			<input type="checkbox" checked={Boolean(sel[key])} onChange={() => toggleKey(key)} />
+                                                                            <span>{tKey} ({count} dienas)</span>
+																			<span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">{sample?.lessonType === 'group' ? 'Grupu' : 'Individuāla'}</span>
+																			<span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">{sample?.modality === 'zoom' ? 'Attālināti' : 'Klātienē'}</span>
+																		</label>
+																	)
+																})}
+															</div>
+														)
+													})}
 													<div className="pt-2">
-                                                        <button disabled={loadingCollab || Object.values(sel).every(v => !v) || (userInfo?.accountType === 'children' && children.length > 0 && !selectedChildIdCollab)} onClick={reserve} className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-black font-semibold px-4 py-2 rounded-lg">Rezervēt izvēlētos laikus</button>
+														<button disabled={loadingCollab || Object.values(sel).every(v => !v) || (userInfo?.accountType === 'children' && children.length > 0 && !selectedChildIdCollab)} onClick={reserve} className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-black font-semibold px-4 py-2 rounded-lg">Rezervēt izvēlētos laikus</button>
 													</div>
 												</div>
 											)}
