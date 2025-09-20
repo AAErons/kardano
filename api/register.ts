@@ -41,10 +41,12 @@ export default async function handler(req: any, res: any) {
       password?: string
       phone?: string
       children?: Array<{
-        name: string
+        firstName: string
+        lastName: string
         age: number
         grade: string
-        school: string
+        email?: string
+        phone?: string
       }>
     }
     
@@ -161,6 +163,8 @@ export default async function handler(req: any, res: any) {
           lastName: child.lastName.trim(),
           age: child.age,
           grade: child.grade.trim(),
+          email: child.email?.trim() || undefined,
+          phone: child.phone?.trim() || undefined,
           school: null, // No longer using school field
           isSelf: false, // Flag to indicate this is a child
           createdAt: now,

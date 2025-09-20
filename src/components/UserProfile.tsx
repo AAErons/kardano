@@ -179,6 +179,18 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 														<div className="text-gray-900">{child.grade}</div>
 													</div>
 												)}
+												{child.email && (
+													<div>
+														<label className="block text-xs font-medium text-gray-600 mb-1">E-pasts</label>
+														<div className="text-gray-900">{child.email}</div>
+													</div>
+												)}
+												{child.phone && (
+													<div>
+														<label className="block text-xs font-medium text-gray-600 mb-1">Tālrunis</label>
+														<div className="text-gray-900">{child.phone}</div>
+													</div>
+												)}
 												{child.school && (
 													<div>
 														<label className="block text-xs font-medium text-gray-600 mb-1">Skola</label>

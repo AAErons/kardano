@@ -105,12 +105,20 @@ export default async function handler(req: any, res: any) {
 
     if (req.method === 'GET') {
       const { role, userId, status } = req.query as { role?: string; userId?: string; status?: string }
-      if (!role || !userId) return res.status(400).json({ error: 'Missing role or userId' })
+      if (!role) return res.status(400).json({ error: 'Missing role' })
 
       const query: any = {}
-      if (role === 'user') query.userId = String(userId)
-      else if (role === 'worker') query.teacherId = String(userId)
-      else return res.status(400).json({ error: 'Invalid role' })
+      if (role === 'user') {
+        if (!userId) return res.status(400).json({ error: 'Missing userId' })
+        query.userId = String(userId)
+      } else if (role === 'worker') {
+        if (!userId) return res.status(400).json({ error: 'Missing userId' })
+        query.teacherId = String(userId)
+      } else if (role === 'admin') {
+        // Admin can view all bookings; optional status filter applies
+      } else {
+        return res.status(400).json({ error: 'Invalid role' })
+      }
 
       if (status) query.status = status
 
@@ -166,7 +174,7 @@ export default async function handler(req: any, res: any) {
     }
 
     if (req.method === 'PATCH') {
-      const { bookingId, action, teacherId, newDate, newTime, date: groupDate, time: groupTime, amount, newSize, zoomLink, address, attended, paid, extendPreferred, batchId } = (req.body || {}) as { bookingId?: string; action?: 'accept' | 'decline' | 'reschedule_accept' | 'cancel' | 'increase_group_size' | 'report' | 'accept_batch'; teacherId?: string; newDate?: string; newTime?: string; date?: string; time?: string; amount?: number; newSize?: number; zoomLink?: string; address?: string; attended?: boolean; paid?: boolean; extendPreferred?: boolean; batchId?: string }
+      const { bookingId, action, teacherId, newDate, newTime, date: groupDate, time: groupTime, amount, newSize, zoomLink, address, attended, paid, extendPreferred, batchId } = (req.body || {}) as { bookingId?: string; action?: 'accept' | 'decline' | 'reschedule_accept' | 'cancel' | 'increase_group_size' | 'report' | 'accept_batch' | 'mark_paid'; teacherId?: string; newDate?: string; newTime?: string; date?: string; time?: string; amount?: number; newSize?: number; zoomLink?: string; address?: string; attended?: boolean; paid?: boolean; extendPreferred?: boolean; batchId?: string }
       if (!action) return res.status(400).json({ error: 'Missing action' })
       if (action !== 'accept_batch' && !bookingId) return res.status(400).json({ error: 'Missing bookingId' })
       const { ObjectId } = await import('mongodb')
@@ -347,6 +355,11 @@ export default async function handler(req: any, res: any) {
         if (typeof paid === 'boolean') setDoc.paid = paid
         if (typeof extendPreferred === 'boolean') setDoc.extendPreferred = extendPreferred
         await bookings.updateOne({ _id }, { $set: setDoc })
+        return res.status(200).json({ ok: true })
+      }
+
+      if (action === 'mark_paid') {
+        await bookings.updateOne({ _id }, { $set: { paid: Boolean(paid), updatedAt: new Date() } })
         return res.status(200).json({ ok: true })
       }
 

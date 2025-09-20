@@ -55,13 +55,7 @@ const CalendarSection = () => {
 		}
 	}, []) // Empty dependency array - only run once on mount
 
-	// Reset selected day when changing months
-	useEffect(() => {
-		const today = new Date()
-		if (selectedDate.getMonth() !== today.getMonth() || selectedDate.getFullYear() !== today.getFullYear()) {
-			setSelectedDay(null)
-		}
-	}, [selectedDate])
+	// Removed auto-reset of selected day on any selectedDate change.
 
 	// Load time slots
 	useEffect(() => {

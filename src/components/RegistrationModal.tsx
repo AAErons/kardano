@@ -21,6 +21,8 @@ const RegistrationModal = ({ isOpen, onClose, onSuccess }: RegistrationModalProp
 			lastName: string
 			age: number
 			grade: string
+			email?: string
+			phone?: string
 		}>
 	})
 	const [errors, setErrors] = useState<Record<string, string>>({})
@@ -138,7 +140,7 @@ const RegistrationModal = ({ isOpen, onClose, onSuccess }: RegistrationModalProp
 	const addChild = () => {
 		setFormData(prev => ({
 			...prev,
-			children: [...prev.children, { firstName: '', lastName: '', age: 0, grade: '' }]
+			children: [...prev.children, { firstName: '', lastName: '', age: 0, grade: '', email: '', phone: '' }]
 		}))
 	}
 
@@ -345,7 +347,7 @@ const RegistrationModal = ({ isOpen, onClose, onSuccess }: RegistrationModalProp
 											</button>
 										</div>
 										
-										<div className="grid md:grid-cols-2 gap-4">
+								<div className="grid md:grid-cols-2 gap-4">
 											<div>
 												<label className="block text-sm font-medium text-gray-700 mb-2">Vārds *</label>
 												<input
@@ -414,6 +416,26 @@ const RegistrationModal = ({ isOpen, onClose, onSuccess }: RegistrationModalProp
 												</select>
 												{errors[`child_${index}_grade`] && <p className="text-red-500 text-sm mt-1">{errors[`child_${index}_grade`]}</p>}
 											</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-2">E-pasts (neobligāts)</label>
+										<input
+											type="email"
+											value={child.email || ''}
+											onChange={(e) => updateChild(index, 'email', e.target.value)}
+											className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+											placeholder="epasts@piemers.lv"
+										/>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-2">Tālrunis (neobligāts)</label>
+										<input
+											type="tel"
+											value={child.phone || ''}
+											onChange={(e) => updateChild(index, 'phone', e.target.value)}
+											className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+											placeholder="+371 12345678"
+										/>
+									</div>
 										</div>
 									</div>
 								))}

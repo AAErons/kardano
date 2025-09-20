@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 const AdminProfile = () => {
-	const [tab, setTab] = useState<'calendar' | 'teachers' | 'students' | 'notifications' | 'data'>('data')
+	const [tab, setTab] = useState<'calendar' | 'teachers' | 'students' | 'notifications' | 'data'>('calendar')
 	const [unreadCount, setUnreadCount] = useState(0)
 
 	useEffect(() => {
@@ -44,11 +44,7 @@ const AdminProfile = () => {
 					<button onClick={() => setTab('data')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'data' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Dati</button>
 				</div>
 			</div>
-			{tab === 'calendar' && (
-				<div className="bg-white rounded-2xl shadow-xl p-6">
-					<div className="text-gray-600">Kalendārs (admins) – šeit varēsim rādīt kopskatu vai filtrēt pēc pasniedzēja. Pašlaik tukšs.</div>
-				</div>
-			)}
+			{tab === 'calendar' && <AdminCalendar />}
 			{tab === 'teachers' && <AdminTeachers />}
 			{tab === 'students' && <AdminStudents />}
 			{tab === 'notifications' && <AdminNotifications onCountChange={setUnreadCount} />}
@@ -66,6 +62,8 @@ const AdminStudents = () => {
 		age: number | null
 		grade: string | null
 		school: string | null
+		email?: string | null
+		phone?: string | null
 		isSelf: boolean
 		createdAt: string
 	}>>([])
@@ -73,9 +71,12 @@ const AdminStudents = () => {
 		firstName: string
 		lastName: string
 		email: string
+		phone?: string
 		accountType: string
 	}>>({})
 	const [loading, setLoading] = useState(true)
+	const [bookingsByStudent, setBookingsByStudent] = useState<Record<string, any[]>>({})
+	const [savingPaid, setSavingPaid] = useState<Record<string, boolean>>({})
 	const [lastLoadTime, setLastLoadTime] = useState<number>(0)
 
 	const loadStudents = async (forceRefresh = false) => {
@@ -129,6 +130,30 @@ const AdminStudents = () => {
 
 	useEffect(() => { loadStudents() }, [])
 
+	// Load bookings per student to find first lessons
+	useEffect(() => {
+		const loadBookings = async () => {
+			try {
+				const r = await fetch('/api/bookings?role=admin')
+				if (!r.ok) return
+				const d = await r.json().catch(() => null)
+				if (d && Array.isArray(d.items)) {
+					const byStudent: Record<string, any[]> = {}
+					d.items.forEach((b: any) => {
+						const sid = String(b.studentId || '')
+						if (!sid) return
+						(byStudent[sid] ||= []).push(b)
+					})
+					Object.keys(byStudent).forEach(sid => {
+						byStudent[sid].sort((a, b) => new Date(`${a.date}T${a.time}:00`).getTime() - new Date(`${b.date}T${b.time}:00`).getTime())
+					})
+					setBookingsByStudent(byStudent)
+				}
+			} catch {}
+		}
+		loadBookings()
+	}, [])
+
 	useEffect(() => {
 		const handleStorageChange = (e: StorageEvent) => {
 			if (e.key === 'cache_admin_students_v1' && e.newValue) {
@@ -178,6 +203,10 @@ const AdminStudents = () => {
 		)
 	}
 
+	// Show only real students (self accounts) and children; exclude parent accounts as list items
+	const hasUsersLoaded = Object.keys(users).length > 0
+	const filteredStudents = students.filter(s => s.isSelf === true || !hasUsersLoaded || (users[s.userId]?.accountType === 'children'))
+
 	return (
 		<div className="bg-white rounded-2xl shadow-xl p-6">
 			<div className="flex items-center justify-between mb-4">
@@ -185,32 +214,83 @@ const AdminStudents = () => {
 				<button onClick={handleRefresh} className="px-3 py-1 text-sm bg-yellow-400 hover:bg-yellow-500 text-black rounded-lg transition-colors">Atjaunot</button>
 			</div>
 			<div className="text-sm text-gray-600 mb-4">
-				Kopā: {students.length} skolēni no {Object.keys(users).length} lietotājiem
+				Kopā: {filteredStudents.length} skolēni no {Object.keys(users).length} lietotājiem
 				{lastLoadTime > 0 && (<span className="ml-2 text-xs">• Atjaunots: {new Date(lastLoadTime).toLocaleTimeString('lv-LV')}</span>)}
 			</div>
-			{students.length === 0 ? (
+			{filteredStudents.length === 0 ? (
 				<div className="text-gray-600">Nav reģistrētu skolēnu</div>
 			) : (
 				<div className="space-y-3">
-					{students.map(student => {
+					{filteredStudents.map(student => {
 						const user = users[student.userId]
+						const list = bookingsByStudent[String(student.id)] || []
+						const first = list.find((b: any) => b.status === 'accepted' && new Date(`${b.date}T${b.time}:00`).getTime() < Date.now())
 						return (
 							<div key={student.id} className="border border-gray-200 rounded-lg p-4">
-								<div className="flex items-center justify-between">
-									<div className="flex-1">
-										<div className="font-semibold text-black">{student.firstName} {student.lastName}</div>
-										<div className="text-sm text-gray-600">
-											{student.isSelf ? 'Pašreģistrācija' : 'Bērns'}
-											{student.age && ` • ${student.age} gadi`}
-											{student.grade && ` • ${student.grade}`}
-											{student.school && ` • ${student.school}`}
-										</div>
-										{user && (
-											<div className="text-xs text-gray-500 mt-1">Vecāks: {user.firstName} {user.lastName} ({user.email}){user.accountType === 'children' && ' • Vecāku konts'}</div>
-										)}
+						<div className="flex items-center justify-between">
+							<div className="flex-1">
+								<div className="font-semibold text-black">
+									{student.firstName} {student.lastName}
+									{(() => {
+										const hasAttended = list.some((b: any) => b.status === 'accepted' && new Date(`${b.date}T${b.time}:00`).getTime() < Date.now())
+										const hasPaid = list.some((b: any) => b.status === 'accepted' && b.paid === true && new Date(`${b.date}T${b.time}:00`).getTime() < Date.now())
+										if (!hasAttended && !hasPaid) return null
+										return (
+											<span className="ml-2 inline-flex items-center gap-2">
+												{hasAttended && (
+													<span className="text-xs px-2 py-0.5 rounded-full border bg-green-50 text-green-700 border-green-200">Apmeklējis</span>
+												)}
+												{hasPaid && (
+													<span className="text-xs px-2 py-0.5 rounded-full border bg-green-50 text-green-700 border-green-200">Apmaksājis</span>
+												)}
+											</span>
+										)
+									})()}
+								</div>
+						<div className="text-sm text-gray-600">
+							{student.isSelf ? (
+								<>
+									{user?.email && `E-pasts: ${user.email}`}
+									{user?.phone && `${user?.email ? ' • ' : ''}Tālrunis: ${user.phone}`}
+								</>
+							) : 'Bērns'}
+							{student.age && ` • ${student.age} gadi`}
+							{student.grade && ` • ${student.grade}`}
+							{student.school && ` • ${student.school}`}
+						</div>
+						{!student.isSelf && (student.email || student.phone) && (
+							<div className="text-xs text-gray-500 mt-1">
+								{student.email && `E-pasts: ${student.email}`}
+								{student.phone && `${student.email ? ' • ' : ''}Tālrunis: ${student.phone}`}
+							</div>
+						)}
+						{user?.accountType === 'children' && (
+							<div className="text-xs text-gray-500 mt-1">Vecāks: {user.firstName} {user.lastName} ({user.email})</div>
+						)}
 									</div>
 									<div className="text-xs text-gray-500">{new Date(student.createdAt).toLocaleDateString('lv-LV')}</div>
 								</div>
+								{first && first.paid !== true && (
+									<div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+										<div className="flex items-center justify-end">
+											<button disabled={!!savingPaid[String(first._id)]} onClick={async () => {
+												const id = String(first._id)
+												setSavingPaid(prev => ({ ...prev, [id]: true }))
+												try {
+													await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'mark_paid', bookingId: id, paid: true }) })
+													setBookingsByStudent(prev => {
+														const next = { ...prev }
+														const arr = (next[String(student.id)] || []).map((b: any) => b._id === first._id ? { ...b, paid: true } : b)
+														next[String(student.id)] = arr
+														return next
+													})
+												} catch {} finally {
+													setSavingPaid(prev => ({ ...prev, [id]: false }))
+												}
+											}} className="text-xs bg-yellow-400 hover:bg-yellow-500 text-black rounded-md px-3 py-1">Apmaksājis</button>
+										</div>
+									</div>
+								)}
 							</div>
 						)
 					})}
@@ -554,3 +634,351 @@ const AdminNotifications = ({ onCountChange }: { onCountChange: (n: number) => v
 export default AdminProfile
 
 
+
+const AdminCalendar = () => {
+	const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+	const [selectedDay, setSelectedDay] = useState<number | null>(null)
+	const [loading, setLoading] = useState(true)
+	const [slots, setSlots] = useState<any[]>([])
+	const [bookings, setBookings] = useState<any[]>([])
+	const [refreshKey, setRefreshKey] = useState<number>(0)
+	const [calendarView, setCalendarView] = useState<'teachers' | 'children'>('teachers')
+	const [teacherFilter, setTeacherFilter] = useState<string>('')
+	const [childFilter, setChildFilter] = useState<string>('')
+
+	const getDaysInMonth = (date: Date) => {
+		const year = date.getFullYear()
+		const month = date.getMonth()
+		const firstDay = new Date(year, month, 1)
+		const lastDay = new Date(year, month + 1, 0)
+		const daysInMonth = lastDay.getDate()
+		const startingDay = (firstDay.getDay() + 6) % 7
+		return { daysInMonth, startingDay }
+	}
+	const toDateStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+	const getSlotsForDate = (dateStr: string) => (slots || []).filter((s: any) => s?.date === dateStr)
+	const { daysInMonth, startingDay } = getDaysInMonth(selectedDate)
+
+	useEffect(() => {
+		let cancelled = false
+		const load = async () => {
+			setLoading(true)
+			try {
+				const [slotsRes, bookingsRes] = await Promise.all([
+					fetch('/api/time-slots'),
+					fetch('/api/bookings?role=admin')
+				])
+				let s: any[] = []
+				if (slotsRes.ok) {
+					const d = await slotsRes.json().catch(() => null)
+					s = (d && d.timeSlots) || []
+				}
+				let b: any[] = []
+				if (bookingsRes.ok) {
+					const d = await bookingsRes.json().catch(() => null)
+					b = (d && d.items) || []
+				}
+				if (!cancelled) { setSlots(s); setBookings(b) }
+			} catch {
+			} finally {
+				if (!cancelled) setLoading(false)
+			}
+		}
+		load()
+		return () => { cancelled = true }
+	}, [refreshKey])
+
+	if (calendarView === 'children') {
+		return (
+			<div className="bg-white rounded-2xl shadow-xl p-6 space-y-6">
+				<div className="flex flex-wrap gap-2">
+					<button onClick={() => setCalendarView('teachers')} className="px-3 py-1 rounded-lg text-sm font-semibold text-gray-700 hover:bg-yellow-100">Skolotāji</button>
+					<button onClick={() => setCalendarView('children')} className="px-3 py-1 rounded-lg text-sm font-semibold bg-yellow-400 text-black">Bērni</button>
+				</div>
+				<div className="flex items-center justify-between">
+					<div className="text-lg font-semibold text-black">
+						{selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })}
+					</div>
+					<div className="flex items-center gap-2">
+						<select value={childFilter} onChange={e => setChildFilter(e.target.value)} className="p-2 border border-gray-300 rounded-lg text-sm min-w-[12rem]">
+							<option value="">Visi bērni</option>
+							{Array.from(new Map(bookings.map((b: any) => [String(b.studentId || b.userId || ''), (b.studentName || b.userName || '—')])).entries())
+								.filter(([id]) => id)
+								.sort((a, b) => a[1].localeCompare(b[1]))
+								.map(([id, name]) => (<option key={id} value={id}>{name}</option>))}
+						</select>
+						<button onClick={() => setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Iepriekšējais</button>
+						<button onClick={() => setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Nākamais</button>
+					</div>
+				</div>
+
+				<div className="grid grid-cols-7 gap-1">
+					{Array.from({ length: startingDay }, (_, i) => (
+						<div key={`empty-${i}`} className="h-16" />
+					))}
+					{Array.from({ length: daysInMonth }, (_, idx) => {
+						const day = idx + 1
+						const cellDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)
+						const isPast = cellDate.getTime() < new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime()
+						const dateStr = `${cellDate.getFullYear()}-${String(cellDate.getMonth() + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+						const hasBookings = bookings.some((b: any) => b.date === dateStr && (b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable') && (!childFilter || String(b.studentId || b.userId || '') === childFilter))
+						let counterText = ''
+						if (isPast) {
+							const booked = bookings.filter((b: any) => b.date === dateStr && (b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable') && (!childFilter || String(b.studentId || b.userId || '') === childFilter))
+							const attended = booked.filter((b: any) => b.attended === true)
+							counterText = `${attended.length}/${booked.length}`
+						} else {
+							const booked = bookings.filter((b: any) => b.date === dateStr && (b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable') && (!childFilter || String(b.studentId || b.userId || '') === childFilter))
+							counterText = `${booked.length}`
+						}
+						return (
+							<div key={day} className={`h-16 border p-1 cursor-pointer ${isPast ? 'bg-gray-100 text-gray-500' : hasBookings ? 'bg-green-50' : 'bg-blue-50'}`} onClick={() => { setSelectedDay(day); setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)) }}>
+								<div className="text-xs font-medium">{day}</div>
+								<div className={`text-[10px] mt-1 ${isPast ? 'text-gray-600' : 'text-gray-700'}`}>{counterText}</div>
+							</div>
+						)
+					})}
+				</div>
+
+				{selectedDay && (() => {
+					const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`
+					const dayBookings = bookings
+						.filter((b: any) => b.date === dateStr && (b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable') && (!childFilter || String(b.studentId || b.userId || '') === childFilter))
+						.sort((a: any, b: any) => String(a.time).localeCompare(String(b.time)))
+					return (
+						<div className="mt-4">
+							<h4 className="font-semibold text-black mb-2">Rezervācijas {new Date(dateStr).toLocaleDateString('lv-LV')}</h4>
+							<div className="space-y-2">
+								{dayBookings.length === 0 ? (
+									<div className="text-sm text-gray-600">Nav rezervāciju šajā dienā</div>
+								) : dayBookings.map((b: any) => {
+									const statusClass = b.status === 'accepted' ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
+									return (
+										<div key={String(b._id)} className={`border rounded-md p-3 text-sm ${statusClass}`}>
+											<div className="flex items-start justify-between">
+												<div>
+													<div className="font-medium text-black">{b.time} • {b.studentName || b.userName || '—'}</div>
+													<div className="text-xs text-gray-600">Pasniedzējs: {b.teacherName || '—'}</div>
+												</div>
+												<div className="flex items-center gap-2">
+													{b.status === 'accepted' && (
+														<>
+															<span className={`text-xs px-2 py-0.5 rounded-md border ${b.paid ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>Apmaksāts: {b.paid ? 'Jā' : 'Nē'}</span>
+															<span className={`text-xs px-2 py-0.5 rounded-md border ${b.attended ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>Apmeklēts: {b.attended ? 'Jā' : 'Nē'}</span>
+														</>
+													)}
+												</div>
+											</div>
+										</div>
+									)
+								})}
+							</div>
+						</div>
+					)
+				})()}
+			</div>
+		)
+	}
+
+	return (
+		<div className="bg-white rounded-2xl shadow-xl p-6 space-y-6">
+			<div className="flex flex-wrap gap-2">
+				<button onClick={() => setCalendarView('teachers')} className="px-3 py-1 rounded-lg text-sm font-semibold bg-yellow-400 text-black">Skolotāji</button>
+				<button onClick={() => setCalendarView('children')} className="px-3 py-1 rounded-lg text-sm font-semibold text-gray-700 hover:bg-yellow-100">Bērni</button>
+			</div>
+			<div className="flex items-center justify-between">
+				<div className="text-lg font-semibold text-black">
+					{selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })}
+				</div>
+				<div className="flex items-center gap-2">
+					<select value={teacherFilter} onChange={e => setTeacherFilter(e.target.value)} className="p-2 border border-gray-300 rounded-lg text-sm min-w-[12rem]">
+ 						<option value="">Visi pasniedzēji</option>
+						{(() => {
+							const pairs: Array<{ id: string; name: string }> = []
+							;[...slots, ...bookings].forEach((x: any) => {
+								const id = String(x?.teacherId || '')
+								const name = x?.teacherName
+								if (id && name) pairs.push({ id, name })
+							})
+							const dict: Record<string, string> = {}
+							pairs.forEach(p => { if (!dict[p.id]) dict[p.id] = p.name })
+							return Object.entries(dict)
+								.sort((a, b) => a[1].localeCompare(b[1]))
+								.map(([id, name]) => (<option key={id} value={id}>{name}</option>))
+						})()}
+					</select>
+					<button onClick={async () => {
+						try {
+							const XLSX: any = await import('xlsx')
+							const year = selectedDate.getFullYear()
+							const month = selectedDate.getMonth()
+							const from = new Date(year, month, 1)
+							const to = new Date(year, month + 1, 0)
+							const inMonth = (dStr: string) => {
+								try {
+									const d = new Date(dStr)
+									if (isNaN(d.getTime())) return false
+									return d >= from && d <= to
+								} catch { return false }
+							}
+							const rows = bookings
+								.filter((b: any) => inMonth(b.date) && (!teacherFilter || String(b.teacherId) === teacherFilter))
+								.sort((a: any, b: any) => (a.date === b.date ? String(a.time).localeCompare(String(b.time)) : new Date(a.date).getTime() - new Date(b.date).getTime()))
+								.map((b: any) => ({
+									Datums: new Date(b.date).toLocaleDateString('lv-LV'),
+									Laiks: b.time || '',
+									Pasniedzējs: b.teacherName || '',
+									Skolēns: b.studentName || b.userName || '',
+									Statuss: b.status || '',
+									Apmaksāts: b.paid === true ? 'Jā' : 'Nē',
+									Apmeklēts: b.attended === true ? 'Jā' : 'Nē',
+									Veids: b.modality === 'zoom' ? 'Attālināti' : 'Klātienē',
+									Vieta: b.location === 'teacher' ? 'Privāti' : 'Uz vietas'
+								}))
+							const ws = XLSX.utils.json_to_sheet(rows)
+							const wb = XLSX.utils.book_new()
+							XLSX.utils.book_append_sheet(wb, ws, 'Statistika')
+							const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+							const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+							const a = document.createElement('a')
+							const url = URL.createObjectURL(blob)
+							a.href = url
+							const monthLabel = selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })
+							a.download = `statistika-${monthLabel}.xlsx`
+							a.click()
+							setTimeout(() => URL.revokeObjectURL(url), 1500)
+						} catch (e) { alert('Neizdevās eksportēt XLSX') }
+					}} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Lejupielādēt statistiku</button>
+					<button onClick={() => setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Iepriekšējais</button>
+					<button onClick={() => setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Nākamais</button>
+					<button onClick={() => setRefreshKey(k => k + 1)} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Atjaunot</button>
+				</div>
+			</div>
+
+			{loading ? (
+				<div className="text-gray-600">Ielādē...</div>
+			) : (
+				<>
+					<div className="grid grid-cols-7 gap-1">
+						{Array.from({ length: startingDay }, (_, i) => (
+							<div key={`empty-${i}`} className="h-16" />
+						))}
+						{Array.from({ length: daysInMonth }, (_, idx) => {
+							const day = idx + 1
+							const cellDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)
+							const isPast = cellDate.getTime() < new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime()
+							const dateStr = toDateStr(cellDate)
+							let daySlots = getSlotsForDate(dateStr)
+							if (teacherFilter) daySlots = daySlots.filter((s: any) => String(s.teacherId) === teacherFilter)
+							const has = daySlots.length > 0
+							let counterText = ''
+							if (isPast) {
+								const accepted = bookings.filter((b: any) => b.date === dateStr && b.status === 'accepted' && (!teacherFilter || String(b.teacherId) === teacherFilter))
+								const attended = accepted.filter((b: any) => b.attended === true)
+								counterText = `${attended.length}/${accepted.length}`
+							} else {
+								const bookedSlots = daySlots.reduce((acc: number, s: any) => {
+									const rel = bookings.filter((b: any) => b.date === s.date && b.time === s.time && String(b.teacherId) === String(s.teacherId) && (b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable') && (!teacherFilter || String(b.teacherId) === teacherFilter))
+									return acc + (rel.length > 0 ? 1 : 0)
+								}, 0)
+								counterText = `${bookedSlots}/${daySlots.length}`
+							}
+							return (
+								<div key={day} className={`h-16 border p-1 cursor-pointer ${isPast ? 'bg-gray-100 text-gray-500' : has ? 'bg-green-50' : 'bg-blue-50'}`} onClick={() => { setSelectedDay(day); setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)) }}>
+									<div className="text-xs font-medium">{day}</div>
+									<div className={`text-[10px] mt-1 ${isPast ? 'text-gray-600' : 'text-gray-700'}`}>{counterText}</div>
+								</div>
+							)
+						})}
+					</div>
+
+					{selectedDay && (() => {
+						const dateStr = toDateStr(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDay))
+						let daySlots = getSlotsForDate(dateStr)
+						if (teacherFilter) daySlots = daySlots.filter((s: any) => String(s.teacherId) === teacherFilter)
+						const dayBookings = bookings.filter((b: any) => b.date === dateStr && (!teacherFilter || String(b.teacherId) === teacherFilter)).sort((a: any, b: any) => String(a.time).localeCompare(String(b.time)))
+						return (
+							<div className="mt-4">
+								<h4 className="font-semibold text-black mb-2">Laiki {new Date(dateStr).toLocaleDateString('lv-LV')}</h4>
+								{daySlots.length > 0 ? (
+									<div className="space-y-2">
+										{daySlots.map(s => {
+											const lessonTypeLabel = s.lessonType === 'group' ? 'Grupu' : 'Individuāla'
+											const locationLabel = s.location === 'teacher' ? 'Privāti' : 'Uz vietas'
+											const modalityLabel = s.modality === 'zoom' ? 'Attālināti' : 'Klātienē'
+											const capacity = s.lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
+											const related = bookings.filter((b: any) => b.date === s.date && b.time === s.time && String(b.teacherId) === String(s.teacherId))
+											const acceptedRelated = related.filter((b: any) => b.status === 'accepted')
+											const bookedCount = related.length
+											const isAvailable = s.available !== false && bookedCount < capacity
+											const slotTs = new Date(`${s.date}T${s.time || '00:00'}:00`).getTime()
+											const isPastSlot = slotTs < Date.now()
+											let cardClass = isAvailable ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
+											if (isPastSlot) {
+												const anyAttendedPaid = acceptedRelated.some((x: any) => x.attended === true && x.paid === true)
+												const anyAttended = acceptedRelated.some((x: any) => x.attended === true)
+												cardClass = anyAttendedPaid ? 'bg-green-50 border-green-200' : anyAttended ? 'bg-yellow-50 border-yellow-200' : 'bg-gray-50 border-gray-200'
+											}
+											return (
+												<div key={s.id} className={`border rounded-lg p-3 ${cardClass}`}>
+													<div className="flex items-center justify-between mb-1">
+														<div className="text-lg font-semibold text-black">{s.time}</div>
+														<div className="text-sm text-gray-700">{s.teacherName || 'Pasniedzējs'}</div>
+														{!isPastSlot ? (
+															<span className={`text-xs px-2 py-0.5 rounded-full ${isAvailable ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-yellow-100 text-yellow-800 border border-yellow-200'}`}>{isAvailable ? 'Pieejams' : 'Rezervēts'}</span>
+														) : null}
+													</div>
+													<div className="flex flex-wrap gap-2 text-xs">
+														<span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full border border-blue-200">{lessonTypeLabel}</span>
+														<span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full border border-purple-200">{modalityLabel}</span>
+														<span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-full border border-gray-200">{locationLabel}</span>
+														{s.lessonType === 'group' && (
+															<span className="px-2 py-1 bg-teal-100 text-teal-800 rounded-full border border-teal-200">{bookedCount}/{capacity}</span>
+														)}
+													</div>
+													{!isAvailable && s.lessonType !== 'group' && related.length > 0 && (
+														<div className="text-xs text-gray-700 mt-1">Skolēns: {(acceptedRelated[0]?.studentName || acceptedRelated[0]?.userName || related[0]?.studentName || related[0]?.userName || '—')}</div>
+													)}
+												</div>
+											)
+										})}
+									</div>
+								) : (
+									<div className="space-y-2">
+										{dayBookings.length === 0 ? (
+											<div className="text-sm text-gray-600">Nav rezervāciju šajā dienā</div>
+										) : dayBookings.map((b: any) => {
+											const bTs = new Date(`${b.date}T${b.time || '00:00'}:00`).getTime()
+											const isPastBooking = bTs < Date.now()
+											let cardClass = b.status === 'accepted' ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
+											if (isPastBooking) {
+												cardClass = b.attended === true ? (b.paid === true ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200') : 'bg-gray-50 border-gray-200'
+											}
+											return (
+												<div key={String(b._id)} className={`border rounded-md p-3 text-sm ${cardClass}`}>
+													<div className="flex items-start justify-between">
+														<div>
+															<div className="font-medium text-black">{new Date(b.date).toLocaleDateString('lv-LV')} {b.time} • {b.teacherName || ''}</div>
+														</div>
+														<div className="flex items-center gap-2">
+															{b.status === 'accepted' && (
+																<>
+																	<span className={`text-xs px-2 py-0.5 rounded-md border ${b.paid ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>Apmaksāts: {b.paid ? 'Jā' : 'Nē'}</span>
+																	<span className={`text-xs px-2 py-0.5 rounded-md border ${b.attended ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`}>Apmeklēts: {b.attended ? 'Jā' : 'Nē'}</span>
+																</>
+															)}
+														</div>
+													</div>
+												</div>
+											)
+										})}
+									</div>
+								)}
+							</div>
+						)
+					})()}
+				</>
+			)}
+		</div>
+	)
+}

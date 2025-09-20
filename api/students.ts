@@ -52,6 +52,8 @@ export default async function handler(req: any, res: any) {
       age: student.age,
       grade: student.grade,
       school: student.school,
+      email: student.email,
+      phone: student.phone,
       isSelf: student.isSelf,
       createdAt: student.createdAt
     }))
