@@ -185,7 +185,9 @@ export default async function handler(req: any, res: any) {
       const teacherIdEffective = String(teacherId || booking.teacherId)
 
       if (action === 'decline') {
-        await bookings.updateOne({ _id }, { $set: { status: 'declined', updatedAt: new Date() } })
+        const { reason } = (req.body || {}) as { reason?: string }
+        const declineReason = typeof reason === 'string' ? reason.trim() : undefined
+        await bookings.updateOne({ _id }, { $set: { status: 'declined', updatedAt: new Date(), ...(declineReason ? { declineReason } : {}) } })
         return res.status(200).json({ ok: true })
       }
 
@@ -317,7 +319,10 @@ export default async function handler(req: any, res: any) {
         const lessonType = (slot && slot.lessonType) || booking.lessonType || 'individual'
         const groupSize = Number((slot && slot.groupSize) || booking.groupSize || 1)
 
-        await bookings.updateOne({ _id }, { $set: { status: 'cancelled', updatedAt: new Date() } })
+        const { reason } = (req.body || {}) as { reason?: string }
+        const cancelReason = typeof reason === 'string' ? reason.trim() : undefined
+        const cancelledBy = req.body && req.body.teacherId ? 'teacher' : 'user'
+        await bookings.updateOne({ _id }, { $set: { status: 'cancelled', updatedAt: new Date(), cancelledBy, ...(cancelReason ? { cancelReason } : {}) } })
 
         // Re-evaluate availability only if previously accepted affected capacity, or generally ensure availability when capacity not full
         const acceptedCount = await bookings.countDocuments({ teacherId: teacher, date, time, status: 'accepted' })
@@ -328,22 +333,24 @@ export default async function handler(req: any, res: any) {
           await bookings.updateMany({ teacherId: teacher, date, time, status: 'pending_unavailable' }, { $set: { status: 'pending', updatedAt: new Date() } })
         }
 
-        // Notify teacher about cancellation
+        // Notify counterparty about cancellation (keep existing behavior for user-initiated)
         try {
-          const actor = await users.findOne({ _id: new (await import('mongodb')).ObjectId(String(booking.userId)) }).catch(() => null as any)
-          const actorName = (actor && (actor.name || actor.username || actor.email)) || null
-          await notifications.insertOne({
-            type: 'booking_cancelled',
-            title: 'Rezervācija atcelta',
-            message: `${actorName || 'Lietotājs'} atcēla rezervāciju ${date} ${time}.`,
-            recipientRole: 'worker',
-            recipientUserId: teacher,
-            actorUserId: String(booking.userId),
-            actorName,
-            unread: true,
-            related: { bookingId: String(booking._id), date, time },
-            createdAt: new Date(),
-          })
+          if (cancelledBy === 'user') {
+            const actor = await users.findOne({ _id: new (await import('mongodb')).ObjectId(String(booking.userId)) }).catch(() => null as any)
+            const actorName = (actor && (actor.name || actor.username || actor.email)) || null
+            await notifications.insertOne({
+              type: 'booking_cancelled',
+              title: 'Rezervācija atcelta',
+              message: `${actorName || 'Lietotājs'} atcēla rezervāciju ${date} ${time}.${cancelReason ? `\nPamatojums: ${cancelReason}` : ''}`,
+              recipientRole: 'worker',
+              recipientUserId: teacher,
+              actorUserId: String(booking.userId),
+              actorName,
+              unread: true,
+              related: { bookingId: String(booking._id), date, time },
+              createdAt: new Date(),
+            })
+          }
         } catch {}
 
         return res.status(200).json({ ok: true, available })

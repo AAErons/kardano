@@ -32,7 +32,8 @@ export default async function handler(req: any, res: any) {
       email, 
       password, 
       phone, 
-      children 
+      children,
+      discountCode
     } = (req.body || {}) as { 
       accountType?: 'self' | 'children'
       firstName?: string
@@ -48,6 +49,7 @@ export default async function handler(req: any, res: any) {
         email?: string
         phone?: string
       }>
+      discountCode?: string
     }
     
     console.log('[register] payload', { 
@@ -74,11 +76,33 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'Invalid email format' })
     }
     
+    // Check blacklist
+    try {
+      const blacklisted = await (async () => {
+        try {
+          const client = await getClient()
+          const dbName = process.env.MONGODB_DB
+          const db = dbName ? client.db(dbName) : client.db()
+          const e = String(email).trim().toLowerCase()
+          return await db.collection('blacklist_emails').findOne({ email: e })
+        } catch { return null }
+      })()
+      if (blacklisted) {
+        return res.status(403).json({ error: 'E-pasts ir melnajā sarakstā' })
+      }
+    } catch {}
+    
     // Validate password length
     if (password.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters' })
     }
     
+    // Validate discount code if provided
+    let normalizedDiscountCode: string | undefined
+    if (typeof discountCode === 'string' && discountCode.trim()) {
+      normalizedDiscountCode = discountCode.trim().toUpperCase()
+    }
+
     // Validate children data if account type is 'children'
     if (accountType === 'children') {
       if (!children || children.length === 0) {
@@ -96,6 +120,14 @@ export default async function handler(req: any, res: any) {
     const dbName = process.env.MONGODB_DB
     const db = dbName ? client.db(dbName) : client.db()
     console.log('[register] using db', { dbName: db.databaseName })
+
+    // Check discount code exists
+    if (normalizedDiscountCode) {
+      const dc = await db.collection('discount_codes').findOne({ code: normalizedDiscountCode })
+      if (!dc) {
+        return res.status(400).json({ error: 'Nederīgs atlaižu kods' })
+      }
+    }
 
     // Check if email already exists
     const existingUser = await db.collection('users').findOne({ email: email.trim() })
@@ -124,6 +156,7 @@ export default async function handler(req: any, res: any) {
       role: 'user',
       active: true,
       phone: phone?.trim() || undefined,
+      discountCode: normalizedDiscountCode,
       createdAt: now,
       updatedAt: now
     }

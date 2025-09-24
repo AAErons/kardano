@@ -23,6 +23,7 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 	const [loadingBookings, setLoadingBookings] = useState(false)
 	// Filters for Reservations tab
 	const [bookingStatusFilter, setBookingStatusFilter] = useState<Record<string, boolean>>({})
+	const [userCancelForms, setUserCancelForms] = useState<Record<string, { open: boolean; text: string; submitting?: boolean }>>({})
 
 	const loadUserInfo = async () => {
 		if (!userId) return
@@ -78,6 +79,12 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 	}
 
 	useEffect(() => { loadUserInfo() }, [userId])
+// Ensure children count loads early for parent accounts
+useEffect(() => {
+    if (userId && userInfo?.accountType === 'children') {
+        loadChildren()
+    }
+}, [userId, userInfo?.accountType])
 
 	// Prefetch bookings so Sadarbības tab visibility is correct on first render
 	useEffect(() => { if (userId) loadBookings() }, [userId])
@@ -97,7 +104,7 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 
 	return (
 		<div className="space-y-6">
-			<div className="bg-white rounded-2xl shadow p-6 space-y-4">
+            <div className="bg-white rounded-2xl shadow p-6 space-y-4">
 				<div className="flex items-start gap-4">
 					<div className="w-24 h-24 rounded-full bg-gray-100 border-2 border-yellow-200 flex items-center justify-center">
 						<span className="text-2xl font-bold text-gray-600">
@@ -120,25 +127,28 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 								{userInfo.phone}
 							</div>
 						)}
-						{userInfo?.createdAt && (
+                        {userInfo?.createdAt && (
 							<div className="text-sm text-gray-700">
 								<strong>Reģistrācijas datums:</strong> {new Date(userInfo.createdAt).toLocaleDateString('lv-LV')}
 							</div>
 						)}
+                        <div className="pt-3">
+                            <DeleteProfile userId={userId} onDeleted={() => { try { localStorage.removeItem('auth') } catch {}; window.location.href = '/' }} />
+                        </div>
 					</div>
 				</div>
 			</div>
 
-			<div className="bg-white rounded-2xl shadow-xl p-2">
-				<div className="flex gap-2">
-					{userInfo?.accountType === 'children' && (
-						<button onClick={() => setActiveTab('children')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'children' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>
-							Bērni ({children.length})
-						</button>
-					)}
-					<button onClick={() => setActiveTab('bookings')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'bookings' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>
-						Rezervācijas ({bookings.length})
-					</button>
+            <div className="bg-white rounded-2xl shadow-xl p-2">
+                <div className="flex gap-2">
+                    <button onClick={() => setActiveTab('bookings')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'bookings' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>
+                        Rezervācijas ({bookings.length})
+                    </button>
+                    {userInfo?.accountType === 'children' && (
+                        <button onClick={() => setActiveTab('children')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'children' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>
+                            Bērni ({children.length})
+                        </button>
+                    )}
 					{(() => {
 						const collabIds = new Set((bookings || []).filter(b => b.extendPreferred === true).map(b => String(b.teacherId)))
 						return collabIds.size > 0 ? (
@@ -150,59 +160,23 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 				</div>
 			</div>
 
-			{activeTab === 'children' && userInfo?.accountType === 'children' && (
+            {activeTab === 'children' && userInfo?.accountType === 'children' && (
 				<div className="bg-white rounded-2xl shadow p-6">
 					<h3 className="text-lg font-semibold text-black mb-4">Mani bērni</h3>
-					{loadingChildren ? (
+                    {loadingChildren ? (
 						<div className="text-center py-8 text-gray-500">Ielādē...</div>
 					) : children.length === 0 ? (
-						<div className="text-center py-8 text-gray-500">Nav bērnu</div>
+                        <div>
+                            <div className="text-center py-8 text-gray-500">Nav bērnu</div>
+                            <AddChildForm userId={userId} onSaved={() => loadChildren()} />
+                        </div>
 					) : (
-						<div className="space-y-4">
-							{children.map(child => (
-								<div key={child.id} className="border border-gray-200 rounded-lg p-4">
-									<div className="flex items-start justify-between">
-										<div className="flex-1">
-											<h4 className="font-semibold text-black mb-2">
-												{child.firstName} {child.lastName}
-											</h4>
-											<div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-												{child.age && (
-													<div>
-														<label className="block text-xs font-medium text-gray-600 mb-1">Vecums</label>
-														<div className="text-gray-900">{child.age} gadi</div>
-													</div>
-												)}
-												{child.grade && (
-													<div>
-														<label className="block text-xs font-medium text-gray-600 mb-1">Klase</label>
-														<div className="text-gray-900">{child.grade}</div>
-													</div>
-												)}
-												{child.email && (
-													<div>
-														<label className="block text-xs font-medium text-gray-600 mb-1">E-pasts</label>
-														<div className="text-gray-900">{child.email}</div>
-													</div>
-												)}
-												{child.phone && (
-													<div>
-														<label className="block text-xs font-medium text-gray-600 mb-1">Tālrunis</label>
-														<div className="text-gray-900">{child.phone}</div>
-													</div>
-												)}
-												{child.school && (
-													<div>
-														<label className="block text-xs font-medium text-gray-600 mb-1">Skola</label>
-														<div className="text-gray-900">{child.school}</div>
-													</div>
-												)}
-											</div>
-										</div>
-									</div>
-								</div>
-							))}
-						</div>
+                        <div className="space-y-4">
+                            <AddChildForm userId={userId} onSaved={() => loadChildren()} />
+                            {children.map(child => (
+                                <ChildCard key={child.id} child={child} onSaved={() => loadChildren()} onDeleted={() => loadChildren()} />
+                            ))}
+                        </div>
 					)}
 				</div>
 			)}
@@ -213,7 +187,7 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 						<h3 className="text-lg font-semibold text-black">Manas rezervācijas</h3>
 						<div className="flex items-center gap-2">
 							{/* Status filters: Gaida, Pieņemts, Notikusi, Noraidīts */}
-							<div className="hidden md:flex items-center gap-3 mr-2">
+                            <div className="hidden md:flex items-center gap-3 mr-2">
 								<label className="flex items-center gap-1 text-xs text-gray-700">
 									<input type="checkbox" checked={Boolean(bookingStatusFilter['gaida'])} onChange={e => setBookingStatusFilter(prev => ({ ...prev, ['gaida']: e.target.checked }))} />
 									<span>Gaida</span>
@@ -230,6 +204,10 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 									<input type="checkbox" checked={Boolean(bookingStatusFilter['declined'])} onChange={e => setBookingStatusFilter(prev => ({ ...prev, ['declined']: e.target.checked }))} />
 									<span>Noraidīts</span>
 								</label>
+                                <label className="flex items-center gap-1 text-xs text-gray-700">
+                                    <input type="checkbox" checked={Boolean(bookingStatusFilter['cancelled'])} onChange={e => setBookingStatusFilter(prev => ({ ...prev, ['cancelled']: e.target.checked }))} />
+                                    <span>Atcelts</span>
+                                </label>
 							</div>
 							<button onClick={() => { window.location.href = '/?open=calendar' }} className="text-sm bg-yellow-400 hover:bg-yellow-500 text-black rounded-md px-3 py-1">Rezervē nodarbību</button>
 							<button onClick={() => loadBookings()} disabled={loadingBookings} className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50 disabled:opacity-60">{loadingBookings ? 'Ielādē...' : 'Atjaunot'}</button>
@@ -244,7 +222,7 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 								{[...bookings]
 									.filter(b => {
 										// If any filter is checked, show only selected groups; otherwise show all
-										const anyChecked = Object.values(bookingStatusFilter).some(Boolean)
+                                    const anyChecked = Object.values(bookingStatusFilter).some(Boolean)
 										if (!anyChecked) return true
 										const s = b.status
 										const dt = new Date(`${b.date}T${b.time || '00:00'}:00`)
@@ -253,6 +231,7 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 										if (bookingStatusFilter['accepted'] && s === 'accepted' && !isPastAccepted) return true
 										if (bookingStatusFilter['notikusi'] && isPastAccepted) return true
 										if (bookingStatusFilter['declined'] && (s === 'declined' || s === 'declined_conflict')) return true
+                                    if (bookingStatusFilter['cancelled'] && s === 'cancelled') return true
 										return false
 									})
 									.sort((a, b) => {
@@ -272,9 +251,11 @@ const UserProfile = ({ userId }: UserProfileProps) => {
                                             ? 'bg-red-100 text-red-800'
                                             : booking.status === 'declined_conflict'
                                                 ? 'bg-orange-100 text-orange-800'
-                                                : booking.status === 'pending_unavailable'
-                                                    ? 'bg-gray-100 text-gray-800'
-                                                    : 'bg-yellow-100 text-yellow-800'
+                                                : booking.status === 'cancelled'
+                                                    ? 'bg-red-100 text-red-800'
+                                                    : booking.status === 'pending_unavailable'
+                                                        ? 'bg-gray-100 text-gray-800'
+                                                        : 'bg-yellow-100 text-yellow-800'
                                 const statusLabel = isPastAccepted
                                     ? 'Notikusi'
                                     : booking.status === 'accepted'
@@ -283,9 +264,11 @@ const UserProfile = ({ userId }: UserProfileProps) => {
                                             ? 'Noraidīts'
                                             : booking.status === 'declined_conflict'
                                                 ? 'Noraidīts (konflikts)'
-                                                : booking.status === 'pending_unavailable'
-                                                    ? 'Gaida (nav pieejams)'
-                                                    : 'Gaida apstiprinājumu'
+                                                : booking.status === 'cancelled'
+                                                    ? 'Atcelts'
+                                                    : booking.status === 'pending_unavailable'
+                                                        ? 'Gaida (nav pieejams)'
+                                                        : 'Gaida apstiprinājumu'
                                 return (
                                     <div key={booking._id} className="border border-gray-200 rounded-lg p-4">
                                         <div className="flex items-start justify-between">
@@ -301,6 +284,15 @@ const UserProfile = ({ userId }: UserProfileProps) => {
                                                 <p className="text-sm text-gray-600">
                                                     <strong>Pasniedzējs:</strong> {booking.teacherName || '—'}
                                                 </p>
+                                                {booking.declineReason && (
+                                                    <p className="text-sm text-gray-700"><strong>Pamatojums:</strong> {booking.declineReason}</p>
+                                                )}
+                                                {booking.cancelReason && (
+                                                    <p className="text-sm text-gray-700"><strong>Pamatojums:</strong> {booking.cancelReason}</p>
+                                                )}
+                                                {booking.status === 'cancelled' && (
+                                                    <p className="text-xs text-gray-500"><strong>Atcēla:</strong> {booking.cancelledBy === 'teacher' ? 'Pasniedzējs' : 'Lietotājs'}</p>
+                                                )}
                                                 {booking.studentName && (
                                                     <p className="text-sm text-gray-600">
                                                         <strong>Skolēns:</strong> {booking.studentName}
@@ -325,11 +317,10 @@ const UserProfile = ({ userId }: UserProfileProps) => {
                                                         )}
                                                     </div>
                                                 )}
-                                                {(booking.status === 'pending' || booking.status === 'pending_unavailable' || (booking.status === 'accepted' && !isPastAccepted)) && (
+                                                {(booking.status === 'pending' || booking.status === 'pending_unavailable') && (
                                                     <div className="pt-2">
                                                         <button onClick={async () => {
                                                             try {
-                                                                // After-midnight same-day policy
                                                                 const now = new Date()
                                                                 const bookingDate = new Date(booking.date + 'T00:00:00')
                                                                 const isSameDay = now.getFullYear() === bookingDate.getFullYear() && now.getMonth() === bookingDate.getMonth() && now.getDate() === bookingDate.getDate()
@@ -342,6 +333,55 @@ const UserProfile = ({ userId }: UserProfileProps) => {
                                                                 await loadBookings()
                                                             } catch { alert('Kļūda') }
                                                         }} className="text-sm bg-red-500 hover:bg-red-600 text-white rounded-md px-3 py-1">Atcelt</button>
+                                                    </div>
+                                                )}
+                                                {(booking.status === 'accepted' && !isPastAccepted) && (
+                                                    <div className="pt-2">
+                                                        {!userCancelForms[String(booking._id)]?.open ? (
+                                                            <button onClick={() => {
+                                                                const id = String(booking._id)
+                                                                setUserCancelForms(prev => ({ ...prev, [id]: { open: true, text: '' } }))
+                                                            }} className="text-sm bg-red-500 hover:bg-red-600 text-white rounded-md px-3 py-1">Atcelt</button>
+                                                        ) : (
+                                                            <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                                                                <label className="block text-xs font-medium text-gray-700 mb-1">Pamatojums</label>
+                                                                <input value={userCancelForms[String(booking._id)]?.text || ''} onChange={(e) => {
+                                                                    const id = String(booking._id)
+                                                                    const curr = userCancelForms[id] || { open: true, text: '' }
+                                                                    setUserCancelForms(prev => ({ ...prev, [id]: { ...curr, text: e.target.value } }))
+                                                                }} className="w-full max-w-md p-2 border border-gray-300 rounded-lg text-sm" placeholder="Ievadiet pamatojumu" />
+                                                                <div className="mt-2 flex items-center gap-2">
+                                                                    <button onClick={async () => {
+                                                                        const id = String(booking._id)
+                                                                        const form = userCancelForms[id]
+                                                                        if (!form) return
+                                                                        setUserCancelForms(prev => ({ ...prev, [id]: { ...form, submitting: true } }))
+                                                                        try {
+                                                                            const now = new Date()
+                                                                            const bookingDate = new Date(booking.date + 'T00:00:00')
+                                                                            const isSameDay = now.getFullYear() === bookingDate.getFullYear() && now.getMonth() === bookingDate.getMonth() && now.getDate() === bookingDate.getDate()
+                                                                            if (isSameDay) {
+                                                                                const ok = confirm('Atcelot pēc 00:00 šīs pašas dienas laikā, nauda netiks atgriezta. Vai turpināt?')
+                                                                                if (!ok) { setUserCancelForms(prev => ({ ...prev, [id]: { ...form, submitting: false } })); return }
+                                                                            }
+                                                                            const r = await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', bookingId: id, reason: form.text || '' }) })
+                                                                            if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās atcelt'); setUserCancelForms(prev => ({ ...prev, [id]: { ...form, submitting: false } })); return }
+                                                                            setUserCancelForms(prev => ({ ...prev, [id]: { open: false, text: '', submitting: false } }))
+                                                                            await loadBookings()
+                                                                        } catch {
+                                                                            alert('Kļūda')
+                                                                            const id2 = String(booking._id)
+                                                                            const form2 = userCancelForms[id2]
+                                                                            if (form2) setUserCancelForms(prev => ({ ...prev, [id2]: { ...form2, submitting: false } }))
+                                                                        }
+                                                                    }} className="text-xs bg-yellow-400 hover:bg-yellow-500 text-black rounded-md px-3 py-1" disabled={userCancelForms[String(booking._id)]?.submitting}>{userCancelForms[String(booking._id)]?.submitting ? 'Sūta...' : 'Sūtīt'}</button>
+                                                                    <button onClick={() => {
+                                                                        const id = String(booking._id)
+                                                                        setUserCancelForms(prev => ({ ...prev, [id]: { open: false, text: '' } }))
+                                                                    }} className="text-xs border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50">Atcelt</button>
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -512,3 +552,149 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 export default UserProfile
 
 
+
+const DeleteProfile = ({ userId, onDeleted }: { userId: string; onDeleted: () => void }) => {
+    const [open, setOpen] = useState(false)
+    const [submitting, setSubmitting] = useState(false)
+    return (
+        <div>
+            {!open ? (
+                <button onClick={() => setOpen(true)} className="text-sm text-red-600 border border-red-200 rounded-md px-3 py-1 hover:bg-red-50">Dzēst profīlu</button>
+            ) : (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="text-sm text-red-800 font-semibold mb-1">Šis profils tiks neatgriezeniski dzēsts.</div>
+                    <div className="text-xs text-red-700 mb-2">Tiks atceltas arī visas šī profila rezervācijas.</div>
+                    <div className="flex items-center gap-2">
+                        <button disabled={submitting} onClick={async () => {
+                            setSubmitting(true)
+                            try {
+                                const r = await fetch('/api/user-delete', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId }) })
+                                if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās dzēst profilu'); setSubmitting(false); return }
+                                onDeleted()
+                            } catch {
+                                alert('Kļūda')
+                                setSubmitting(false)
+                            }
+                        }} className="text-sm bg-red-600 hover:bg-red-700 text-white rounded-md px-3 py-1">{submitting ? 'Dzēš...' : 'Dzēst'}</button>
+                        <button onClick={() => setOpen(false)} className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50">Atcelt</button>
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
+
+const AddChildForm = ({ userId, onSaved }: { userId: string; onSaved: () => void }) => {
+    const [form, setForm] = useState<{ firstName: string; lastName: string; age: string; grade: string; email: string; phone: string; school: string }>({ firstName: '', lastName: '', age: '', grade: '', email: '', phone: '', school: '' })
+    const [saving, setSaving] = useState(false)
+    return (
+        <div className="border border-gray-200 rounded-lg p-4">
+            <div className="font-semibold text-black mb-2">Pievienot bērnu</div>
+            <div className="grid md:grid-cols-3 gap-3">
+                <input className="p-2 border border-gray-300 rounded-lg" placeholder="Vārds" value={form.firstName} onChange={e => setForm(prev => ({ ...prev, firstName: e.target.value }))} />
+                <input className="p-2 border border-gray-300 rounded-lg" placeholder="Uzvārds" value={form.lastName} onChange={e => setForm(prev => ({ ...prev, lastName: e.target.value }))} />
+                <input className="p-2 border border-gray-300 rounded-lg" placeholder="Vecums" type="number" min={1} value={form.age} onChange={e => setForm(prev => ({ ...prev, age: e.target.value }))} />
+                <input className="p-2 border border-gray-300 rounded-lg" placeholder="Klase" value={form.grade} onChange={e => setForm(prev => ({ ...prev, grade: e.target.value }))} />
+                <input className="p-2 border border-gray-300 rounded-lg" placeholder="E-pasts (neobligāti)" value={form.email} onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))} />
+                <input className="p-2 border border-gray-300 rounded-lg" placeholder="Tālrunis (neobligāti)" value={form.phone} onChange={e => setForm(prev => ({ ...prev, phone: e.target.value }))} />
+                <input className="p-2 border border-gray-300 rounded-lg md:col-span-3" placeholder="Skola (neobligāti)" value={form.school} onChange={e => setForm(prev => ({ ...prev, school: e.target.value }))} />
+            </div>
+            <div className="mt-3">
+                <button disabled={saving || !form.firstName.trim() || !form.lastName.trim()} onClick={async () => {
+                    try {
+                        setSaving(true)
+                        const payload: any = {
+                            userId,
+                            firstName: form.firstName.trim(),
+                            lastName: form.lastName.trim(),
+                            age: form.age ? Number(form.age) : null,
+                            grade: form.grade || null,
+                            email: form.email || undefined,
+                            phone: form.phone || undefined,
+                            school: form.school || null
+                        }
+                        const r = await fetch('/api/students', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+                        if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās pievienot bērnu'); return }
+                        setForm({ firstName: '', lastName: '', age: '', grade: '', email: '', phone: '', school: '' })
+                        onSaved()
+                    } finally {
+                        setSaving(false)
+                    }
+                }} className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-black font-semibold px-4 py-2 rounded-lg">{saving ? 'Saglabā...' : 'Pievienot'}</button>
+            </div>
+        </div>
+    )
+}
+
+const ChildCard = ({ child, onSaved, onDeleted }: { child: any; onSaved: () => void; onDeleted: () => void }) => {
+    const [edit, setEdit] = useState(false)
+    const [form, setForm] = useState<{ firstName: string; lastName: string; age: string; grade: string; email: string; phone: string; school: string }>(() => ({
+        firstName: child.firstName || '',
+        lastName: child.lastName || '',
+        age: child.age != null ? String(child.age) : '',
+        grade: child.grade || '',
+        email: child.email || '',
+        phone: child.phone || '',
+        school: child.school || ''
+    }))
+    const [saving, setSaving] = useState(false)
+    const [deleting, setDeleting] = useState(false)
+    return (
+        <div className="border border-gray-200 rounded-lg p-4">
+            {!edit ? (
+                <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                        <h4 className="font-semibold text-black mb-2">{child.firstName} {child.lastName}</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                            {child.age && (<div><label className="block text-xs font-medium text-gray-600 mb-1">Vecums</label><div className="text-gray-900">{child.age} gadi</div></div>)}
+                            {child.grade && (<div><label className="block text-xs font-medium text-gray-600 mb-1">Klase</label><div className="text-gray-900">{child.grade}</div></div>)}
+                            {child.email && (<div><label className="block text-xs font-medium text-gray-600 mb-1">E-pasts</label><div className="text-gray-900">{child.email}</div></div>)}
+                            {child.phone && (<div><label className="block text-xs font-medium text-gray-600 mb-1">Tālrunis</label><div className="text-gray-900">{child.phone}</div></div>)}
+                            {child.school && (<div><label className="block text-xs font-medium text-gray-600 mb-1">Skola</label><div className="text-gray-900">{child.school}</div></div>)}
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => setEdit(true)} className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50">Labot</button>
+                        <button disabled={deleting} onClick={async () => { if (!confirm('Dzēst bērnu?')) return; setDeleting(true); try { const r = await fetch('/api/students', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: String(child.id) }) }); if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās dzēst'); return } onDeleted() } finally { setDeleting(false) } }} className="text-sm text-red-600 border border-red-200 rounded-md px-3 py-1 hover:bg-red-50">Dzēst</button>
+                    </div>
+                </div>
+            ) : (
+                <div className="space-y-3">
+                    <div className="grid md:grid-cols-3 gap-3">
+                        <input className="p-2 border border-gray-300 rounded-lg" placeholder="Vārds" value={form.firstName} onChange={e => setForm(prev => ({ ...prev, firstName: e.target.value }))} />
+                        <input className="p-2 border border-gray-300 rounded-lg" placeholder="Uzvārds" value={form.lastName} onChange={e => setForm(prev => ({ ...prev, lastName: e.target.value }))} />
+                        <input className="p-2 border border-gray-300 rounded-lg" placeholder="Vecums" type="number" min={1} value={form.age} onChange={e => setForm(prev => ({ ...prev, age: e.target.value }))} />
+                        <input className="p-2 border border-gray-300 rounded-lg" placeholder="Klase" value={form.grade} onChange={e => setForm(prev => ({ ...prev, grade: e.target.value }))} />
+                        <input className="p-2 border border-gray-300 rounded-lg" placeholder="E-pasts (neobligāti)" value={form.email} onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))} />
+                        <input className="p-2 border border-gray-300 rounded-lg" placeholder="Tālrunis (neobligāti)" value={form.phone} onChange={e => setForm(prev => ({ ...prev, phone: e.target.value }))} />
+                        <input className="p-2 border border-gray-300 rounded-lg md:col-span-3" placeholder="Skola (neobligāti)" value={form.school} onChange={e => setForm(prev => ({ ...prev, school: e.target.value }))} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button disabled={saving || !form.firstName.trim() || !form.lastName.trim()} onClick={async () => {
+                            try {
+                                setSaving(true)
+                                const payload: any = {
+                                    id: String(child.id),
+                                    firstName: form.firstName.trim(),
+                                    lastName: form.lastName.trim(),
+                                    age: form.age ? Number(form.age) : null,
+                                    grade: form.grade || null,
+                                    email: form.email || null,
+                                    phone: form.phone || null,
+                                    school: form.school || null
+                                }
+                                const r = await fetch('/api/students', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+                                if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās saglabāt'); return }
+                                setEdit(false)
+                                onSaved()
+                            } finally {
+                                setSaving(false)
+                            }
+                        }} className="text-sm bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-black rounded-md px-3 py-1">{saving ? 'Saglabā...' : 'Saglabāt'}</button>
+                        <button onClick={() => setEdit(false)} className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50">Atcelt</button>
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}

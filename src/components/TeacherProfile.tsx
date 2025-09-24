@@ -76,7 +76,8 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 	const [attendanceMsg, setAttendanceMsg] = useState<string | null>(null)
 	const [attendanceSavingIds, setAttendanceSavingIds] = useState<Record<string, boolean>>({})
 	const [attendanceItemMsg, setAttendanceItemMsg] = useState<Record<string, string>>({})
-	const [bookingInputs, setBookingInputs] = useState<Record<string, { zoomLink?: string; address?: string }>>({})
+  const [bookingInputs, setBookingInputs] = useState<Record<string, { zoomLink?: string; address?: string }>>({})
+  const [reasonForms, setReasonForms] = useState<Record<string, { open: boolean; action: 'decline' | 'cancel'; text: string; submitting?: boolean }>>({})
 
 	useEffect(() => {
 		const load = async () => {
@@ -216,7 +217,16 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 			{activeTab === 'profile' && (
 				<div className="bg-white rounded-2xl shadow p-6">
 					{/* Calendar (read-only for this teacher) */}
-					<div className="space-y-4">
+						<div className="space-y-4">
+							<div className="flex items-center justify-between">
+								<div className="text-lg font-semibold text-black">
+									{selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })}
+								</div>
+								<div className="flex items-center gap-2">
+									<button onClick={() => { setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)); setSelectedDay(null) }} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Iepriekšējais</button>
+									<button onClick={() => { setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)); setSelectedDay(null) }} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Nākamais</button>
+								</div>
+							</div>
 						<div className="grid grid-cols-7 gap-1">
 							{Array.from({ length: startingDay }, (_, i) => (
 								<div key={`empty-${i}`} className="h-16" />
@@ -243,11 +253,12 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 											const locationLabel = s.location === 'teacher' ? 'Privāti' : 'Uz vietas'
 											const modalityLabel = s.modality === 'zoom' ? 'Attālināti' : 'Klātienē'
 											const capacity = s.lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
-											const related = bookings.filter(b => b.date === s.date && b.time === s.time)
-											const acceptedRelated = related.filter(b => b.status === 'accepted')
-											const pendingRelated = related.filter(b => b.status === 'pending' || b.status === 'pending_unavailable')
-											const bookedCount = related.length
-											const isAvailable = s.available !== false && bookedCount < capacity
+                                        const related = bookings.filter(b => b.date === s.date && b.time === s.time)
+                                        const acceptedRelated = related.filter(b => b.status === 'accepted')
+                                        const pendingRelated = related.filter(b => b.status === 'pending' || b.status === 'pending_unavailable')
+                                        const effectiveRelated = related.filter(b => b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable')
+                                        const bookedCount = effectiveRelated.length
+                                        const isAvailable = s.available !== false && bookedCount < capacity
 											const slotKey = `${s.date}|${s.time}`
 											return (
 												<div key={s.id} className={`border rounded-lg p-3 ${isAvailable ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
@@ -259,13 +270,13 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 														<span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full border border-blue-200">{lessonTypeLabel}</span>
 														<span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full border border-purple-200">{modalityLabel}</span>
 														<span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-full border border-gray-200">{locationLabel}</span>
-														{s.lessonType === 'group' && (
-															<span className="px-2 py-1 bg-teal-100 text-teal-800 rounded-full border border-teal-200">{bookedCount}/{capacity}</span>
-														)}
+                                                    {s.lessonType === 'group' && (
+                                                        <span className="px-2 py-1 bg-teal-100 text-teal-800 rounded-full border border-teal-200">{bookedCount}/{capacity}</span>
+                                                    )}
 													</div>
-													{!isAvailable && s.lessonType !== 'group' && related.length > 0 && (
-														<div className="text-xs text-gray-700 mt-1">Skolēns: {(acceptedRelated[0]?.studentName || acceptedRelated[0]?.userName || related[0]?.studentName || related[0]?.userName || '—')}</div>
-													)}
+                                                    {!isAvailable && s.lessonType !== 'group' && (acceptedRelated.length > 0 || pendingRelated.length > 0) && (
+                                                        <div className="text-xs text-gray-700 mt-1">Skolēns: {(acceptedRelated[0]?.studentName || acceptedRelated[0]?.userName || pendingRelated[0]?.studentName || pendingRelated[0]?.userName || '—')}</div>
+                                                    )}
 													{acceptedRelated.length > 0 && s.modality !== 'zoom' && acceptedRelated[0]?.address && (
 														<div className="text-xs text-gray-700 mt-1">Adrese: {acceptedRelated[0].address}</div>
 													)}
@@ -472,10 +483,19 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
           <div key={b._id} className="border border-gray-200 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm text-gray-700"><strong>Datums:</strong> {dateStr} {b.time}</div>
-              <span className={`px-2 py-0.5 text-xs rounded-full border ${b.status === 'accepted' ? 'bg-green-50 text-green-800 border-green-200' : b.status === 'declined' ? 'bg-red-50 text-red-800 border-red-200' : 'bg-yellow-50 text-yellow-800 border-yellow-200'}`}>
-                {b.status === 'accepted' ? 'Apstiprināts' : b.status === 'declined' ? 'Noraidīts' : 'Gaida'}
+              <span className={`px-2 py-0.5 text-xs rounded-full border ${b.status === 'accepted' ? 'bg-green-50 text-green-800 border-green-200' : b.status === 'declined' ? 'bg-red-50 text-red-800 border-red-200' : b.status === 'cancelled' ? 'bg-red-50 text-red-800 border-red-200' : 'bg-yellow-50 text-yellow-800 border-yellow-200'}`}>
+                {b.status === 'accepted' ? 'Apstiprināts' : b.status === 'declined' ? 'Noraidīts' : b.status === 'cancelled' ? 'Atcelts' : 'Gaida'}
               </span>
             </div>
+            {b.declineReason && (
+              <div className="text-xs text-gray-700 mb-2"><strong>Pamatojums:</strong> {b.declineReason}</div>
+            )}
+            {b.cancelReason && (
+              <div className="text-xs text-gray-700 mb-2"><strong>Pamatojums:</strong> {b.cancelReason}</div>
+            )}
+            {b.status === 'cancelled' && (
+              <div className="text-xs text-gray-500 mb-2"><strong>Atcēla:</strong> {b.cancelledBy === 'teacher' ? 'Pasniedzējs' : 'Lietotājs'}</div>
+            )}
             {b.createdAt && (
               <div className="text-sm text-gray-700"><strong>Izveidots:</strong> {new Date(b.createdAt).toLocaleString('lv-LV')}</div>
             )}
@@ -513,26 +533,11 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
                       loadBookings()
                     } catch { alert('Kļūda') }
                   }} className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded">Apstiprināt</button>
-                  <button onClick={async () => {
-                    try {
-                      const id = String(b._id)
-                      const r = await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'decline', bookingId: id, teacherId: tid }) })
-                      if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās noraidīt'); return }
-                      loadBookings()
-                    } catch { alert('Kļūda') }
+                  <button onClick={() => {
+                    const id = String(b._id)
+                    setReasonForms(prev => ({ ...prev, [id]: { open: true, action: 'decline', text: '' } }))
                   }} className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded">Noraidīt</button>
                 </div>
-              </div>
-            )}
-            {(b.status === 'accepted' || isPending) && (
-              <div className="mt-2">
-                <button onClick={async () => {
-                  try {
-                    const r = await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', bookingId: String(b._id), teacherId: String(teacherId) }) })
-                    if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās atcelt'); return }
-                    loadBookings()
-                  } catch { alert('Kļūda') }
-                }} className="text-xs bg-red-500 hover:bg-red-600 text-white rounded-md px-3 py-1">Atcelt</button>
               </div>
             )}
             {b.status === 'accepted' && (b.modality === 'zoom') && b.zoomLink && (
@@ -540,6 +545,46 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
             )}
             {b.address && (
               <div className="text-sm text-gray-700"><strong>Adrese:</strong> {b.address}</div>
+            )}
+            {b.status === 'accepted' && (
+              <div className="mt-2">
+                <button onClick={() => {
+                  const id = String(b._id)
+                  setReasonForms(prev => ({ ...prev, [id]: { open: true, action: 'cancel', text: '' } }))
+                }} className="text-xs bg-red-500 hover:bg-red-600 text-white rounded-md px-3 py-1">Atcelt</button>
+              </div>
+            )}
+            {reasonForms[String(b._id)]?.open && (
+              <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Pamatojums</label>
+                <input value={reasonForms[String(b._id)]?.text || ''} onChange={(e) => {
+                  const id = String(b._id)
+                  const curr = reasonForms[id] || { open: true, action: 'decline' as const, text: '' }
+                  setReasonForms(prev => ({ ...prev, [id]: { ...curr, text: e.target.value } }))
+                }} className="w-full max-w-md p-2 border border-gray-300 rounded-lg text-sm" placeholder="Ievadiet pamatojumu" />
+                <div className="mt-2 flex items-center gap-2">
+                  <button onClick={async () => {
+                    const id = String(b._id)
+                    const form = reasonForms[id]
+                    if (!form) return
+                    setReasonForms(prev => ({ ...prev, [id]: { ...form, submitting: true } }))
+                    try {
+                      const body: any = { action: form.action, bookingId: id, teacherId: String(teacherId), reason: form.text || '' }
+                      const r = await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+                      if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās nosūtīt'); return }
+                      setReasonForms(prev => ({ ...prev, [id]: { ...form, open: false, submitting: false } }))
+                      loadBookings()
+                    } catch {
+                      alert('Kļūda')
+                      setReasonForms(prev => ({ ...prev, [id]: { ...form, submitting: false } }))
+                    }
+                  }} className="text-xs bg-yellow-400 hover:bg-yellow-500 text-black rounded-md px-3 py-1" disabled={reasonForms[String(b._id)]?.submitting}>{reasonForms[String(b._id)]?.submitting ? 'Sūta...' : 'Sūtīt'}</button>
+                  <button onClick={() => {
+                    const id = String(b._id)
+                    setReasonForms(prev => ({ ...prev, [id]: { open: false, action: prev[id]?.action || 'decline', text: '' } }))
+                  }} className="text-xs border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50">Atcelt</button>
+                </div>
+              </div>
             )}
             {/* Pending controls omitted in batch-first UI */}
           </div>
@@ -679,7 +724,9 @@ const TeacherOnboarding = ({ userId, onFinished, onCancel, allowProfileEdit = fa
 	const [scheduleTab, setScheduleTab] = useState<'weekly'|'specific'>('weekly')
 	type HourKey = `${string}:${string}`
 	type HourOpts = { enabled: boolean; lessonType: 'individual' | 'group'; location: 'facility' | 'teacher'; modality: 'in_person' | 'zoom'; groupSize?: number }
-	const hourKeys: HourKey[] = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00` as HourKey)
+	const allowedStartHour = 8
+	const allowedEndHour = 22 // exclusive
+	const hourKeys: HourKey[] = Array.from({ length: allowedEndHour - allowedStartHour }, (_, i) => `${String(i + allowedStartHour).padStart(2, '0')}:00` as HourKey)
 	const createDefaultDay = (): Record<HourKey, HourOpts> => hourKeys.reduce((acc, h) => { acc[h] = { enabled: false, lessonType: 'individual', location: 'facility', modality: 'in_person' }; return acc }, {} as Record<HourKey, HourOpts>)
 	const [weeklyHours, setWeeklyHours] = useState<Record<string, Record<HourKey, HourOpts>>>(() => ({ '1': createDefaultDay(), '2': createDefaultDay(), '3': createDefaultDay(), '4': createDefaultDay(), '5': createDefaultDay(), '6': createDefaultDay(), '7': createDefaultDay() }))
 	const [openDay, setOpenDay] = useState<string | null>(null)
@@ -705,22 +752,38 @@ const TeacherOnboarding = ({ userId, onFinished, onCancel, allowProfileEdit = fa
 				const to = (avail.to || '01:00') as HourKey
 				days.forEach((d: string) => {
 					if (draft[d]) {
-						const fromHour = Number(from.slice(0,2))
-						const toHour = Math.max(fromHour + 1, Number(to.slice(0,2)))
-						for (let h = fromHour; h < toHour; h++) {
+						const rawFromHour = Number(from.slice(0,2))
+						const rawToHour = Math.max(rawFromHour + 1, Number(to.slice(0,2)))
+						const fromHour = Math.max(allowedStartHour, Math.min(allowedEndHour - 1, rawFromHour))
+						const toHourClamped = Math.max(fromHour + 1, Math.min(allowedEndHour, rawToHour))
+						for (let h = fromHour; h < toHourClamped; h++) {
 							const key = `${String(h).padStart(2,'0')}:00` as HourKey
-							draft[d][key] = { enabled: true, lessonType: avail.lessonType || 'individual', location: avail.location || 'facility', modality: avail.modality || 'in_person' }
+							draft[d][key] = {
+								enabled: true,
+								lessonType: avail.lessonType || 'individual',
+								location: avail.location || 'facility',
+								modality: avail.modality || 'in_person',
+								groupSize: (avail.lessonType === 'group' && typeof avail.groupSize === 'number') ? avail.groupSize : undefined
+							}
 						}
 					}
 				})
 				if (avail?.type === 'specific' && typeof avail?.date === 'string' && avail.date) {
 					const dateStr = avail.date
-					const fromHour = Number(from.slice(0,2))
-					const toHour = Math.max(fromHour + 1, Number(to.slice(0,2)))
+					const rawFromHour = Number(from.slice(0,2))
+					const rawToHour = Math.max(rawFromHour + 1, Number(to.slice(0,2)))
+					const fromHour = Math.max(allowedStartHour, Math.min(allowedEndHour - 1, rawFromHour))
+					const toHourClamped = Math.max(fromHour + 1, Math.min(allowedEndHour, rawToHour))
 					const day = draftOverrides[dateStr] ? { ...draftOverrides[dateStr] } : createDefaultDay()
-					for (let h = fromHour; h < toHour; h++) {
+					for (let h = fromHour; h < toHourClamped; h++) {
 						const key = `${String(h).padStart(2,'0')}:00` as HourKey
-						day[key] = { enabled: true, lessonType: avail.lessonType || 'individual', location: avail.location || 'facility', modality: avail.modality || 'in_person' }
+						day[key] = {
+							enabled: true,
+							lessonType: avail.lessonType || 'individual',
+							location: avail.location || 'facility',
+							modality: avail.modality || 'in_person',
+							groupSize: (avail.lessonType === 'group' && typeof avail.groupSize === 'number') ? avail.groupSize : undefined
+						}
 					}
 					draftOverrides[dateStr] = day
 				}
@@ -782,7 +845,7 @@ const TeacherOnboarding = ({ userId, onFinished, onCancel, allowProfileEdit = fa
 			const jsWeekDay = d.getDay()
 			const dayIdx = ((jsWeekDay + 6) % 7) + 1
 			const weekly = weeklyHours[String(dayIdx)]
-			if (weekly) { hourKeys.forEach(h => { const w = weekly[h]; if (w?.enabled) baseline[h] = { enabled: true, lessonType: w.lessonType, location: w.location, modality: w.modality } }) }
+			if (weekly) { hourKeys.forEach(h => { const w = weekly[h]; if (w?.enabled) baseline[h] = { enabled: true, lessonType: w.lessonType, location: w.location, modality: w.modality, groupSize: typeof w.groupSize === 'number' ? w.groupSize : undefined } }) }
 		} catch {}
 		return baseline
 	}

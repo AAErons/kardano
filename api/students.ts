@@ -15,8 +15,6 @@ async function getClient(): Promise<any> {
 }
 
 export default async function handler(req: any, res: any) {
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Method Not Allowed' })
-  
   try {
     console.log('[students] method=%s', req.method)
     
@@ -29,39 +27,88 @@ export default async function handler(req: any, res: any) {
     const db = dbName ? client.db(dbName) : client.db()
     console.log('[students] using db', { dbName: db.databaseName })
 
-    let students: any[]
+    const studentsCol = db.collection('students')
     
-    if (userId === 'all') {
-      // Get all students (for admin view)
-      students = await db.collection('students').find({}).sort({ createdAt: -1 }).toArray()
-    } else if (userId) {
-      // Get students for specific user
-      students = await db.collection('students').find({ userId }).sort({ createdAt: 1 }).toArray()
-    } else {
-      return res.status(400).json({ error: 'Missing userId parameter' })
+    if (req.method === 'GET') {
+      let students: any[]
+      if (userId === 'all') {
+        students = await studentsCol.find({}).sort({ createdAt: -1 }).toArray()
+      } else if (userId) {
+        students = await studentsCol.find({ userId }).sort({ createdAt: 1 }).toArray()
+      } else {
+        return res.status(400).json({ error: 'Missing userId parameter' })
+      }
+
+      console.log('[students] found %d students', students.length)
+      const formattedStudents = students.map((student: any) => ({
+        id: String(student._id),
+        userId: student.userId,
+        firstName: student.firstName,
+        lastName: student.lastName,
+        age: student.age,
+        grade: student.grade,
+        school: student.school,
+        email: student.email,
+        phone: student.phone,
+        isSelf: student.isSelf,
+        createdAt: student.createdAt
+      }))
+      return res.status(200).json({ success: true, students: formattedStudents })
     }
-    
-    console.log('[students] found %d students', students.length)
 
-    // Return students with proper formatting
-    const formattedStudents = students.map((student: any) => ({
-      id: String(student._id),
-      userId: student.userId,
-      firstName: student.firstName,
-      lastName: student.lastName,
-      age: student.age,
-      grade: student.grade,
-      school: student.school,
-      email: student.email,
-      phone: student.phone,
-      isSelf: student.isSelf,
-      createdAt: student.createdAt
-    }))
+    if (req.method === 'POST') {
+      const body = (req.body || {}) as { userId?: string; firstName?: string; lastName?: string; age?: number; grade?: string; email?: string; phone?: string; school?: string }
+      const uid = String(body.userId || '')
+      const firstName = String(body.firstName || '').trim()
+      const lastName = String(body.lastName || '').trim()
+      if (!uid || !firstName || !lastName) return res.status(400).json({ error: 'Missing userId, firstName or lastName' })
+      const now = new Date()
+      const doc: any = {
+        userId: uid,
+        firstName,
+        lastName,
+        age: typeof body.age === 'number' ? body.age : null,
+        grade: body.grade ? String(body.grade).trim() : null,
+        email: body.email ? String(body.email).trim() : undefined,
+        phone: body.phone ? String(body.phone).trim() : undefined,
+        school: body.school ? String(body.school).trim() : null,
+        isSelf: false,
+        createdAt: now,
+        updatedAt: now
+      }
+      const r = await studentsCol.insertOne(doc)
+      return res.status(201).json({ success: true, id: String(r.insertedId) })
+    }
 
-    return res.status(200).json({ 
-      success: true,
-      students: formattedStudents
-    })
+    if (req.method === 'PATCH') {
+      const body = (req.body || {}) as { id?: string; firstName?: string; lastName?: string; age?: number | null; grade?: string | null; email?: string | null; phone?: string | null; school?: string | null }
+      const id = String(body.id || '')
+      if (!id) return res.status(400).json({ error: 'Missing id' })
+      const { ObjectId } = await import('mongodb')
+      const _id = new ObjectId(id)
+      const set: any = { updatedAt: new Date() }
+      if (body.firstName != null) set.firstName = String(body.firstName).trim()
+      if (body.lastName != null) set.lastName = String(body.lastName).trim()
+      if (body.age !== undefined) set.age = body.age === null ? null : Number(body.age)
+      if (body.grade !== undefined) set.grade = body.grade === null ? null : String(body.grade).trim()
+      if (body.email !== undefined) set.email = body.email === null ? undefined : String(body.email).trim()
+      if (body.phone !== undefined) set.phone = body.phone === null ? undefined : String(body.phone).trim()
+      if (body.school !== undefined) set.school = body.school === null ? null : String(body.school).trim()
+      await studentsCol.updateOne({ _id }, { $set: set })
+      return res.status(200).json({ success: true })
+    }
+
+    if (req.method === 'DELETE') {
+      const body = (req.body || {}) as { id?: string }
+      const id = String(body.id || '')
+      if (!id) return res.status(400).json({ error: 'Missing id' })
+      const { ObjectId } = await import('mongodb')
+      const _id = new ObjectId(id)
+      await studentsCol.deleteOne({ _id })
+      return res.status(200).json({ success: true })
+    }
+
+    return res.status(405).json({ error: 'Method Not Allowed' })
     
   } catch (e: any) {
     console.error('[students] error', e)

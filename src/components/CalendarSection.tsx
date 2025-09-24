@@ -23,6 +23,7 @@ const CalendarSection = () => {
 	const [loading, setLoading] = useState(true)
 	const [userRole, setUserRole] = useState<string | null>(null)
 	const [userId, setUserId] = useState<string | null>(null)
+	const [userBookings, setUserBookings] = useState<any[]>([])
 	const [showMonthPicker, setShowMonthPicker] = useState(false)
 	const [selectedTeacherId, setSelectedTeacherId] = useState<string>('')
 	
@@ -101,6 +102,21 @@ const CalendarSection = () => {
 		loadData()
 	}, [])
 
+	// Load user bookings to prevent duplicate reservations
+	useEffect(() => {
+		const loadUserBookings = async () => {
+			if (userRole !== 'user' || !userId) return
+			try {
+				const r = await fetch(`/api/bookings?role=user&userId=${encodeURIComponent(userId)}`)
+				if (r.ok) {
+					const d = await r.json().catch(() => null)
+					if (d && Array.isArray(d.items)) setUserBookings(d.items)
+				}
+			} catch {}
+		}
+		loadUserBookings()
+	}, [userRole, userId])
+
 	const getDaysInMonth = (date: Date) => {
 		const year = date.getFullYear()
 		const month = date.getMonth()
@@ -125,6 +141,21 @@ const CalendarSection = () => {
 		return ["P", "O", "T", "C", "Pk", "S", "Sv"]
 	}
 
+	const isSlotPast = (slot: TimeSlot) => {
+		try {
+			const ts = new Date(`${slot.date}T${slot.time || '00:00'}:00`).getTime()
+			return ts < Date.now()
+		} catch { return false }
+	}
+
+	const matchesFilters = (slot: TimeSlot) => {
+		if (selectedTeacherId && String(slot.teacherId) !== String(selectedTeacherId)) return false
+		if (filters.lessonType !== 'all' && slot.lessonType !== filters.lessonType) return false
+		if ((userRole === 'admin' || userRole === 'worker') && filters.location !== 'all' && slot.location !== filters.location) return false
+		if (filters.modality !== 'all' && slot.modality !== filters.modality) return false
+		return true
+	}
+
 	const isPastDate = (day: number) => {
 		const today = new Date()
 		const slotDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)
@@ -134,12 +165,12 @@ const CalendarSection = () => {
 
 	const hasAvailableSlots = (day: number) => {
 		const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-		return timeSlots.some(slot => slot.date === dateStr && slot.available && (!selectedTeacherId || String(slot.teacherId) === String(selectedTeacherId)))
+		return timeSlots.some(slot => slot.date === dateStr && slot.available && !isSlotPast(slot) && matchesFilters(slot))
 	}
 
 	const getSlotsForDate = (day: number) => {
 		const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-		return timeSlots.filter(slot => slot.date === dateStr && (!selectedTeacherId || String(slot.teacherId) === String(selectedTeacherId)))
+		return timeSlots.filter(slot => slot.date === dateStr)
 	}
 
 	// Build teacher options from current timeSlots
@@ -161,6 +192,19 @@ const CalendarSection = () => {
 	const [bookingError, setBookingError] = useState<string | null>(null)
 	const [bookingSuccess, setBookingSuccess] = useState<string | null>(null)
 	const [modalChildrenLoading, setModalChildrenLoading] = useState<boolean>(false)
+	const [justBookedKeys, setJustBookedKeys] = useState<Record<string, boolean>>({})
+
+	const slotKey = (slot: TimeSlot) => `${slot.teacherId}|${slot.date}|${slot.time}`
+	const userHasBookingFor = (slot: TimeSlot) => {
+		if (!userId) return false
+		const key = slotKey(slot)
+		if (justBookedKeys[key]) return true
+		return userBookings.some(b => String(b.userId) === String(userId)
+			&& String(b.teacherId) === String(slot.teacherId)
+			&& String(b.date) === String(slot.date)
+			&& String(b.time) === String(slot.time)
+			&& (b.status === 'pending' || b.status === 'pending_unavailable' || b.status === 'accepted'))
+	}
 
 	useEffect(() => {
 		// Load children list when booking starts
@@ -324,6 +368,64 @@ const CalendarSection = () => {
 								</div>
 							)}
 
+                            {/* Filters (moved to top) */}
+                            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                                <h4 className="text-sm font-semibold text-gray-700 mb-3">Filtri</h4>
+                                <div className={`grid grid-cols-1 ${userRole === 'admin' || userRole === 'worker' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">Pasniedzējs</label>
+                                        <select
+                                            value={selectedTeacherId}
+                                            onChange={e => setSelectedTeacherId(e.target.value)}
+                                            className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                                        >
+                                            <option value="">Visi pasniedzēji</option>
+                                            {teacherOptions.map(t => (
+                                                <option key={t.id} value={t.id}>{t.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">Nodarbības veids</label>
+                                        <select 
+                                            value={filters.lessonType} 
+                                            onChange={(e) => setFilters(prev => ({ ...prev, lessonType: e.target.value as any }))}
+                                            className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                                        >
+                                            <option value="all">Visi</option>
+                                            <option value="individual">Individuālas</option>
+                                            <option value="group">Grupu</option>
+                                        </select>
+                                    </div>
+                                    {(userRole === 'admin' || userRole === 'worker') && (
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-600 mb-1">Atrašanās vieta</label>
+                                            <select 
+                                                value={filters.location} 
+                                                onChange={(e) => setFilters(prev => ({ ...prev, location: e.target.value as any }))}
+                                                className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                                            >
+                                                <option value="all">Visas</option>
+                                                <option value="facility">Uz vietas</option>
+                                                <option value="teacher">Privāti</option>
+                                            </select>
+                                        </div>
+                                    )}
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">Norises veids</label>
+                                        <select 
+                                            value={filters.modality} 
+                                            onChange={(e) => setFilters(prev => ({ ...prev, modality: e.target.value as any }))}
+                                            className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                                        >
+                                            <option value="all">Visi</option>
+                                            <option value="in_person">Klātienē</option>
+                                            <option value="zoom">Zoom</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
 							{/* Weekday Headers */}
 							<div className="grid grid-cols-7 gap-1 mb-4">
 								{getWeekdayNames().map((day, index) => (
@@ -344,7 +446,8 @@ const CalendarSection = () => {
 								{Array.from({ length: daysInMonth }, (_, index) => {
 									const day = index + 1
 									const slots = getSlotsForDate(day)
-									const hasSlots = hasAvailableSlots(day)
+									const eligibleSlots = slots.filter(slot => slot.available && !isSlotPast(slot) && matchesFilters(slot))
+									const hasSlots = eligibleSlots.length > 0
 									const isPast = isPastDate(day)
 									const isSelected = selectedDay === day
 									
@@ -366,7 +469,7 @@ const CalendarSection = () => {
 													setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day))
 												}
 											}}
-											title={isPast ? 'Pagājušais datums' : hasSlots ? `${slots.length} pieejam${slots.length > 1 ? 'i' : 's'} laiks${slots.length > 1 ? 'i' : ''}` : 'Nav pieejamu laiku'}
+									title={isPast ? 'Pagājušais datums' : hasSlots ? `${eligibleSlots.length} pieejam${eligibleSlots.length > 1 ? 'i' : 's'} laiks${eligibleSlots.length > 1 ? 'i' : ''}` : 'Nav pieejamu laiku'}
 										>
 											<div className="text-xs lg:text-sm font-medium">{day}</div>
 										</div>
@@ -381,67 +484,15 @@ const CalendarSection = () => {
 										Pieejamie laiki - {selectedDay}. {getMonthName(selectedDate)} {selectedDate.getFullYear()}
 									</h3>
 									
-									{/* Filters */}
-									<div className="mb-6 p-4 bg-gray-50 rounded-lg">
-										<h4 className="text-sm font-semibold text-gray-700 mb-3">Filtri</h4>
-										<div className={`grid grid-cols-1 ${userRole === 'admin' || userRole === 'worker' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
-											<div>
-												<label className="block text-xs font-medium text-gray-600 mb-1">Pasniedzējs</label>
-												<select
-													value={selectedTeacherId}
-													onChange={e => setSelectedTeacherId(e.target.value)}
-													className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-												>
-													<option value="">Visi pasniedzēji</option>
-													{teacherOptions.map(t => (
-														<option key={t.id} value={t.id}>{t.name}</option>
-													))}
-												</select>
-											</div>
-											<div>
-												<label className="block text-xs font-medium text-gray-600 mb-1">Nodarbības veids</label>
-												<select 
-													value={filters.lessonType} 
-													onChange={(e) => setFilters(prev => ({ ...prev, lessonType: e.target.value as any }))}
-													className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-												>
-													<option value="all">Visi</option>
-													<option value="individual">Individuālas</option>
-													<option value="group">Grupu</option>
-												</select>
-											</div>
-											{(userRole === 'admin' || userRole === 'worker') && (
-												<div>
-													<label className="block text-xs font-medium text-gray-600 mb-1">Atrašanās vieta</label>
-													<select 
-														value={filters.location} 
-														onChange={(e) => setFilters(prev => ({ ...prev, location: e.target.value as any }))}
-														className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-													>
-														<option value="all">Visas</option>
-														<option value="facility">Uz vietas</option>
-														<option value="teacher">Privāti</option>
-													</select>
-												</div>
-											)}
-											<div>
-												<label className="block text-xs font-medium text-gray-600 mb-1">Veids</label>
-												<select 
-													value={filters.modality} 
-													onChange={(e) => setFilters(prev => ({ ...prev, modality: e.target.value as any }))}
-													className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-												>
-													<option value="all">Visi</option>
-													<option value="in_person">Klātienē</option>
-													<option value="zoom">Zoom</option>
-												</select>
-											</div>
-										</div>
-									</div>
-									
 									{(() => {
-										const slots = getSlotsForDate(selectedDay)
-										const availableSlots = slots.filter(slot => slot.available)
+                  const slots = getSlotsForDate(selectedDay)
+                  const isSlotPast = (slot: TimeSlot) => {
+                    try {
+                      const ts = new Date(`${slot.date}T${slot.time || '00:00'}:00`).getTime()
+                      return ts < Date.now()
+                    } catch { return false }
+                  }
+                  const availableSlots = slots.filter(slot => slot.available && !isSlotPast(slot))
 										
 										// Apply filters
 										const filteredSlots = availableSlots.filter(slot => {
@@ -495,17 +546,21 @@ const CalendarSection = () => {
 																	</div>
 																</div>
 																<div className="ml-4">
-																	{userRole === 'admin' || userRole === 'worker' ? (
+									{userRole === 'admin' || userRole === 'worker' ? (
 																		<div className="text-sm text-gray-500 italic">
 																			Pasniedzēja laiks
 																		</div>
-																	) : userRole === 'user' ? (
-																		<button 
-																			onClick={() => setBookingSlot(slot)}
-																			className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg transition-colors"
-																		>
-																			Rezervēt
-																		</button>
+									) : userRole === 'user' ? (
+										userHasBookingFor(slot) ? (
+											<div className="text-sm text-gray-700">Rezervācijas pieprasījums nosūtīts</div>
+										) : (
+											<button 
+												onClick={() => setBookingSlot(slot)}
+												className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg transition-colors"
+											>
+												Rezervēt
+											</button>
+										)
 																	) : (
 																		<div className="flex flex-col gap-2">
 																			<div className="text-sm text-gray-500 italic">
@@ -564,9 +619,11 @@ const CalendarSection = () => {
 
 								<div className="mt-6 flex items-center justify-end gap-2">
 									<button onClick={() => { setBookingSlot(null); setBookingError(null); setBookingSuccess(null); }} className="px-4 py-2 border border-gray-300 rounded-lg">Atcelt</button>
-									<button disabled={bookingLoading || !userId || (userRole === 'user' && children.length > 0 && !selectedChildId) || (userRole === 'user' && modalChildrenLoading)} onClick={async () => {
+										<button disabled={bookingLoading || !userId || (userRole === 'user' && children.length > 0 && !selectedChildId) || (userRole === 'user' && modalChildrenLoading)} onClick={async () => {
 										if (!bookingSlot || !userId) return
 										if (userRole === 'user' && children.length > 0 && !selectedChildId) { setBookingError('Lūdzu izvēlieties bērnu pirms apstiprināšanas'); return }
+											// Prevent duplicate booking attempts for the same slot
+											if (userHasBookingFor(bookingSlot)) { setBookingError('Jau iesniegts rezervācijas pieprasījums šim laikam'); return }
 										setBookingLoading(true)
 										setBookingError(null)
 										try {
@@ -582,6 +639,8 @@ const CalendarSection = () => {
 												throw new Error(e.error || 'Neizdevās izveidot rezervāciju')
 											}
 											setBookingSuccess('Pieprasījums nosūtīts pasniedzējam apstiprināšanai')
+												// Mark as just booked to hide duplicate button immediately
+												setJustBookedKeys(prev => ({ ...prev, [slotKey(bookingSlot)]: true }))
 											setTimeout(() => { setBookingSlot(null); setBookingSuccess(null) }, 1200)
 										} catch (e: any) {
 											setBookingError(e?.message || 'Kļūda')

@@ -1,5 +1,3 @@
-import { ObjectId } from 'mongodb'
-
 let _client: any | null = null
 
 async function getClient(): Promise<any> {

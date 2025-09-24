@@ -6,7 +6,7 @@ interface RegistrationModalProps {
 	onSuccess: () => void
 }
 
-const RegistrationModal = ({ isOpen, onClose, onSuccess }: RegistrationModalProps) => {
+const RegistrationModal = ({ isOpen, onClose }: RegistrationModalProps) => {
 	const [step, setStep] = useState(1)
 	const [formData, setFormData] = useState({
 		accountType: 'self' as 'self' | 'children',
@@ -16,6 +16,7 @@ const RegistrationModal = ({ isOpen, onClose, onSuccess }: RegistrationModalProp
 		password: '',
 		confirmPassword: '',
 		phone: '',
+		discountCode: '',
 		children: [] as Array<{
 			firstName: string
 			lastName: string
@@ -84,15 +85,43 @@ const RegistrationModal = ({ isOpen, onClose, onSuccess }: RegistrationModalProp
 		return true
 	}
 
-	const handleNext = () => {
-		if (step === 1 && validateStep1()) {
-			setStep(2)
-		} else if (step === 2 && validateStep2()) {
-			handleSubmit()
-		}
-	}
+    const [checkingEmail, setCheckingEmail] = useState(false)
+    const handleNext = async () => {
+        if (step === 1 && validateStep1()) {
+            // pre-check email: blacklist and duplicate
+            try {
+                setCheckingEmail(true)
+                const r = await fetch(`/api/check-email?email=${encodeURIComponent(formData.email)}`)
+                if (r.ok) {
+                    const d = await r.json().catch(() => null)
+                    if (d && d.available === false) {
+                        setErrors(prev => ({ ...prev, email: d.reason === 'blacklisted' ? 'E-pasts ir melnajā sarakstā' : 'E-pasts jau reģistrēts' }))
+                        setCheckingEmail(false)
+                        return
+                    }
+                }
+                // pre-check discount code if provided
+                if (formData.discountCode && formData.discountCode.trim()) {
+                    const dc = formData.discountCode.trim().toUpperCase()
+                    const r2 = await fetch(`/api/discount-codes?code=${encodeURIComponent(dc)}`)
+                    if (!r2.ok) {
+                        setErrors(prev => ({ ...prev, discountCode: 'Nederīgs atlaižu kods' }))
+                        setCheckingEmail(false)
+                        return
+                    }
+                }
+            } catch {
+            } finally {
+                setCheckingEmail(false)
+            }
+            setStep(2)
+        } else if (step === 2 && validateStep2()) {
+            handleSubmit()
+        }
+    }
 
-	const handleSubmit = async () => {
+    const [submitted, setSubmitted] = useState(false)
+    const handleSubmit = async () => {
 		setIsSubmitting(true)
 		try {
 			const response = await fetch('/api/register', {
@@ -107,25 +136,14 @@ const RegistrationModal = ({ isOpen, onClose, onSuccess }: RegistrationModalProp
 					email: formData.email,
 					password: formData.password,
 					phone: formData.phone,
+					discountCode: formData.discountCode,
 					children: formData.accountType === 'children' ? formData.children : undefined
 				})
 			})
 
 			if (response.ok) {
-				onSuccess()
-				onClose()
-				// Reset form
-				setFormData({
-					accountType: 'self',
-					firstName: '',
-					lastName: '',
-					email: '',
-					password: '',
-					confirmPassword: '',
-					phone: '',
-					children: []
-				})
-				setStep(1)
+                // Show inline instruction to check email instead of closing the modal
+                setSubmitted(true)
 			} else {
 				const errorData = await response.json()
 				setErrors({ submit: errorData.error || 'Reģistrācija neizdevās' })
@@ -203,9 +221,16 @@ const RegistrationModal = ({ isOpen, onClose, onSuccess }: RegistrationModalProp
 					</div>
 				</div>
 
-				{/* Form Content */}
-				<div className="p-6">
-					{step === 1 && (
+                {/* Form Content */}
+                <div className="p-6">
+                    {submitted ? (
+                        <div className="text-center space-y-4">
+                            <div className="text-green-600 text-lg font-semibold">✅ Reģistrācija izveidota!</div>
+                            <p className="text-gray-600">Lai pabeigtu reģistrāciju, lūdzu, pārbaudiet savu e-pastu un sekojiet norādījumiem.</p>
+                        </div>
+                    ) : (
+                        <>
+                    {step === 1 && (
 						<div className="space-y-6">
 							{/* Account Type Selection */}
 							<div>
@@ -297,6 +322,18 @@ const RegistrationModal = ({ isOpen, onClose, onSuccess }: RegistrationModalProp
 								/>
 							</div>
 
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-2">Atlaižu kods (neobligāts)</label>
+							<input
+								type="text"
+								value={formData.discountCode}
+								onChange={(e) => setFormData(prev => ({ ...prev, discountCode: e.target.value }))}
+								className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+								placeholder="PIEM10"
+							/>
+                                {errors.discountCode && <p className="text-red-500 text-sm mt-1">{errors.discountCode}</p>}
+						</div>
+
 							<div className="grid md:grid-cols-2 gap-4">
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-2">Parole *</label>
@@ -325,8 +362,8 @@ const RegistrationModal = ({ isOpen, onClose, onSuccess }: RegistrationModalProp
 									{errors.confirmPassword && <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>}
 								</div>
 							</div>
-						</div>
-					)}
+                        </div>
+                    )}
 
 					{step === 2 && formData.accountType === 'children' && (
 						<div className="space-y-6">
@@ -453,7 +490,7 @@ const RegistrationModal = ({ isOpen, onClose, onSuccess }: RegistrationModalProp
 						</div>
 					)}
 
-					{step === 2 && formData.accountType === 'self' && (
+                    {step === 2 && formData.accountType === 'self' && (
 						<div className="text-center space-y-4">
 							<div className="text-green-600 text-lg font-semibold">
 								✅ Reģistrācija gandrīz pabeigta!
@@ -464,29 +501,39 @@ const RegistrationModal = ({ isOpen, onClose, onSuccess }: RegistrationModalProp
 						</div>
 					)}
 
-					{errors.submit && (
-						<div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-							<p className="text-red-600">{errors.submit}</p>
-						</div>
-					)}
+                    {errors.submit && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                            <p className="text-red-600">{errors.submit}</p>
+                        </div>
+                    )}
+                        </>
+                    )}
 				</div>
 
 				{/* Footer */}
-				<div className="flex items-center justify-between p-6 border-t border-gray-200">
-					<button
-						onClick={step === 1 ? onClose : () => setStep(step - 1)}
-						className="px-6 py-2 text-gray-600 hover:text-gray-800 font-medium"
-					>
-						{step === 1 ? 'Atcelt' : 'Atpakaļ'}
-					</button>
-					<button
-						onClick={handleNext}
-						disabled={isSubmitting}
-						className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-50 text-black font-bold py-3 px-8 rounded-lg transition-colors"
-					>
-						{isSubmitting ? 'Reģistrē...' : step === 2 ? 'Reģistrēties' : 'Turpināt'}
-					</button>
-				</div>
+                <div className="flex items-center justify-between p-6 border-t border-gray-200">
+                    {submitted ? (
+                        <div className="w-full flex items-center justify-end">
+                            <button onClick={onClose} className="px-6 py-2 text-gray-600 hover:text-gray-800 font-medium">Aizvērt</button>
+                        </div>
+                    ) : (
+                        <>
+                            <button
+                                onClick={step === 1 ? onClose : () => setStep(step - 1)}
+                                className="px-6 py-2 text-gray-600 hover:text-gray-800 font-medium"
+                            >
+                                {step === 1 ? 'Atcelt' : 'Atpakaļ'}
+                            </button>
+                            <button
+                                onClick={handleNext}
+                                disabled={isSubmitting}
+                                className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-50 text-black font-bold py-3 px-8 rounded-lg transition-colors"
+                            >
+                                {isSubmitting ? 'Reģistrē...' : step === 2 ? 'Reģistrēties' : (checkingEmail ? 'Pārbauda...' : 'Turpināt')}
+                            </button>
+                        </>
+                    )}
+                </div>
 			</div>
 		</div>
 	)

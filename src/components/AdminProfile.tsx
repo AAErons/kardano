@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 const AdminProfile = () => {
-	const [tab, setTab] = useState<'calendar' | 'teachers' | 'students' | 'notifications' | 'data'>('calendar')
+	const [tab, setTab] = useState<'calendar' | 'teachers' | 'students' | 'notifications' | 'users' | 'data'>('calendar')
 	const [unreadCount, setUnreadCount] = useState(0)
 
 	useEffect(() => {
@@ -41,6 +41,7 @@ const AdminProfile = () => {
 					<button onClick={() => setTab('notifications')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'notifications' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>
 						Paziņojumi {unreadCount > 0 && <span className="ml-2 inline-block text-xs bg-red-500 text-white rounded-full px-2 py-0.5">{unreadCount}</span>}
 					</button>
+				<button onClick={() => setTab('users')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'users' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Lietotāji</button>
 					<button onClick={() => setTab('data')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'data' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Dati</button>
 				</div>
 			</div>
@@ -48,6 +49,7 @@ const AdminProfile = () => {
 			{tab === 'teachers' && <AdminTeachers />}
 			{tab === 'students' && <AdminStudents />}
 			{tab === 'notifications' && <AdminNotifications onCountChange={setUnreadCount} />}
+			{tab === 'users' && <AdminUsers />}
 			{tab === 'data' && <AdminData />}
 		</div>
 	)
@@ -475,13 +477,24 @@ const AdminData = () => {
 	const [address, setAddress] = useState('')
 	const [loading, setLoading] = useState(true)
 	const [saving, setSaving] = useState(false)
+	const [codes, setCodes] = useState<Array<{ id: string; code: string; description?: string }>>([])
+	const [creatingCode, setCreatingCode] = useState(false)
+	const [deletingCode, setDeletingCode] = useState<Record<string, boolean>>({})
+	const [newCode, setNewCode] = useState<{ code: string; description: string }>({ code: '', description: '' })
 	const load = async () => {
 		setLoading(true)
 		try {
-			const r = await fetch('/api/admin-data')
-			if (r.ok) {
-				const d = await r.json().catch(() => null)
+			const [r1, r2] = await Promise.all([
+				fetch('/api/admin-data'),
+				fetch('/api/discount-codes')
+			])
+			if (r1.ok) {
+				const d = await r1.json().catch(() => null)
 				if (d && d.success && d.data) setAddress(d.data.address || '')
+			}
+			if (r2.ok) {
+				const d = await r2.json().catch(() => null)
+				if (d && Array.isArray(d.items)) setCodes(d.items)
 			}
 		} catch {}
 		setLoading(false)
@@ -505,6 +518,82 @@ const AdminData = () => {
 					</div>
 					<div>
 						<button disabled={saving} onClick={save} className="px-3 py-1 bg-yellow-400 hover:bg-yellow-500 text-black rounded-lg disabled:opacity-60">{saving ? 'Saglabā...' : 'Saglabāt'}</button>
+					</div>
+					<div className="pt-4 border-t border-gray-200" />
+					<div>
+						<div className="flex items-center justify-between mb-2">
+							<div className="text-xl font-semibold text-black">Atlaižu kodi</div>
+						</div>
+					<div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-3">
+						<div className="grid md:grid-cols-3 gap-2 items-end">
+								<div className="md:col-span-1">
+									<label className="block text-xs text-gray-700 mb-1">Kods</label>
+									<input value={newCode.code} onChange={e => setNewCode(prev => ({ ...prev, code: e.target.value }))} className="w-full p-2 border border-gray-300 rounded-lg" placeholder="PIEM10" />
+								</div>
+							<div className="md:col-span-2">
+									<label className="block text-xs text-gray-700 mb-1">Apraksts</label>
+									<input value={newCode.description} onChange={e => setNewCode(prev => ({ ...prev, description: e.target.value }))} className="w-full p-2 border border-gray-300 rounded-lg" placeholder="Piem., 10% atlaide septembrī" />
+								</div>
+							</div>
+							<div className="mt-2">
+							<button disabled={creatingCode || !newCode.code} onClick={async () => {
+									const code = (newCode.code || '').trim().toUpperCase()
+									if (!code) return
+								const payload: any = { code, description: (newCode.description || '').trim() }
+									setCreatingCode(true)
+									try {
+										const r = await fetch('/api/discount-codes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+										if (!r.ok) {
+											const e = await r.json().catch(() => ({}))
+											alert(e.error || 'Neizdevās izveidot atlaižu kodu')
+											return
+										}
+										await load()
+									setNewCode({ code: '', description: '' })
+									} finally {
+										setCreatingCode(false)
+									}
+								}} className="px-3 py-1 bg-yellow-400 hover:bg-yellow-500 text-black rounded-lg disabled:opacity-60">{creatingCode ? 'Pievieno...' : 'Pievienot kodu'}</button>
+							</div>
+						</div>
+
+					{codes.length === 0 ? (
+							<div className="text-gray-600">Nav izveidotu atlaižu kodu</div>
+						) : (
+							<div className="space-y-2">
+							{codes.map(c => (
+								<div key={c.id} className="border border-gray-200 rounded-xl p-3 bg-white">
+									<div className="grid md:grid-cols-4 gap-2 items-center">
+										<div className="md:col-span-1">
+											<div className="text-sm font-semibold text-black">{c.code}</div>
+										</div>
+										<div className="md:col-span-2">
+											<input value={c.description || ''} onChange={e => setCodes(prev => prev.map(x => x.id === c.id ? { ...x, description: e.target.value } : x))} className="w-full p-2 border border-gray-300 rounded-lg text-sm" placeholder="Apraksts" />
+										</div>
+										<div className="flex items-center gap-2 justify-end">
+											<button onClick={async () => {
+												const payload: any = { id: c.id, description: c.description || '' }
+												const r = await fetch('/api/discount-codes', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+												if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās saglabāt'); return }
+												await load()
+											}} className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50">Saglabāt</button>
+											<button disabled={!!deletingCode[c.id]} onClick={async () => {
+												if (!confirm('Dzēst šo atlaižu kodu?')) return
+												setDeletingCode(prev => ({ ...prev, [c.id]: true }))
+												try {
+													const r = await fetch('/api/discount-codes', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: c.id }) })
+													if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās dzēst'); return }
+													setCodes(prev => prev.filter(x => x.id !== c.id))
+												} finally {
+													setDeletingCode(prev => ({ ...prev, [c.id]: false }))
+												}
+											}} className="text-sm text-red-600 border border-red-200 rounded-md px-2 py-1 hover:bg-red-50">{deletingCode[c.id] ? 'Dzēš...' : 'Dzēst'}</button>
+										</div>
+									</div>
+								</div>
+							))}
+							</div>
+					)}
 					</div>
 				</div>
 			)}
@@ -635,6 +724,120 @@ export default AdminProfile
 
 
 
+const AdminUsers = () => {
+    const [items, setItems] = useState<Array<{ id: string; firstName: string; lastName: string; email: string; phone?: string; accountType: string; studentCount: number; createdAt: string }>>([])
+    const [loading, setLoading] = useState(true)
+    const [openId, setOpenId] = useState<string | null>(null)
+    const [submitting, setSubmitting] = useState(false)
+    const [subtab, setSubtab] = useState<'list'|'blacklist'>('list')
+    const [blacklist, setBlacklist] = useState<Array<{ id: string; email: string; reason?: string; createdAt?: string }>>([])
+    const [blForm, setBlForm] = useState<{ email: string; reason: string }>({ email: '', reason: '' })
+
+    const load = async () => {
+        setLoading(true)
+        try {
+            const r = await fetch('/api/users')
+            if (r.ok) {
+                const d = await r.json().catch(() => null)
+                if (d && Array.isArray(d.items)) setItems(d.items)
+            }
+        } finally { setLoading(false) }
+    }
+    useEffect(() => { if (subtab === 'list') load() }, [subtab])
+
+    const loadBlacklist = async () => {
+        try {
+            const r = await fetch('/api/blacklist')
+            if (r.ok) {
+                const d = await r.json().catch(() => null)
+                if (d && Array.isArray(d.items)) setBlacklist(d.items)
+            }
+        } catch {}
+    }
+    useEffect(() => { if (subtab === 'blacklist') loadBlacklist() }, [subtab])
+
+    return (
+        <div className="bg-white rounded-2xl shadow-xl p-6">
+            <div className="flex gap-2 mb-4">
+                <button onClick={() => setSubtab('list')} className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${subtab === 'list' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Profilu saraksts</button>
+                <button onClick={() => setSubtab('blacklist')} className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${subtab === 'blacklist' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Melnais saraksts</button>
+            </div>
+
+            {subtab === 'list' ? (
+                loading ? <div className="text-gray-600">Ielādē...</div> : (
+                    <div className="space-y-3">
+                        {items.length === 0 ? (
+                            <div className="text-gray-600">Nav lietotāju</div>
+                        ) : items.map(u => (
+                            <div key={u.id} className="border border-gray-200 rounded-xl p-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <div className="font-semibold text-black">{u.firstName} {u.lastName}</div>
+                                        <div className="text-sm text-gray-700">{u.email} {u.phone ? `• ${u.phone}` : ''}</div>
+                                        <div className="text-xs text-gray-500">
+                                            {u.accountType === 'children' ? (
+                                                <>Bērni: {u.studentCount} • {new Date(u.createdAt).toLocaleDateString('lv-LV')}</>
+                                            ) : (
+                                                <>{new Date(u.createdAt).toLocaleDateString('lv-LV')}</>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => setOpenId(prev => prev === u.id ? null : u.id)} className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50">Dzēst</button>
+                                    </div>
+                                </div>
+                                {openId === u.id && (
+                                    <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                                        <div className="text-sm text-red-800 font-semibold mb-1">Šis profils tiks neatgriezeniski dzēsts.</div>
+                                        <div className="text-xs text-red-700 mb-2">Tiks atceltas arī visas šī profila rezervācijas.</div>
+                                        <div className="flex items-center gap-2">
+                                            <button disabled={submitting} onClick={async () => {
+                                                setSubmitting(true)
+                                                try {
+                                                    const r = await fetch('/api/user-delete', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: u.id }) })
+                                                    if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās dzēst profilu'); setSubmitting(false); return }
+                                                    setOpenId(null)
+                                                    load()
+                                                    // Add to blacklist
+                                                    try { await fetch('/api/blacklist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: u.email, reason: 'Dzēsts profīls' }) }) } catch {}
+                                                } finally { setSubmitting(false) }
+                                            }} className="text-sm bg-red-600 hover:bg-red-700 text-white rounded-md px-3 py-1">{submitting ? 'Dzēš...' : 'Dzēst'}</button>
+                                            <button onClick={() => setOpenId(null)} className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50">Atcelt</button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )
+            ) : (
+                <div>
+                    <div className="border border-gray-200 rounded-xl p-4 mb-3">
+                        <div className="grid md:grid-cols-3 gap-2 items-end">
+                            <input className="p-2 border border-gray-300 rounded-lg" placeholder="E-pasts" value={blForm.email} onChange={e => setBlForm(prev => ({ ...prev, email: e.target.value }))} />
+                            <input className="p-2 border border-gray-300 rounded-lg" placeholder="Pamatojums (neobligāti)" value={blForm.reason} onChange={e => setBlForm(prev => ({ ...prev, reason: e.target.value }))} />
+                            <button onClick={async () => { const email = (blForm.email || '').trim(); if (!email) return; await fetch('/api/blacklist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, reason: blForm.reason || '' }) }); setBlForm({ email: '', reason: '' }); loadBlacklist() }} className="bg-yellow-400 hover:bg-yellow-500 text-black rounded-md px-3 py-2">Pievienot</button>
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        {blacklist.length === 0 ? (
+                            <div className="text-gray-600">Nav ierakstu</div>
+                        ) : blacklist.map(b => (
+                            <div key={b.id} className="border border-gray-200 rounded-xl p-3 flex items-center justify-between">
+                                <div>
+                                    <div className="font-medium text-black">{b.email}</div>
+                                    {b.reason && <div className="text-sm text-gray-700">{b.reason}</div>}
+                                </div>
+                                <button onClick={async () => { await fetch('/api/blacklist', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: b.id }) }); loadBlacklist() }} className="text-sm text-red-600 border border-red-200 rounded-md px-3 py-1 hover:bg-red-50">Dzēst</button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
+
 const AdminCalendar = () => {
 	const [selectedDate, setSelectedDate] = useState<Date>(new Date())
 	const [selectedDay, setSelectedDay] = useState<number | null>(null)
@@ -645,6 +848,8 @@ const AdminCalendar = () => {
 	const [calendarView, setCalendarView] = useState<'teachers' | 'children'>('teachers')
 	const [teacherFilter, setTeacherFilter] = useState<string>('')
 	const [childFilter, setChildFilter] = useState<string>('')
+	const [exportFrom, setExportFrom] = useState<string>('')
+	const [exportTo, setExportTo] = useState<string>('')
 
 	const getDaysInMonth = (date: Date) => {
 		const year = date.getFullYear()
@@ -807,51 +1012,78 @@ const AdminCalendar = () => {
 								.map(([id, name]) => (<option key={id} value={id}>{name}</option>))
 						})()}
 					</select>
-					<button onClick={async () => {
-						try {
-							const XLSX: any = await import('xlsx')
-							const year = selectedDate.getFullYear()
-							const month = selectedDate.getMonth()
-							const from = new Date(year, month, 1)
-							const to = new Date(year, month + 1, 0)
-							const inMonth = (dStr: string) => {
-								try {
-									const d = new Date(dStr)
-									if (isNaN(d.getTime())) return false
-									return d >= from && d <= to
-								} catch { return false }
-							}
-							const rows = bookings
-								.filter((b: any) => inMonth(b.date) && (!teacherFilter || String(b.teacherId) === teacherFilter))
-								.sort((a: any, b: any) => (a.date === b.date ? String(a.time).localeCompare(String(b.time)) : new Date(a.date).getTime() - new Date(b.date).getTime()))
-								.map((b: any) => ({
-									Datums: new Date(b.date).toLocaleDateString('lv-LV'),
-									Laiks: b.time || '',
-									Pasniedzējs: b.teacherName || '',
-									Skolēns: b.studentName || b.userName || '',
-									Statuss: b.status || '',
-									Apmaksāts: b.paid === true ? 'Jā' : 'Nē',
-									Apmeklēts: b.attended === true ? 'Jā' : 'Nē',
-									Veids: b.modality === 'zoom' ? 'Attālināti' : 'Klātienē',
-									Vieta: b.location === 'teacher' ? 'Privāti' : 'Uz vietas'
-								}))
-							const ws = XLSX.utils.json_to_sheet(rows)
-							const wb = XLSX.utils.book_new()
-							XLSX.utils.book_append_sheet(wb, ws, 'Statistika')
-							const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-							const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-							const a = document.createElement('a')
-							const url = URL.createObjectURL(blob)
-							a.href = url
-							const monthLabel = selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })
-							a.download = `statistika-${monthLabel}.xlsx`
-							a.click()
-							setTimeout(() => URL.revokeObjectURL(url), 1500)
-						} catch (e) { alert('Neizdevās eksportēt XLSX') }
-					}} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Lejupielādēt statistiku</button>
 					<button onClick={() => setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Iepriekšējais</button>
 					<button onClick={() => setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Nākamais</button>
 					<button onClick={() => setRefreshKey(k => k + 1)} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Atjaunot</button>
+				</div>
+			</div>
+
+			{/* Export panel */}
+			<div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+				<div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+					<div className="flex flex-col sm:flex-row gap-2">
+						<div>
+							<label className="block text-xs text-gray-700 mb-1">No datuma</label>
+							<input type="date" value={exportFrom} onChange={e => setExportFrom(e.target.value)} className="p-2 border border-gray-300 rounded-lg text-sm" />
+						</div>
+						<div>
+							<label className="block text-xs text-gray-700 mb-1">Līdz datumam</label>
+							<input type="date" value={exportTo} onChange={e => setExportTo(e.target.value)} className="p-2 border border-gray-300 rounded-lg text-sm" />
+						</div>
+					</div>
+					<div>
+						<button onClick={async () => {
+							try {
+								const XLSX: any = await import('xlsx')
+								let from: Date
+								let to: Date
+								if (exportFrom && exportTo) {
+									from = new Date(exportFrom)
+									to = new Date(exportTo)
+									to.setHours(23,59,59,999)
+								} else {
+									const year = selectedDate.getFullYear()
+									const month = selectedDate.getMonth()
+									from = new Date(year, month, 1)
+									to = new Date(year, month + 1, 0)
+									to.setHours(23,59,59,999)
+								}
+								const inRange = (dStr: string) => {
+									try {
+										const d = new Date(dStr)
+										if (isNaN(d.getTime())) return false
+										return d >= from && d <= to
+									} catch { return false }
+								}
+								const rows = bookings
+									.filter((b: any) => inRange(b.date) && (!teacherFilter || String(b.teacherId) === teacherFilter))
+									.sort((a: any, b: any) => (a.date === b.date ? String(a.time).localeCompare(String(b.time)) : new Date(a.date).getTime() - new Date(b.date).getTime()))
+									.map((b: any) => ({
+										Datums: new Date(b.date).toLocaleDateString('lv-LV'),
+										Laiks: b.time || '',
+										Pasniedzējs: b.teacherName || '',
+										Skolēns: b.studentName || b.userName || '',
+										Statuss: b.status || '',
+										Apmaksāts: b.paid === true ? 'Jā' : 'Nē',
+										Apmeklēts: b.attended === true ? 'Jā' : 'Nē',
+										Veids: b.modality === 'zoom' ? 'Attālināti' : 'Klātienē',
+										Vieta: b.location === 'teacher' ? 'Privāti' : 'Uz vietas'
+									}))
+								const ws = XLSX.utils.json_to_sheet(rows)
+								const wb = XLSX.utils.book_new()
+								XLSX.utils.book_append_sheet(wb, ws, 'Statistika')
+								const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+								const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+								const a = document.createElement('a')
+								const url = URL.createObjectURL(blob)
+								a.href = url
+								const title = exportFrom && exportTo ? `${exportFrom}_lidz_${exportTo}` : selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })
+								a.download = `statistika-${title}.xlsx`
+								a.click()
+								setTimeout(() => URL.revokeObjectURL(url), 1500)
+							} catch (e) { alert('Neizdevās eksportēt XLSX') }
+						}} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Lejupielādēt statistiku</button>
+					</div>
 				</div>
 			</div>
 

@@ -24,12 +24,17 @@ const Header = ({ activeSection, setActiveSection }: HeaderProps) => {
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 				<div className="flex justify-between items-center h-16">
 					{/* Logo */}
-					<div className="flex items-center">
+					<button
+						onClick={() => { setActiveSection('home'); closeMobileMenu() }}
+						className="flex items-center focus:outline-none cursor-pointer"
+						aria-label="Iet uz sākumlapu"
+						title="Sākums"
+					>
 						<div className="bg-yellow-400 rounded-full p-2 mr-3">
 							<span className="text-2xl font-bold text-black">K</span>
 						</div>
 						<h1 className="text-2xl font-bold text-black">KARDANO</h1>
-					</div>
+					</button>
 
 					{/* Contact Info - Desktop */}
 					<div className="hidden lg:flex items-center space-x-4 text-sm text-gray-700">

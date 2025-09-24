@@ -36,8 +36,10 @@ export default async function handler(req: any, res: any) {
     }
 
     const expandRuleForDate = (teacher: any, dateStr: string, rule: any) => {
-      const startHour = parseInt(rule.from?.split(':')[0] || '9')
-      const endHour = parseInt(rule.to?.split(':')[0] || '17')
+      const rawStart = parseInt(rule.from?.split(':')[0] || '9')
+      const rawEnd = parseInt(rule.to?.split(':')[0] || '17')
+      const startHour = Math.max(8, Math.min(21, rawStart))
+      const endHour = Math.max(startHour + 1, Math.min(22, rawEnd))
       const teacherName = teacher.firstName && teacher.lastName 
         ? `${teacher.firstName} ${teacher.lastName}`.trim()
         : 'Pasniedzējs'
