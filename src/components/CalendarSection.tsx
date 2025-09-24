@@ -163,11 +163,6 @@ const CalendarSection = () => {
 		return slotDate < todayStart
 	}
 
-	const hasAvailableSlots = (day: number) => {
-		const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-		return timeSlots.some(slot => slot.date === dateStr && slot.available && !isSlotPast(slot) && matchesFilters(slot))
-	}
-
 	const getSlotsForDate = (day: number) => {
 		const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 		return timeSlots.filter(slot => slot.date === dateStr)
