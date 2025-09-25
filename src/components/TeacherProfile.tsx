@@ -76,8 +76,12 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 	const [attendanceMsg, setAttendanceMsg] = useState<string | null>(null)
 	const [attendanceSavingIds, setAttendanceSavingIds] = useState<Record<string, boolean>>({})
 	const [attendanceItemMsg, setAttendanceItemMsg] = useState<Record<string, string>>({})
-  const [bookingInputs, setBookingInputs] = useState<Record<string, { zoomLink?: string; address?: string }>>({})
+    const [bookingInputs, setBookingInputs] = useState<Record<string, { zoomLink?: string; address?: string }>>({})
   const [reasonForms, setReasonForms] = useState<Record<string, { open: boolean; action: 'decline' | 'cancel'; text: string; submitting?: boolean }>>({})
+  const [notifSelectMode, setNotifSelectMode] = useState(false)
+  const [notifSelectedIds, setNotifSelectedIds] = useState<Record<string, boolean>>({})
+  const [altForms, setAltForms] = useState<Record<string, { open: boolean; selected?: string; submitting?: boolean }>>({})
+  const [incForms, setIncForms] = useState<Record<string, { open: boolean; newSize?: number; submitting?: boolean }>>({})
 
 	useEffect(() => {
 		const load = async () => {
@@ -94,19 +98,26 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 		if (teacherId) load()
 	}, [teacherId])
 
-	const loadNotifications = async () => {
+	const loadNotifications = async (silent?: boolean) => {
 		if (!teacherId) return
-		setLoadingNotifications(true)
+		if (!silent) setLoadingNotifications(true)
 		try {
 			const r = await fetch(`/api/notifications?recipientRole=worker&recipientUserId=${encodeURIComponent(teacherId)}`)
 			if (r.ok) {
 				const d = await r.json().catch(() => null)
 				if (d && Array.isArray(d.items)) {
-					setNotifications(d.items.filter((n: any) => n.type === 'booking_request'))
+					// Only update if something actually changed
+					const sig = (arr: any[]) => arr.map((n: any) => `${n.id}:${n.unread ? '1' : '0'}`).join('|')
+					const prevSig = sig(notifications)
+					const nextSig = sig(d.items)
+					if (prevSig !== nextSig) {
+						setNotifications(d.items)
+						try { localStorage.setItem(`cache_worker_notifications_${teacherId}_v1`, JSON.stringify({ items: d.items, ts: Date.now() })) } catch {}
+					}
 				}
 			}
 		} catch {}
-		setLoadingNotifications(false)
+		if (!silent) setLoadingNotifications(false)
 	}
 
 	const loadBookings = async () => {
@@ -125,7 +136,7 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 	}
 
 	useEffect(() => {
-		if (activeTab === 'notifications') loadNotifications()
+        if (activeTab === 'notifications') loadNotifications()
 		if (activeTab === 'bookings') loadBookings()
 	}, [activeTab, teacherId])
 
@@ -138,7 +149,7 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 		let timer: any
 		const tick = async () => {
 			try {
-				await loadNotifications()
+				await loadNotifications(true)
 			} catch {}
 		}
 		tick()
@@ -148,7 +159,19 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 		return () => { if (timer) clearInterval(timer); window.removeEventListener('focus', onFocus) }
 	}, [teacherId])
 
-	const handleNotificationClick = async (notificationId: string) => {
+    // Load cached notifications on mount/teacher change
+    useEffect(() => {
+        if (!teacherId) return
+        try {
+            const raw = localStorage.getItem(`cache_worker_notifications_${teacherId}_v1`)
+            if (raw) {
+                const cached = JSON.parse(raw)
+                if (cached && Array.isArray(cached.items)) setNotifications(cached.items)
+            }
+        } catch {}
+    }, [teacherId])
+
+    const handleNotificationClick = async (notificationId: string) => {
 		const isExpanded = expandedNotifications.has(notificationId)
 		if (!isExpanded) {
 			setExpandedNotifications(prev => new Set([...prev, notificationId]))
@@ -158,12 +181,46 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ id: notificationId, unread: false })
 				})
-				loadNotifications()
+                // Update local state + cache without waiting for reload
+                setNotifications(prev => {
+                    const next = prev.map(x => x.id === notificationId ? { ...x, unread: false } : x)
+                    try { localStorage.setItem(`cache_worker_notifications_${teacherId}_v1`, JSON.stringify({ items: next, ts: Date.now() })) } catch {}
+                    return next
+                })
 			} catch {}
 		} else {
 			setExpandedNotifications(prev => { const s = new Set(prev); s.delete(notificationId); return s })
 		}
 	}
+
+    const toggleNotifSelect = (id: string) => setNotifSelectedIds(prev => ({ ...prev, [id]: !prev[id] }))
+
+    const deleteSelectedNotifs = async () => {
+        const ids = Object.keys(notifSelectedIds).filter(k => notifSelectedIds[k])
+        if (!ids.length) return
+        try {
+            await fetch('/api/notifications', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) })
+            setNotifications(prev => {
+                const next = prev.filter(n => !ids.includes(n.id))
+                try { localStorage.setItem(`cache_worker_notifications_${teacherId}_v1`, JSON.stringify({ items: next, ts: Date.now() })) } catch {}
+                return next
+            })
+            setNotifSelectedIds({})
+            setNotifSelectMode(false)
+        } catch {}
+    }
+
+    const deleteOneNotif = async (id: string) => {
+        try {
+            await fetch('/api/notifications', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+            setNotifications(prev => {
+                const next = prev.filter(n => n.id !== id)
+                try { localStorage.setItem(`cache_worker_notifications_${teacherId}_v1`, JSON.stringify({ items: next, ts: Date.now() })) } catch {}
+                return next
+            })
+            setExpandedNotifications(prev => { const s = new Set(prev); s.delete(id); return s })
+        } catch {}
+    }
 
 	const getDaysInMonth = (date: Date) => {
 		const year = date.getFullYear()
@@ -322,30 +379,48 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 				</div>
 			)}
 
-			{activeTab === 'notifications' && (
-				<div className="bg-white rounded-2xl shadow p-6">
-					<h3 className="text-lg font-semibold text-black mb-4">Rezervāciju pieprasījumi</h3>
-					{loadingNotifications ? (
-						<div className="text-center py-8 text-gray-500">Ielādē...</div>
-					) : notifications.length === 0 ? (
-						<div className="text-center py-8 text-gray-500">Nav paziņojumu</div>
-					) : (
-						<div className="space-y-2">
-							{notifications.map(n => (
-								<div key={n.id} className={`border rounded-xl ${n.unread ? 'bg-yellow-50 border-yellow-200' : 'bg-white border-gray-200'}`}>
-									<div className="flex items-center justify-between p-4">
-										<button className="text-left font-semibold text-black truncate" title={n.title} onClick={() => handleNotificationClick(n.id)}>{n.title}</button>
-										<div className="text-xs text-gray-500">{n.createdAt ? new Date(n.createdAt).toLocaleString('lv-LV') : ''}</div>
-									</div>
-									{expandedNotifications.has(n.id) && (
-										<div className="px-4 pb-4 text-sm text-gray-700 whitespace-pre-line">{n.message}</div>
-									)}
-								</div>
-							))}
-						</div>
-					)}
-				</div>
-			)}
+            {activeTab === 'notifications' && (
+                <div className="bg-white rounded-2xl shadow p-6">
+                    <h3 className="text-lg font-semibold text-black mb-4">Paziņojumi</h3>
+                    {loadingNotifications ? (
+                        <div className="text-center py-8 text-gray-500">Ielādē...</div>
+                    ) : notifications.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">Nav paziņojumu</div>
+                    ) : (
+                        <div className="space-y-2">
+                            {notifications.map(n => (
+                                <div key={n.id} className={`border rounded-xl ${n.unread ? 'bg-yellow-50 border-yellow-200' : 'bg-white border-gray-200'}`}>
+                                    <div className="flex items-center justify-between p-4">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            {notifSelectMode && (
+                                                <input type="checkbox" checked={!!notifSelectedIds[n.id]} onChange={() => toggleNotifSelect(n.id)} />
+                                            )}
+                                            <button className="text-left font-semibold text-black truncate" title={n.title} onClick={() => handleNotificationClick(n.id)}>{n.title}</button>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="text-xs text-gray-500">{n.createdAt ? new Date(n.createdAt).toLocaleString('lv-LV') : ''}</div>
+                                            <button className="text-xs text-red-600" onClick={() => deleteOneNotif(n.id)}>Dzēst</button>
+                                        </div>
+                                    </div>
+                                    {expandedNotifications.has(n.id) && (
+                                        <div className="px-4 pb-4 text-sm text-gray-700 whitespace-pre-line">{n.message}</div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    <div className="mt-3 flex items-center gap-2">
+                        {notifSelectMode ? (
+                            <>
+                                <button className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50" onClick={deleteSelectedNotifs}>Dzēst izvēlētos</button>
+                                <button className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50" onClick={() => { setNotifSelectMode(false); setNotifSelectedIds({}) }}>Atcelt</button>
+                            </>
+                        ) : (
+                            <button className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50" onClick={() => setNotifSelectMode(true)}>Atlasīt</button>
+                        )}
+                    </div>
+                </div>
+            )}
 
 {activeTab === 'bookings' && (() => {
   if (loadingBookings) {
@@ -472,13 +547,19 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 
       {singles.map(b => {
         const dateStr = new Date(b.date).toLocaleDateString('lv-LV')
-        const isPending = b.status === 'pending' || b.status === 'pending_unavailable'
+        const isPending = b.status === 'pending'
+        const isPendingUnavailable = b.status === 'pending_unavailable'
         const tid = String(teacherId)
         const slot = slots.find(s => String(s.teacherId) === tid && s.date === b.date && s.time === b.time)
         const mod = (slot?.modality || b.modality)
         const loc = (slot?.location || b.location)
         const needsZoom = mod === 'zoom'
         const needsAddress = mod !== 'zoom' && loc === 'teacher'
+        const lessonType = (slot?.lessonType || b.lessonType)
+        const capacity = lessonType === 'group' ? (typeof slot?.groupSize === 'number' ? Number(slot?.groupSize) : (typeof b.groupSize === 'number' ? Number(b.groupSize) : 1)) : 1
+        const relatedSameSlot = bookings.filter(x => String(x.teacherId) === tid && x.date === b.date && x.time === b.time)
+        const acceptedCount = relatedSameSlot.filter(x => x.status === 'accepted').length
+        const isFull = acceptedCount >= capacity
         return (
           <div key={b._id} className="border border-gray-200 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
@@ -505,7 +586,7 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
             )}
             <div className="text-sm text-gray-700"><strong>Phone:</strong> {b.userPhone || '—'}</div>
             <div className="text-sm text-gray-700"><strong>Email:</strong> {b.userEmail || '—'}</div>
-            {isPending && (
+            {isPending && !isFull && (
               <div className="mt-2 space-y-2">
                 {needsZoom && (
                   <div>
@@ -538,6 +619,103 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
                     setReasonForms(prev => ({ ...prev, [id]: { open: true, action: 'decline', text: '' } }))
                   }} className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded">Noraidīt</button>
                 </div>
+              </div>
+            )}
+
+            {isPendingUnavailable && (
+              <div className="mt-2 space-y-3">
+                <div className="text-xs text-yellow-800 bg-yellow-50 border border-yellow-200 rounded p-2">Šis laiks vairs nav pieejams apstiprināšanai.</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button onClick={() => {
+                    const id = String(b._id)
+                    setReasonForms(prev => ({ ...prev, [id]: { open: true, action: 'decline', text: '' } }))
+                  }} className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded">Noraidīt</button>
+                  <button onClick={() => {
+                    const id = String(b._id)
+                    setAltForms(prev => ({ ...prev, [id]: { open: !(prev[id]?.open), selected: prev[id]?.selected } }))
+                  }} className="border border-gray-300 text-gray-800 hover:bg-gray-50 px-2 py-1 rounded">Piedāvāt citu laiku</button>
+                  {lessonType === 'group' && isFull && (
+                    <button onClick={() => {
+                      const id = String(b._id)
+                      const baseSize = capacity > 0 ? capacity : 1
+                      setIncForms(prev => ({ ...prev, [id]: { open: !(prev[id]?.open), newSize: (prev[id]?.newSize && prev[id]?.newSize! > baseSize) ? prev[id]?.newSize : baseSize + 1 } }))
+                    }} className="border border-gray-300 text-gray-800 hover:bg-gray-50 px-2 py-1 rounded">Palielināt grupu</button>
+                  )}
+                </div>
+
+                {altForms[String(b._id)]?.open && (() => {
+                  const nowTs = Date.now()
+                  const alternatives = slots
+                    .filter(s => String(s.teacherId) === tid && s.available !== false)
+                    .filter(s => (s.lessonType || lessonType) === lessonType)
+                    .filter(s => (s.modality || mod) === mod && (s.location || loc) === loc)
+                    .filter(s => new Date(`${s.date}T${s.time}:00`).getTime() > nowTs)
+                    .sort((a, c) => new Date(`${a.date}T${a.time}:00`).getTime() - new Date(`${c.date}T${c.time}:00`).getTime())
+                  return (
+                    <div className="p-2 bg-gray-50 border border-gray-200 rounded">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Izvēlieties citu laiku</label>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <select value={altForms[String(b._id)]?.selected || ''} onChange={e => {
+                          const id = String(b._id)
+                          setAltForms(prev => ({ ...prev, [id]: { ...(prev[id] || { open: true }), selected: e.target.value } }))
+                        }} className="p-2 border border-gray-300 rounded-lg text-sm min-w-[16rem]">
+                          <option value="">-- izvēlieties --</option>
+                          {alternatives.map(s => (
+                            <option key={`${s.date}|${s.time}`} value={`${s.date}|${s.time}`}>{new Date(s.date).toLocaleDateString('lv-LV')} {s.time}</option>
+                          ))}
+                        </select>
+                        <button onClick={async () => {
+                          const sel = altForms[String(b._id)]?.selected || ''
+                          if (!sel) { alert('Lūdzu izvēlieties citu laiku'); return }
+                          const [nd, nt] = sel.split('|')
+                          const chosen = slots.find(s => String(s.teacherId) === tid && s.date === nd && s.time === nt)
+                          if (!chosen) { alert('Izvēlētais laiks nav pieejams'); return }
+                          const needsZoom2 = (chosen.modality || mod) === 'zoom'
+                          const needsAddress2 = (chosen.modality || mod) !== 'zoom' && (chosen.location || loc) === 'teacher'
+                          let zoomLink = ''
+                          let address = ''
+                          if (needsZoom2) { zoomLink = prompt('Ievadiet Zoom saiti') || '' }
+                          if (needsAddress2) { address = prompt('Ievadiet adresi') || '' }
+                          if (needsZoom2 && !zoomLink) { alert('Lūdzu ievadiet Zoom saiti'); return }
+                          if (needsAddress2 && !address) { alert('Lūdzu ievadiet adresi'); return }
+                          try {
+                            const r = await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'reschedule_accept', bookingId: String(b._id), teacherId: tid, newDate: nd, newTime: nt, zoomLink, address }) })
+                            if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās piedāvāt citu laiku'); return }
+                            setAltForms(prev => ({ ...prev, [String(b._id)]: { open: false } }))
+                            loadBookings()
+                          } catch { alert('Kļūda') }
+                        }} className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50">Nosūtīt</button>
+                        <button onClick={() => setAltForms(prev => ({ ...prev, [String(b._id)]: { open: false } }))} className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50">Atcelt</button>
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {incForms[String(b._id)]?.open && lessonType === 'group' && (
+                  <div className="p-2 bg-gray-50 border border-gray-200 rounded">
+                    <div className="flex items-end gap-2 flex-wrap">
+                      <div>
+                        <label className="block text-xs text-gray-700 mb-1">Jaunais grupas izmērs</label>
+                        <input type="number" min={capacity + 1} value={incForms[String(b._id)]?.newSize || capacity + 1} onChange={e => {
+                          const id = String(b._id)
+                          const val = Math.max(capacity + 1, Number(e.target.value || (capacity + 1)))
+                          setIncForms(prev => ({ ...prev, [id]: { ...(prev[id] || { open: true }), newSize: val } }))
+                        }} className="p-2 border border-gray-300 rounded-lg text-sm w-28" />
+                      </div>
+                      <button onClick={async () => {
+                        const id = String(b._id)
+                        const target = incForms[id]?.newSize || (capacity + 1)
+                        try {
+                          const r = await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'increase_group_size', bookingId: id, teacherId: tid, newSize: target, date: b.date, time: b.time }) })
+                          if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās palielināt grupu'); return }
+                          setIncForms(prev => ({ ...prev, [id]: { open: false } }))
+                          loadBookings()
+                        } catch { alert('Kļūda') }
+                      }} className="text-sm bg-yellow-400 hover:bg-yellow-500 text-black rounded-md px-3 py-1">Palielināt</button>
+                      <button onClick={() => setIncForms(prev => ({ ...prev, [String(b._id)]: { open: false } }))} className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50">Atcelt</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             {b.status === 'accepted' && (b.modality === 'zoom') && b.zoomLink && (

@@ -240,6 +240,30 @@ export default async function handler(req: any, res: any) {
             // Capacity reached: lock slot and mark others unavailable
             await timeSlots.updateMany({ teacherId: teacherIdEffective, date, time }, { $set: { available: false, updatedAt: new Date() } })
             await bookings.updateMany({ _id: { $ne: _id }, teacherId: teacherIdEffective, date, time, status: { $in: ['pending'] } }, { $set: { status: 'pending_unavailable', updatedAt: new Date() } })
+            try {
+              await notifications.insertOne({
+                type: 'group_full',
+                title: 'Grupu nodarbība pilna',
+                message: `Grupu nodarbība ${date} ${time} ir pilna (kapacitāte: ${groupSize}).`,
+                recipientRole: 'admin',
+                unread: true,
+                related: { date, time, teacherId: teacherIdEffective },
+                createdAt: new Date(),
+              })
+            } catch {}
+            // Also notify the teacher
+            try {
+              await notifications.insertOne({
+                type: 'group_full',
+                title: 'Grupu nodarbība pilna',
+                message: `Grupu nodarbība ${date} ${time} ir pilna (kapacitāte: ${groupSize}).`,
+                recipientRole: 'worker',
+                recipientUserId: teacherIdEffective,
+                unread: true,
+                related: { date, time, teacherId: teacherIdEffective },
+                createdAt: new Date(),
+              })
+            } catch {}
           } else {
             // Still capacity: keep slot available and leave others pending
             await timeSlots.updateMany({ teacherId: teacherIdEffective, date, time }, { $set: { available: true, updatedAt: new Date() } })
@@ -301,6 +325,29 @@ export default async function handler(req: any, res: any) {
           if (acceptedCount >= groupSize) {
             await timeSlots.updateMany({ teacherId: teacherIdEffective, date, time }, { $set: { available: false, updatedAt: new Date() } })
             await bookings.updateMany({ _id: { $ne: _id }, teacherId: teacherIdEffective, date, time, status: { $in: ['pending'] } }, { $set: { status: 'pending_unavailable', updatedAt: new Date() } })
+            try {
+              await notifications.insertOne({
+                type: 'group_full',
+                title: 'Grupu nodarbība pilna',
+                message: `Grupu nodarbība ${date} ${time} ir pilna (kapacitāte: ${groupSize}).`,
+                recipientRole: 'admin',
+                unread: true,
+                related: { date, time, teacherId: teacherIdEffective },
+                createdAt: new Date(),
+              })
+            } catch {}
+            try {
+              await notifications.insertOne({
+                type: 'group_full',
+                title: 'Grupu nodarbība pilna',
+                message: `Grupu nodarbība ${date} ${time} ir pilna (kapacitāte: ${groupSize}).`,
+                recipientRole: 'worker',
+                recipientUserId: teacherIdEffective,
+                unread: true,
+                related: { date, time, teacherId: teacherIdEffective },
+                createdAt: new Date(),
+              })
+            } catch {}
           } else {
             await timeSlots.updateMany({ teacherId: teacherIdEffective, date, time }, { $set: { available: true, updatedAt: new Date() } })
           }
@@ -322,7 +369,8 @@ export default async function handler(req: any, res: any) {
         const { reason } = (req.body || {}) as { reason?: string }
         const cancelReason = typeof reason === 'string' ? reason.trim() : undefined
         const cancelledBy = req.body && req.body.teacherId ? 'teacher' : 'user'
-        await bookings.updateOne({ _id }, { $set: { status: 'cancelled', updatedAt: new Date(), cancelledBy, ...(cancelReason ? { cancelReason } : {}) } })
+          const cancelTs = new Date()
+          await bookings.updateOne({ _id }, { $set: { status: 'cancelled', updatedAt: cancelTs, cancelledBy, ...(cancelReason ? { cancelReason } : {}) } })
 
         // Re-evaluate availability only if previously accepted affected capacity, or generally ensure availability when capacity not full
         const acceptedCount = await bookings.countDocuments({ teacherId: teacher, date, time, status: 'accepted' })
@@ -352,6 +400,44 @@ export default async function handler(req: any, res: any) {
             })
           }
         } catch {}
+
+        // Notify teacher as well when teacher cancels an accepted booking
+        try {
+          if (booking.status === 'accepted' && cancelledBy === 'teacher') {
+            await notifications.insertOne({
+              type: 'booking_cancelled',
+              title: 'Apstiprināta rezervācija atcelta',
+              message: `Pasniedzējs atcēla apstiprinātu rezervāciju ${date} ${time}.${cancelReason ? `\nPamatojums: ${cancelReason}` : ''}`,
+              recipientRole: 'worker',
+              recipientUserId: teacher,
+              actorUserId: String(booking.teacherId),
+              unread: true,
+              related: { bookingId: String(booking._id), date, time },
+              createdAt: new Date(),
+            })
+          }
+        } catch {}
+
+          // Notify admin for late (same-day) cancellations of accepted bookings
+          try {
+            const wasAccepted = booking.status === 'accepted'
+            if (wasAccepted) {
+              const dayStart = new Date(date)
+              dayStart.setHours(0,0,0,0)
+              if (cancelTs.getTime() >= dayStart.getTime()) {
+                await notifications.insertOne({
+                  type: 'late_cancellation',
+                  title: 'Vēla atcelšana',
+                  message: `${cancelledBy === 'teacher' ? 'Pasniedzējs' : 'Lietotājs'} atcēla apstiprinātu rezervāciju ${date} ${time}.`,
+                  recipientRole: 'admin',
+                  actorUserId: String(cancelledBy === 'teacher' ? booking.teacherId : booking.userId),
+                  unread: true,
+                  related: { bookingId: String(booking._id), date, time },
+                  createdAt: new Date(),
+                })
+              }
+            }
+          } catch {}
 
         return res.status(200).json({ ok: true, available })
       }
@@ -446,6 +532,29 @@ export default async function handler(req: any, res: any) {
             if (acceptedCount >= groupSize2) {
               await timeSlots.updateMany({ teacherId: teacherIdEffective2, date: b.date, time: b.time }, { $set: { available: false, updatedAt: new Date() } })
               await bookings.updateMany({ _id: { $ne: _idEach }, teacherId: teacherIdEffective2, date: b.date, time: b.time, status: { $in: ['pending'] } }, { $set: { status: 'pending_unavailable', updatedAt: new Date() } })
+              try {
+                await notifications.insertOne({
+                  type: 'group_full',
+                  title: 'Grupu nodarbība pilna',
+                  message: `Grupu nodarbība ${b.date} ${b.time} ir pilna (kapacitāte: ${groupSize2}).`,
+                  recipientRole: 'admin',
+                  unread: true,
+                  related: { date: b.date, time: b.time, teacherId: teacherIdEffective2 },
+                  createdAt: new Date(),
+                })
+              } catch {}
+              try {
+                await notifications.insertOne({
+                  type: 'group_full',
+                  title: 'Grupu nodarbība pilna',
+                  message: `Grupu nodarbība ${b.date} ${b.time} ir pilna (kapacitāte: ${groupSize2}).`,
+                  recipientRole: 'worker',
+                  recipientUserId: teacherIdEffective2,
+                  unread: true,
+                  related: { date: b.date, time: b.time, teacherId: teacherIdEffective2 },
+                  createdAt: new Date(),
+                })
+              } catch {}
             } else {
               await timeSlots.updateMany({ teacherId: teacherIdEffective2, date: b.date, time: b.time }, { $set: { available: true, updatedAt: new Date() } })
             }

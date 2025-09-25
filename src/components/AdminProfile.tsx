@@ -430,34 +430,66 @@ const AdminTeachers = () => {
 												if (!p) return <div className="text-sm text-gray-500">Nav profila informācijas</div>
 												return (
 													<div className="space-y-3">
-														<div className="flex items-start gap-4">
-															{p.photo ? <img src={p.photo} alt="Foto" className="w-16 h-16 rounded-full object-cover border-2 border-yellow-200" /> : <div className="w-16 h-16 rounded-full bg-gray-200" />}
-															<div className="flex-1">
-																<div className="text-sm text-gray-700 whitespace-pre-line">{p.description || '—'}</div>
-															</div>
-														</div>
-														<div>
-															<div className="font-semibold text-black mb-1">Pieejamie laiki</div>
-															{(p.availability || []).length > 0 ? (
-																<div className="mt-3 grid md:grid-cols-2 gap-2">
-																	{p.availability.map((a: any, _idx: number) => (
-																		<div key={_idx} className="text-sm text-gray-800 flex items-center justify-between border border-gray-200 rounded-lg p-3 bg-white">
-																			<div className="truncate">
-																				{a.type === 'specific' ? (
-																					<span>Konkrēta diena: <b>{a.date}</b></span>
-																				) : (
-																					<span>Dienas: <b>{(a.weekdays||[]).join(', ')}</b></span>
-																				)}
-																				<span className="ml-2">{a.from}-{a.to}</span>
-																				{a.until && <span className="ml-2 text-xs text-gray-600">(līdz {a.until})</span>}
-																			</div>
-																		</div>
-																	))}
-																</div>
-															) : (
-															<div className="text-sm text-gray-500">Nav norādīts</div>
-															)}
-														</div>
+                                                        <div className="flex items-start gap-4">
+                                                            {p.photo ? <img src={p.photo} alt="Foto" className="w-16 h-16 rounded-full object-cover border-2 border-yellow-200" /> : <div className="w-16 h-16 rounded-full bg-gray-200" />}
+                                                            <div className="flex-1">
+                                                                <div className="font-semibold text-black">{(p?.name && String(p.name).trim()) || `${(p?.firstName||'').trim()} ${(p?.lastName||'').trim()}`.trim() || t.name || t.username || '—'}</div>
+                                                                <div className="text-sm text-gray-700 whitespace-pre-line mt-1">{p.description || '—'}</div>
+                                                            </div>
+                                                        </div>
+                                                    <div>
+                                                        <div className="font-semibold text-black mb-2">Pieejamie laiki</div>
+                                                        {(() => {
+                                                            const dayNames = ['Pirmdiena','Otrdiena','Trešdiena','Ceturtdiena','Piektdiena','Sestdiena','Svētdiena']
+                                                            const weekly = (p.availability || []).filter((a: any) => a?.type === 'weekly')
+                                                            const specific = (p.availability || []).filter((a: any) => a?.type === 'specific')
+                                                            const timesByDay: Record<string, Array<string>> = {}
+                                                            const expandStarts = (from?: string, to?: string): string[] => {
+                                                                try {
+                                                                    const fh = parseInt(String(from || '00:00').split(':')[0] || '0', 10)
+                                                                    const thRaw = parseInt(String(to || '00:00').split(':')[0] || '0', 10)
+                                                                    const th = isNaN(thRaw) ? fh + 1 : thRaw
+                                                                    const out: string[] = []
+                                                                    for (let h = fh; h < th; h++) out.push(`${String(h).padStart(2,'0')}:00`)
+                                                                    return out
+                                                                } catch { return from ? [from] : [] }
+                                                            }
+                                                            weekly.forEach((a: any) => {
+                                                                const weekdays = Array.isArray(a.weekdays) ? a.weekdays : []
+                                                                const starts = expandStarts(a.from, a.to)
+                                                                weekdays.forEach((d: any) => {
+                                                                    const idx = String(Number(d) - 1)
+                                                                    ;(timesByDay[idx] ||= [])
+                                                                    starts.forEach((t) => { if (!timesByDay[idx].includes(t)) timesByDay[idx].push(t) })
+                                                                })
+                                                            })
+                                                            const hasAny = Object.values(timesByDay).some(arr => (arr || []).length > 0) || specific.length > 0
+                                                            if (!hasAny) return <div className="text-sm text-gray-500">Nav norādīts</div>
+                                                            return (
+                                                                <div className="space-y-3">
+                                                                    {dayNames.map((dn, i) => (
+                                                                        <div key={dn}>
+                                                                            <div className="text-sm font-medium text-gray-800">{dn}:</div>
+                                                                            <div className="text-sm text-gray-700">{(timesByDay[String(i)] || []).length > 0 ? timesByDay[String(i)].join(', ') : '—'}</div>
+                                                                        </div>
+                                                                    ))}
+                                                                    {specific.length > 0 && (
+                                                                        <div className="pt-2">
+                                                                            <div className="text-sm font-medium text-gray-800 mb-1">Noteiktas dienas</div>
+                                                                            <div className="space-y-1 text-sm text-gray-700">
+                                                                                {specific.map((a: any, idx: number) => {
+                                                                                    const starts = expandStarts(a.from, a.to)
+                                                                                    return (
+                                                                                        <div key={idx}>{a.date}: {starts.length > 0 ? starts.join(', ') : (a.from || '')}</div>
+                                                                                    )
+                                                                                })}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )
+                                                        })()}
+                                                    </div>
 													</div>
 												)
 											})()
@@ -917,6 +949,94 @@ const AdminCalendar = () => {
 					</div>
 				</div>
 
+				{/* Export panel for children */}
+				<div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+					<div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+						<div className="flex flex-col sm:flex-row gap-2">
+							<div>
+								<label className="block text-xs text-gray-700 mb-1">No datuma</label>
+								<input type="date" value={exportFrom} onChange={e => setExportFrom(e.target.value)} className="p-2 border border-gray-300 rounded-lg text-sm" />
+							</div>
+							<div>
+								<label className="block text-xs text-gray-700 mb-1">Līdz datumam</label>
+								<input type="date" value={exportTo} onChange={e => setExportTo(e.target.value)} className="p-2 border border-gray-300 rounded-lg text-sm" />
+							</div>
+						</div>
+						<div>
+							<button onClick={async () => {
+								try {
+									const XLSX: any = await import('xlsx')
+									let from: Date
+									let to: Date
+									if (exportFrom && exportTo) {
+										from = new Date(exportFrom)
+										to = new Date(exportTo)
+										to.setHours(23,59,59,999)
+									} else {
+										const year = selectedDate.getFullYear()
+										const month = selectedDate.getMonth()
+										from = new Date(year, month, 1)
+										to = new Date(year, month + 1, 0)
+										to.setHours(23,59,59,999)
+									}
+									const inRange = (dStr: string) => {
+										try {
+											const d = new Date(dStr)
+											if (isNaN(d.getTime())) return false
+											return d >= from && d <= to
+										} catch { return false }
+									}
+									const rows = bookings
+										.filter((b: any) => {
+											if (!inRange(b.date)) return false
+											if (childFilter && String(b.studentId || b.userId || '') !== childFilter) return false
+											const lessonTs = new Date(`${b.date}T${b.time || '00:00'}:00`).getTime()
+											const nowTs = Date.now()
+											const isNotikusi = b.status === 'accepted' && !isNaN(lessonTs) && lessonTs < nowTs
+											const updatedAtTs = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
+											const dayStart = new Date(b.date)
+											dayStart.setHours(0,0,0,0)
+											const isLateUserCancel = b.status === 'cancelled' && b.cancelledBy === 'user' && updatedAtTs >= dayStart.getTime()
+											return isNotikusi || isLateUserCancel
+										})
+										.sort((a: any, b: any) => (a.date === b.date ? String(a.time).localeCompare(String(b.time)) : new Date(a.date).getTime() - new Date(b.date).getTime()))
+										.map((b: any) => {
+											const lessonTs = new Date(`${b.date}T${b.time || '00:00'}:00`).getTime()
+											const nowTs = Date.now()
+											const isNotikusi = b.status === 'accepted' && !isNaN(lessonTs) && lessonTs < nowTs
+											const statusLv = isNotikusi ? 'Notikusi' : 'Atcelts'
+											return ({
+												Datums: new Date(b.date).toLocaleDateString('lv-LV'),
+												Laiks: b.time || '',
+												Pasniedzējs: b.teacherName || '',
+												Skolēns: b.studentName || b.userName || '',
+												Statuss: statusLv,
+												Apmaksāts: b.paid === true ? 'Jā' : 'Nē',
+												Apmeklēts: b.attended === true ? 'Jā' : 'Nē',
+												'Grupu/Individuāli': b.lessonType === 'group' ? 'Grupu' : 'Individuāli',
+												'Atlaižu kods': b.discountCode || '',
+												Veids: b.modality === 'zoom' ? 'Attālināti' : 'Klātienē',
+												Vieta: b.location === 'teacher' ? 'Privāti' : 'Uz vietas'
+											})
+										})
+									const ws = XLSX.utils.json_to_sheet(rows)
+									const wb = XLSX.utils.book_new()
+									XLSX.utils.book_append_sheet(wb, ws, 'Statistika')
+									const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+									const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+									const a = document.createElement('a')
+									const url = URL.createObjectURL(blob)
+									a.href = url
+									const title = exportFrom && exportTo ? `${exportFrom}_lidz_${exportTo}` : selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })
+									a.download = `statistika-berni-${title}.xlsx`
+									a.click()
+									setTimeout(() => URL.revokeObjectURL(url), 1500)
+								} catch (e) { alert('Neizdevās eksportēt XLSX') }
+							}} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Lejupielādēt statistiku</button>
+						</div>
+					</div>
+				</div>
+
 				<div className="grid grid-cols-7 gap-1">
 					{Array.from({ length: startingDay }, (_, i) => (
 						<div key={`empty-${i}`} className="h-16" />
@@ -1055,20 +1175,39 @@ const AdminCalendar = () => {
 										return d >= from && d <= to
 									} catch { return false }
 								}
-								const rows = bookings
-									.filter((b: any) => inRange(b.date) && (!teacherFilter || String(b.teacherId) === teacherFilter))
-									.sort((a: any, b: any) => (a.date === b.date ? String(a.time).localeCompare(String(b.time)) : new Date(a.date).getTime() - new Date(b.date).getTime()))
-									.map((b: any) => ({
-										Datums: new Date(b.date).toLocaleDateString('lv-LV'),
-										Laiks: b.time || '',
-										Pasniedzējs: b.teacherName || '',
-										Skolēns: b.studentName || b.userName || '',
-										Statuss: b.status || '',
-										Apmaksāts: b.paid === true ? 'Jā' : 'Nē',
-										Apmeklēts: b.attended === true ? 'Jā' : 'Nē',
-										Veids: b.modality === 'zoom' ? 'Attālināti' : 'Klātienē',
-										Vieta: b.location === 'teacher' ? 'Privāti' : 'Uz vietas'
-									}))
+                                const rows = bookings
+                                    .filter((b: any) => {
+                                        if (!inRange(b.date)) return false
+                                        if (teacherFilter && String(b.teacherId) !== teacherFilter) return false
+                                        const lessonTs = new Date(`${b.date}T${b.time || '00:00'}:00`).getTime()
+                                        const nowTs = Date.now()
+                                        const isNotikusi = b.status === 'accepted' && !isNaN(lessonTs) && lessonTs < nowTs
+                                        const updatedAtTs = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
+                                        const dayStart = new Date(b.date)
+                                        dayStart.setHours(0,0,0,0)
+                                        const isLateUserCancel = b.status === 'cancelled' && b.cancelledBy === 'user' && updatedAtTs >= dayStart.getTime()
+                                        return isNotikusi || isLateUserCancel
+                                    })
+                                    .sort((a: any, b: any) => (a.date === b.date ? String(a.time).localeCompare(String(b.time)) : new Date(a.date).getTime() - new Date(b.date).getTime()))
+                                    .map((b: any) => {
+                                        const lessonTs = new Date(`${b.date}T${b.time || '00:00'}:00`).getTime()
+                                        const nowTs = Date.now()
+                                        const isNotikusi = b.status === 'accepted' && !isNaN(lessonTs) && lessonTs < nowTs
+                                        const statusLv = isNotikusi ? 'Notikusi' : 'Atcelts'
+                                        return ({
+                                            Datums: new Date(b.date).toLocaleDateString('lv-LV'),
+                                            Laiks: b.time || '',
+                                            Pasniedzējs: b.teacherName || '',
+                                            Skolēns: b.studentName || b.userName || '',
+                                            Statuss: statusLv,
+                                            Apmaksāts: b.paid === true ? 'Jā' : 'Nē',
+                                            Apmeklēts: b.attended === true ? 'Jā' : 'Nē',
+                                            'Grupu/Individuāli': b.lessonType === 'group' ? 'Grupu' : 'Individuāli',
+                                            'Atlaižu kods': b.discountCode || '',
+                                            Veids: b.modality === 'zoom' ? 'Attālināti' : 'Klātienē',
+                                            Vieta: b.location === 'teacher' ? 'Privāti' : 'Uz vietas'
+                                        })
+                                    })
 								const ws = XLSX.utils.json_to_sheet(rows)
 								const wb = XLSX.utils.book_new()
 								XLSX.utils.book_append_sheet(wb, ws, 'Statistika')
