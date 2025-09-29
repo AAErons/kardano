@@ -489,13 +489,8 @@ const CalendarSection = () => {
                   }
                   const availableSlots = slots.filter(slot => slot.available && !isSlotPast(slot))
 										
-										// Apply filters
-										const filteredSlots = availableSlots.filter(slot => {
-											if (filters.lessonType !== 'all' && slot.lessonType !== filters.lessonType) return false
-											if (filters.location !== 'all' && slot.location !== filters.location) return false
-											if (filters.modality !== 'all' && slot.modality !== filters.modality) return false
-											return true
-										})
+										// Apply filters (including teacher filter)
+										const filteredSlots = availableSlots.filter(slot => matchesFilters(slot))
 										
 										if (filteredSlots.length === 0) {
 											return (
