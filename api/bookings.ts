@@ -241,10 +241,15 @@ export default async function handler(req: any, res: any) {
             await timeSlots.updateMany({ teacherId: teacherIdEffective, date, time }, { $set: { available: false, updatedAt: new Date() } })
             await bookings.updateMany({ _id: { $ne: _id }, teacherId: teacherIdEffective, date, time, status: { $in: ['pending'] } }, { $set: { status: 'pending_unavailable', updatedAt: new Date() } })
             try {
+              let teacherName: string | null = null
+              try {
+                const t = await users.findOne({ _id: new (await import('mongodb')).ObjectId(String(teacherIdEffective)) })
+                if (t) teacherName = (t.firstName && t.lastName) ? `${t.firstName} ${t.lastName}` : (t.email || null)
+              } catch {}
               await notifications.insertOne({
                 type: 'group_full',
                 title: 'Grupu nodarbība pilna',
-                message: `Grupu nodarbība ${date} ${time} ir pilna (kapacitāte: ${groupSize}).`,
+                message: `Grupu nodarbība ${date} ${time} ir pilna (kapacitāte: ${groupSize}).${teacherName ? `\nPasniedzējs: ${teacherName}` : ''}`,
                 recipientRole: 'admin',
                 unread: true,
                 related: { date, time, teacherId: teacherIdEffective },
@@ -326,10 +331,15 @@ export default async function handler(req: any, res: any) {
             await timeSlots.updateMany({ teacherId: teacherIdEffective, date, time }, { $set: { available: false, updatedAt: new Date() } })
             await bookings.updateMany({ _id: { $ne: _id }, teacherId: teacherIdEffective, date, time, status: { $in: ['pending'] } }, { $set: { status: 'pending_unavailable', updatedAt: new Date() } })
             try {
+              let teacherName: string | null = null
+              try {
+                const t = await users.findOne({ _id: new (await import('mongodb')).ObjectId(String(teacherIdEffective)) })
+                if (t) teacherName = (t.firstName && t.lastName) ? `${t.firstName} ${t.lastName}` : (t.email || null)
+              } catch {}
               await notifications.insertOne({
                 type: 'group_full',
                 title: 'Grupu nodarbība pilna',
-                message: `Grupu nodarbība ${date} ${time} ir pilna (kapacitāte: ${groupSize}).`,
+                message: `Grupu nodarbība ${date} ${time} ir pilna (kapacitāte: ${groupSize}).${teacherName ? `\nPasniedzējs: ${teacherName}` : ''}`,
                 recipientRole: 'admin',
                 unread: true,
                 related: { date, time, teacherId: teacherIdEffective },
@@ -530,13 +540,18 @@ export default async function handler(req: any, res: any) {
           if (lessonType === 'group' && groupSize2 > 1) {
             const acceptedCount = await bookings.countDocuments({ teacherId: teacherIdEffective2, date: b.date, time: b.time, status: 'accepted' })
             if (acceptedCount >= groupSize2) {
-              await timeSlots.updateMany({ teacherId: teacherIdEffective2, date: b.date, time: b.time }, { $set: { available: false, updatedAt: new Date() } })
+            await timeSlots.updateMany({ teacherId: teacherIdEffective2, date: b.date, time: b.time }, { $set: { available: false, updatedAt: new Date() } })
               await bookings.updateMany({ _id: { $ne: _idEach }, teacherId: teacherIdEffective2, date: b.date, time: b.time, status: { $in: ['pending'] } }, { $set: { status: 'pending_unavailable', updatedAt: new Date() } })
               try {
+                let teacherName: string | null = null
+                try {
+                  const t = await users.findOne({ _id: new (await import('mongodb')).ObjectId(String(teacherIdEffective2)) })
+                  if (t) teacherName = (t.firstName && t.lastName) ? `${t.firstName} ${t.lastName}` : (t.email || null)
+                } catch {}
                 await notifications.insertOne({
                   type: 'group_full',
                   title: 'Grupu nodarbība pilna',
-                  message: `Grupu nodarbība ${b.date} ${b.time} ir pilna (kapacitāte: ${groupSize2}).`,
+                  message: `Grupu nodarbība ${b.date} ${b.time} ir pilna (kapacitāte: ${groupSize2}).${teacherName ? `\nPasniedzējs: ${teacherName}` : ''}`,
                   recipientRole: 'admin',
                   unread: true,
                   related: { date: b.date, time: b.time, teacherId: teacherIdEffective2 },

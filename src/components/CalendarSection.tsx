@@ -15,7 +15,7 @@ interface TimeSlot {
 	modality?: 'in_person' | 'zoom'
 }
 
-const CalendarSection = () => {
+const CalendarSection = ({ initialTeacherId }: { initialTeacherId?: string }) => {
 	const [selectedDate, setSelectedDate] = useState(new Date())
 	const [selectedDay, setSelectedDay] = useState<number | null>(null)
 	const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
@@ -24,8 +24,10 @@ const CalendarSection = () => {
 	const [userRole, setUserRole] = useState<string | null>(null)
 	const [userId, setUserId] = useState<string | null>(null)
 	const [userBookings, setUserBookings] = useState<any[]>([])
+	const [userAccountType, setUserAccountType] = useState<string | null>(null)
+	const [parentChildren, setParentChildren] = useState<any[]>([])
 	const [showMonthPicker, setShowMonthPicker] = useState(false)
-	const [selectedTeacherId, setSelectedTeacherId] = useState<string>('')
+	const [selectedTeacherId, setSelectedTeacherId] = useState<string>(initialTeacherId || '')
 	
 	// Filter states
 	const [filters, setFilters] = useState({
@@ -117,6 +119,41 @@ const CalendarSection = () => {
 		loadUserBookings()
 	}, [userRole, userId])
 
+	// Load user account type and children (for parent accounts) early
+	useEffect(() => {
+		const loadUserProfile = async () => {
+			if (!userId) return
+			try {
+				const r = await fetch(`/api/user-info?userId=${encodeURIComponent(userId)}`)
+				if (r.ok) {
+					const d = await r.json().catch(() => null)
+					if (d && d.success && d.user) {
+						setUserAccountType(String(d.user.accountType || 'self'))
+					}
+				}
+			} catch {}
+		}
+		loadUserProfile()
+	}, [userId])
+
+	// Prefetch parent's children list for availability logic
+	useEffect(() => {
+		const loadChildren = async () => {
+			if (!userId || userAccountType !== 'children') return
+			try {
+				const r = await fetch(`/api/students?userId=${encodeURIComponent(userId)}`)
+				if (r.ok) {
+					const d = await r.json().catch(() => null)
+					if (d && d.success && Array.isArray(d.students)) {
+						const onlyChildren = d.students.filter((s: any) => s && s.isSelf !== true)
+						setParentChildren(onlyChildren)
+					}
+				}
+			} catch {}
+		}
+		loadChildren()
+	}, [userId, userAccountType])
+
 	const getDaysInMonth = (date: Date) => {
 		const year = date.getFullYear()
 		const month = date.getMonth()
@@ -188,6 +225,7 @@ const CalendarSection = () => {
 	const [bookingSuccess, setBookingSuccess] = useState<string | null>(null)
 	const [modalChildrenLoading, setModalChildrenLoading] = useState<boolean>(false)
 	const [justBookedKeys, setJustBookedKeys] = useState<Record<string, boolean>>({})
+	const [justBookedChildKeys, setJustBookedChildKeys] = useState<Record<string, boolean>>({})
 
 	const slotKey = (slot: TimeSlot) => `${slot.teacherId}|${slot.date}|${slot.time}`
 	const userHasBookingFor = (slot: TimeSlot) => {
@@ -198,6 +236,18 @@ const CalendarSection = () => {
 			&& String(b.teacherId) === String(slot.teacherId)
 			&& String(b.date) === String(slot.date)
 			&& String(b.time) === String(slot.time)
+			&& (b.status === 'pending' || b.status === 'pending_unavailable' || b.status === 'accepted'))
+	}
+	const userHasBookingForChild = (slot: TimeSlot, childId?: string) => {
+		if (!userId) return false
+		if (!childId) return false
+		const ck = `${slot.teacherId}|${slot.date}|${slot.time}|${childId}`
+		if (justBookedChildKeys[ck]) return true
+		return userBookings.some(b => String(b.userId) === String(userId)
+			&& String(b.teacherId) === String(slot.teacherId)
+			&& String(b.date) === String(slot.date)
+			&& String(b.time) === String(slot.time)
+			&& String(b.studentId || '') === String(childId)
 			&& (b.status === 'pending' || b.status === 'pending_unavailable' || b.status === 'accepted'))
 	}
 
@@ -255,7 +305,14 @@ const CalendarSection = () => {
 					{!userRole && (
 						<div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg max-w-2xl mx-auto">
 							<p className="text-yellow-800 font-medium">
-								Reģistrējieties, lai rezervētu stundas un sekotu saviem pierakstiem!
+								<button
+									onClick={() => { window.location.href = '/?open=register' }}
+									className="underline hover:text-yellow-900"
+									aria-label="Atvērt reģistrācijas formu"
+								>
+									Reģistrējieties
+								</button>
+								, lai rezervētu stundas un sekotu saviem pierakstiem!
 							</p>
 						</div>
 					)}
@@ -535,12 +592,27 @@ const CalendarSection = () => {
 																		{slot.time}
 																	</div>
 																</div>
-																<div className="ml-4">
-									{userRole === 'admin' || userRole === 'worker' ? (
+								<div className="ml-4">
+								{userRole === 'admin' || userRole === 'worker' ? (
 																		<div className="text-sm text-gray-500 italic">
 																			Pasniedzēja laiks
 																		</div>
-									) : userRole === 'user' ? (
+								) : userRole === 'user' ? (
+									(userAccountType === 'children') ? (
+										(() => {
+											const allBooked = (parentChildren || []).length > 0 && (parentChildren || []).every((c: any) => userHasBookingForChild(slot, String(c.id || c._id)))
+											return allBooked ? (
+												<div className="text-sm text-gray-700">Rezervācijas pieprasījums nosūtīts</div>
+											) : (
+												<button 
+													onClick={() => setBookingSlot(slot)}
+													className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg transition-colors"
+												>
+													Rezervēt
+												</button>
+											)
+										})()
+									) : (
 										userHasBookingFor(slot) ? (
 											<div className="text-sm text-gray-700">Rezervācijas pieprasījums nosūtīts</div>
 										) : (
@@ -551,7 +623,8 @@ const CalendarSection = () => {
 												Rezervēt
 											</button>
 										)
-																	) : (
+									)
+								) : (
 																		<div className="flex flex-col gap-2">
 																			<div className="text-sm text-gray-500 italic">
 																				Reģistrācija nepieciešama rezervācijai
@@ -613,7 +686,11 @@ const CalendarSection = () => {
 										if (!bookingSlot || !userId) return
 										if (userRole === 'user' && children.length > 0 && !selectedChildId) { setBookingError('Lūdzu izvēlieties bērnu pirms apstiprināšanas'); return }
 											// Prevent duplicate booking attempts for the same slot
-											if (userHasBookingFor(bookingSlot)) { setBookingError('Jau iesniegts rezervācijas pieprasījums šim laikam'); return }
+														if (userAccountType === 'children' && children.length > 0) {
+															if (userHasBookingForChild(bookingSlot, selectedChildId)) { setBookingError('Šim bērnam jau iesniegts pieprasījums šim laikam'); return }
+														} else {
+															if (userHasBookingFor(bookingSlot)) { setBookingError('Jau iesniegts rezervācijas pieprasījums šim laikam'); return }
+														}
 										setBookingLoading(true)
 										setBookingError(null)
 										try {
@@ -629,8 +706,21 @@ const CalendarSection = () => {
 												throw new Error(e.error || 'Neizdevās izveidot rezervāciju')
 											}
 											setBookingSuccess('Pieprasījums nosūtīts pasniedzējam apstiprināšanai')
-												// Mark as just booked to hide duplicate button immediately
-												setJustBookedKeys(prev => ({ ...prev, [slotKey(bookingSlot)]: true }))
+																// Mark as just booked to hide duplicate button immediately
+																setJustBookedKeys(prev => ({ ...prev, [slotKey(bookingSlot)]: true }))
+																if (selectedChildId) {
+																	const ckey = `${bookingSlot.teacherId}|${bookingSlot.date}|${bookingSlot.time}|${selectedChildId}`
+																	setJustBookedChildKeys(prev => ({ ...prev, [ckey]: true }))
+																}
+																// Update local userBookings so future checks block duplicates
+																setUserBookings(prev => ([...prev, {
+																	userId,
+																	teacherId: String(bookingSlot.teacherId),
+																	date: bookingSlot.date,
+																	time: bookingSlot.time,
+																	studentId: selectedChildId || null,
+																	status: 'pending'
+																}]))
 											setTimeout(() => { setBookingSlot(null); setBookingSuccess(null) }, 1200)
 										} catch (e: any) {
 											setBookingError(e?.message || 'Kļūda')

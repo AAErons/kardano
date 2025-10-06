@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 const AdminProfile = () => {
-	const [tab, setTab] = useState<'calendar' | 'teachers' | 'students' | 'notifications' | 'users' | 'data'>('calendar')
+	const [tab, setTab] = useState<'calendar' | 'teachers' | 'students' | 'notifications' | 'users' | 'data' | 'reviews'>('calendar')
 	const [unreadCount, setUnreadCount] = useState(0)
 
 	useEffect(() => {
@@ -43,6 +43,7 @@ const AdminProfile = () => {
 					</button>
 				<button onClick={() => setTab('users')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'users' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Lietotāji</button>
 					<button onClick={() => setTab('data')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'data' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Dati</button>
+					<button onClick={() => setTab('reviews')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'reviews' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Atsauksmes</button>
 				</div>
 			</div>
 			{tab === 'calendar' && <AdminCalendar />}
@@ -51,6 +52,7 @@ const AdminProfile = () => {
 			{tab === 'notifications' && <AdminNotifications onCountChange={setUnreadCount} />}
 			{tab === 'users' && <AdminUsers />}
 			{tab === 'data' && <AdminData />}
+			{tab === 'reviews' && <AdminReviews />}
 		</div>
 	)
 }
@@ -303,13 +305,15 @@ const AdminStudents = () => {
 }
 
 const AdminTeachers = () => {
-	const [items, setItems] = useState<Array<{ id: string; name: string; username: string; description: string; active: boolean }>>([])
+    const [items, setItems] = useState<Array<{ id: string; name: string; username: string; description: string; active: boolean; firstName?: string; lastName?: string; email?: string; phone?: string; photo?: string | null }>>([])
 	const [form, setForm] = useState<{ email: string }>({ email: '' })
 	const [creating, setCreating] = useState(false)
 	const [created, setCreated] = useState<{ email: string; tempPassword: string; loginUrl: string } | null>(null)
 	const [openId, setOpenId] = useState<string | null>(null)
 	const [profiles, setProfiles] = useState<Record<string, any>>({})
 	const [loadingProfileId, setLoadingProfileId] = useState<string | null>(null)
+    const [editing, setEditing] = useState<Record<string, boolean>>({})
+    const [editForm, setEditForm] = useState<Record<string, { firstName: string; lastName: string; email: string; phone: string; description: string; photo: string }>>({})
 
 	useEffect(() => {
 		try {
@@ -381,12 +385,12 @@ const AdminTeachers = () => {
 					<div className="text-gray-500">Nav pasniedzēju</div>
 				) : (
 					<div className="space-y-3">
-						{items.map(t => (
+                        {items.map(t => (
 							<div key={t.id} className="border border-gray-200 rounded-xl">
 								<div className="p-4">
-									<div className="font-semibold text-black">{t.name} <span className="text-gray-500">({t.username})</span></div>
+                                    <div className="font-semibold text-black">{t.name} <span className="text-gray-500">({t.username})</span></div>
 									<div className="text-sm text-gray-700">{t.active ? 'Aktīvs' : 'Neaktīvs'}</div>
-									{t.description && <div className="text-sm text-gray-600 mt-1">{t.description}</div>}
+                                    {t.description && <div className="text-sm text-gray-600 mt-1">{t.description}</div>}
 									<div className="mt-2 flex items-center gap-3">
 										<label className="inline-flex items-center gap-2 text-sm">
 											<input type="checkbox" checked={t.active} onChange={async (e) => {
@@ -405,6 +409,24 @@ const AdminTeachers = () => {
 											const d = await r.json().catch(() => ({}))
 											if (d && d.tempPassword) { try { await navigator.clipboard.writeText(d.tempPassword) } catch {}; alert('Jaunā pagaidu parole ir nokopēta starpliktuvē') }
 										}}>Atjaunot paroli</button>
+                                        <button className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" onClick={() => {
+                                            const isOpen = editing[t.id]
+                                            setEditing(prev => ({ ...prev, [t.id]: !isOpen }))
+                                            if (!isOpen) {
+                                                const p = profiles[t.id]
+                                                setEditForm(prev => ({
+                                                    ...prev,
+                                                    [t.id]: {
+                                                        firstName: (t.firstName || p?.firstName || '').trim(),
+                                                        lastName: (t.lastName || p?.lastName || '').trim(),
+                                                        email: (t.email || '').trim(),
+                                                        phone: (t.phone || '').trim(),
+                                                        description: (p?.description || t.description || '').trim(),
+                                                        photo: (p?.photo || t.photo || '') || ''
+                                                    }
+                                                }))
+                                            }
+                                        }}>{editing[t.id] ? 'Aizvērt rediģēšanu' : 'Rediģēt'}</button>
 										<button className="text-sm border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50" onClick={async () => {
 											if (openId === t.id) { setOpenId(null); return }
 											setOpenId(t.id)
@@ -420,6 +442,74 @@ const AdminTeachers = () => {
 										}}>{openId === t.id ? 'Aizvērt profilu' : 'Skatīt profilu'}</button>
 									</div>
 								</div>
+                                {editing[t.id] && (
+                                    <div className="border-t border-gray-200 p-4 bg-yellow-50">
+                                        {(() => {
+                                            const ef = editForm[t.id] || { firstName: '', lastName: '', email: '', phone: '', description: '', photo: '' }
+                                            const setEf = (patch: Partial<typeof ef>) => setEditForm(prev => ({ ...prev, [t.id]: { ...ef, ...patch } }))
+                                            return (
+                                                <div className="space-y-3">
+                                                    <div className="flex items-start gap-4">
+                                                        {ef.photo ? <img src={ef.photo} alt="Foto" className="w-16 h-16 rounded-full object-cover border-2 border-yellow-200" /> : <div className="w-16 h-16 rounded-full bg-gray-200" />}
+                                                        <div className="flex-1 grid md:grid-cols-2 gap-2">
+                                                            <div>
+                                                                <label className="block text-xs text-gray-700 mb-1">Vārds</label>
+                                                                <input value={ef.firstName} onChange={e => setEf({ firstName: e.target.value })} className="w-full p-2 border border-gray-300 rounded-lg text-sm" />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-xs text-gray-700 mb-1">Uzvārds</label>
+                                                                <input value={ef.lastName} onChange={e => setEf({ lastName: e.target.value })} className="w-full p-2 border border-gray-300 rounded-lg text-sm" />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-xs text-gray-700 mb-1">E-pasts</label>
+                                                                <input value={ef.email} onChange={e => setEf({ email: e.target.value })} className="w-full p-2 border border-gray-300 rounded-lg text-sm" />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-xs text-gray-700 mb-1">Tālrunis</label>
+                                                                <input value={ef.phone} onChange={e => setEf({ phone: e.target.value })} className="w-full p-2 border border-gray-300 rounded-lg text-sm" />
+                                                            </div>
+                                                            <div className="md:col-span-2">
+                                                                <label className="block text-xs text-gray-700 mb-1">Apraksts</label>
+                                                                <textarea rows={3} value={ef.description} onChange={e => setEf({ description: e.target.value })} className="w-full p-2 border border-gray-300 rounded-lg text-sm" />
+                                                            </div>
+                                                            <div className="md:col-span-2">
+                                                                <label className="block text-xs text-gray-700 mb-1">Profila bilde (URL vai ielādēt)</label>
+                                                                <div className="flex items-center gap-2">
+                                                                    <input value={ef.photo} onChange={e => setEf({ photo: e.target.value })} className="flex-1 p-2 border border-gray-300 rounded-lg text-sm" placeholder="https://... vai data:image/jpeg;base64,..." />
+                                                                    <input type="file" accept="image/*" onChange={async (e) => {
+                                                                        const f = e.target.files?.[0]
+                                                                        if (!f) return
+                                                                        const reader = new FileReader()
+                                                                        reader.onload = () => { setEf({ photo: String(reader.result || '') }) }
+                                                                        reader.readAsDataURL(f)
+                                                                    }} className="text-sm" />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 justify-end">
+                                                        <button className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50" onClick={() => setEditing(prev => ({ ...prev, [t.id]: false }))}>Atcelt</button>
+                                                        <button className="text-sm bg-yellow-400 hover:bg-yellow-500 text-black rounded-md px-3 py-1" onClick={async () => {
+                                                            const ef2 = editForm[t.id]
+                                                            if (!ef2) return
+                                                            // Save core fields to users via /api/teachers PATCH
+                                                            await fetch('/api/teachers', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id, firstName: ef2.firstName, lastName: ef2.lastName, email: ef2.email, phone: ef2.phone }) })
+                                                            // Save profile fields to teacher-profile
+                                                            await fetch('/api/teacher-profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: t.id, photo: ef2.photo, description: ef2.description, firstName: ef2.firstName, lastName: ef2.lastName }) })
+                                                            // Refresh list
+                                                            const list = await fetch('/api/teachers').then(x => x.json()).catch(() => null)
+                                                            if (list && Array.isArray(list.items)) {
+                                                                setItems(list.items)
+                                                                try { localStorage.setItem('cache_admin_teachers_v1', JSON.stringify({ items: list.items, ts: Date.now() })) } catch {}
+                                                            }
+                                                            setEditing(prev => ({ ...prev, [t.id]: false }))
+                                                        }}>Saglabāt</button>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })()}
+                                    </div>
+                                )}
 								{openId === t.id && (
 									<div className="border-t border-gray-200 p-4 bg-gray-50">
 										{loadingProfileId === t.id ? (
@@ -756,6 +846,112 @@ export default AdminProfile
 
 
 
+const AdminReviews = () => {
+    const [items, setItems] = useState<any[]>([])
+    const [loading, setLoading] = useState(false)
+    const load = async () => {
+        setLoading(true)
+        try {
+            const r = await fetch('/api/reviews?role=admin')
+            if (r.ok) {
+                const d = await r.json().catch(() => null)
+                if (d && Array.isArray(d.items)) setItems(d.items)
+            }
+        } finally { setLoading(false) }
+    }
+    useEffect(() => { load() }, [])
+
+    const approve = async (id: string) => {
+        await fetch('/api/reviews', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, action: 'approve' }) })
+        load()
+    }
+    const deny = async (id: string) => {
+        await fetch('/api/reviews', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, action: 'deny' }) })
+        load()
+    }
+
+    const pending = items.filter(x => x.status === 'pending')
+    const approved = items.filter(x => x.status === 'approved')
+    const denied = items.filter(x => x.status === 'denied')
+
+    return (
+        <div className="bg-white rounded-2xl shadow-xl p-6">
+            <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-black">Atsauksmes</h2>
+                <button onClick={load} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Atjaunot</button>
+            </div>
+            {loading ? (
+                <div className="text-gray-600">Ielādē...</div>
+            ) : (
+                <div className="space-y-6">
+                    <div>
+                        <div className="text-lg font-semibold text-black mb-2">Gaida apstiprinājumu</div>
+                        {pending.length === 0 ? (
+                            <div className="text-sm text-gray-600">Nav</div>
+                        ) : (
+                            <div className="space-y-2">
+                                {pending.map(r => (
+                                    <div key={String(r._id)} className="border border-gray-200 rounded-lg p-3">
+                                        <div className="flex items-start justify-between">
+                                            <div className="text-sm text-gray-800">
+                                                <div className="font-medium">{r.userName || 'Lietotājs'} → {r.teacherName || 'Pasniedzējs'}</div>
+                                                {r.lesson && (
+                                                    <div className="text-xs text-gray-600">{new Date(r.lesson.date).toLocaleDateString('lv-LV')} {r.lesson.time}</div>
+                                                )}
+                                                <div className="text-xs text-gray-700 mt-1">Vērtējums: {r.rating} / 5</div>
+                                                {r.comment && <div className="text-xs text-gray-700 whitespace-pre-line mt-1">{r.comment}</div>}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={() => approve(String(r._id))} className="text-sm bg-green-500 hover:bg-green-600 text-white rounded-md px-3 py-1">Apstiprināt</button>
+                                                <button onClick={() => deny(String(r._id))} className="text-sm bg-red-500 hover:bg-red-600 text-white rounded-md px-3 py-1">Noraidīt</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <div>
+                        <div className="text-lg font-semibold text-black mb-2">Apstiprinātās</div>
+                        {approved.length === 0 ? (
+                            <div className="text-sm text-gray-600">Nav</div>
+                        ) : (
+                            <div className="space-y-2">
+                                {approved.map(r => (
+                                    <div key={String(r._id)} className="border border-gray-200 rounded-lg p-3 bg-green-50">
+                                        <div className="text-sm text-gray-800">
+                                            <div className="font-medium">{r.userName || 'Lietotājs'} → {r.teacherName || 'Pasniedzējs'}</div>
+                                            <div className="text-xs text-gray-700">Vērtējums: {r.rating} / 5</div>
+                                            {r.comment && <div className="text-xs text-gray-700 whitespace-pre-line mt-1">{r.comment}</div>}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <div>
+                        <div className="text-lg font-semibold text-black mb-2">Noraidītās</div>
+                        {denied.length === 0 ? (
+                            <div className="text-sm text-gray-600">Nav</div>
+                        ) : (
+                            <div className="space-y-2">
+                                {denied.map(r => (
+                                    <div key={String(r._id)} className="border border-gray-200 rounded-lg p-3 bg-red-50">
+                                        <div className="text-sm text-gray-800">
+                                            <div className="font-medium">{r.userName || 'Lietotājs'} → {r.teacherName || 'Pasniedzējs'}</div>
+                                            <div className="text-xs text-gray-700">Vērtējums: {r.rating} / 5</div>
+                                            {r.comment && <div className="text-xs text-gray-700 whitespace-pre-line mt-1">{r.comment}</div>}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
 const AdminUsers = () => {
     const [items, setItems] = useState<Array<{ id: string; firstName: string; lastName: string; email: string; phone?: string; accountType: string; studentCount: number; createdAt: string }>>([])
     const [loading, setLoading] = useState(true)
@@ -963,76 +1159,90 @@ const AdminCalendar = () => {
 							</div>
 						</div>
 						<div>
-							<button onClick={async () => {
-								try {
-									const XLSX: any = await import('xlsx')
-									let from: Date
-									let to: Date
-									if (exportFrom && exportTo) {
-										from = new Date(exportFrom)
-										to = new Date(exportTo)
-										to.setHours(23,59,59,999)
-									} else {
-										const year = selectedDate.getFullYear()
-										const month = selectedDate.getMonth()
-										from = new Date(year, month, 1)
-										to = new Date(year, month + 1, 0)
-										to.setHours(23,59,59,999)
+						<button onClick={async () => {
+							try {
+								const XLSX: any = await import('xlsx')
+								let from: Date
+								let to: Date
+								if (exportFrom && exportTo) {
+									from = new Date(exportFrom)
+									to = new Date(exportTo)
+									to.setHours(23,59,59,999)
+								} else {
+									const year = selectedDate.getFullYear()
+									const month = selectedDate.getMonth()
+									from = new Date(year, month, 1)
+									to = new Date(year, month + 1, 0)
+									to.setHours(23,59,59,999)
+								}
+								const inRange = (dStr: string) => {
+									try {
+										const d = new Date(dStr)
+										if (isNaN(d.getTime())) return false
+										return d >= from && d <= to
+									} catch { return false }
+								}
+								const toTs = (date: string, time?: string) => new Date(`${date}T${time || '00:00'}:00`).getTime()
+								// Build earliest accepted booking per child (any teacher)
+								const earliestByStudent: Record<string, number> = {}
+								for (const b of bookings as any[]) {
+									if (b.status !== 'accepted') continue
+									const sid = String(b.studentId || b.userId || '')
+									if (!sid) continue
+									const ts = toTs(b.date, b.time)
+									if (!earliestByStudent[sid] || ts < earliestByStudent[sid]) earliestByStudent[sid] = ts
+								}
+								const agg: Record<string, { childName: string; groupHad: number; individualHad: number; groupLateCancels: number; individualLateCancels: number }> = {}
+								for (const b of bookings as any[]) {
+									if (!inRange(b.date)) continue
+									const studentId = String(b.studentId || b.userId || '')
+									if (!studentId) continue
+									if (childFilter && studentId !== childFilter) continue
+									const isGroup = b.lessonType === 'group'
+									const lessonTs = toTs(b.date, b.time)
+									agg[studentId] ||= { childName: b.studentName || b.userName || '—', groupHad: 0, individualHad: 0, groupLateCancels: 0, individualLateCancels: 0 }
+									// Teacher late cancellations
+									if (b.status === 'cancelled' && b.cancelledBy === 'teacher') {
+										const updatedAtTs = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
+										const dayStart = new Date(b.date); dayStart.setHours(0,0,0,0)
+										const isLateTeacherCancel = updatedAtTs >= dayStart.getTime()
+										if (isLateTeacherCancel) {
+											if (isGroup) agg[studentId].groupLateCancels++
+											else agg[studentId].individualLateCancels++
+										}
+										continue
 									}
-									const inRange = (dStr: string) => {
-										try {
-											const d = new Date(dStr)
-											if (isNaN(d.getTime())) return false
-											return d >= from && d <= to
-										} catch { return false }
+									// Count lessons had: accepted and occurred
+									if (b.status === 'accepted' && !isNaN(lessonTs) && lessonTs < Date.now()) {
+										const isFirstEver = earliestByStudent[studentId] === lessonTs
+										if (isFirstEver && b.attended !== true) continue
+										if (isGroup) agg[studentId].groupHad++
+										else agg[studentId].individualHad++
 									}
-									const rows = bookings
-										.filter((b: any) => {
-											if (!inRange(b.date)) return false
-											if (childFilter && String(b.studentId || b.userId || '') !== childFilter) return false
-											const lessonTs = new Date(`${b.date}T${b.time || '00:00'}:00`).getTime()
-											const nowTs = Date.now()
-											const isNotikusi = b.status === 'accepted' && !isNaN(lessonTs) && lessonTs < nowTs
-											const updatedAtTs = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
-											const dayStart = new Date(b.date)
-											dayStart.setHours(0,0,0,0)
-											const isLateUserCancel = b.status === 'cancelled' && b.cancelledBy === 'user' && updatedAtTs >= dayStart.getTime()
-											return isNotikusi || isLateUserCancel
-										})
-										.sort((a: any, b: any) => (a.date === b.date ? String(a.time).localeCompare(String(b.time)) : new Date(a.date).getTime() - new Date(b.date).getTime()))
-										.map((b: any) => {
-											const lessonTs = new Date(`${b.date}T${b.time || '00:00'}:00`).getTime()
-											const nowTs = Date.now()
-											const isNotikusi = b.status === 'accepted' && !isNaN(lessonTs) && lessonTs < nowTs
-											const statusLv = isNotikusi ? 'Notikusi' : 'Atcelts'
-											return ({
-												Datums: new Date(b.date).toLocaleDateString('lv-LV'),
-												Laiks: b.time || '',
-												Pasniedzējs: b.teacherName || '',
-												Skolēns: b.studentName || b.userName || '',
-												Statuss: statusLv,
-												Apmaksāts: b.paid === true ? 'Jā' : 'Nē',
-												Apmeklēts: b.attended === true ? 'Jā' : 'Nē',
-												'Grupu/Individuāli': b.lessonType === 'group' ? 'Grupu' : 'Individuāli',
-												'Atlaižu kods': b.discountCode || '',
-												Veids: b.modality === 'zoom' ? 'Attālināti' : 'Klātienē',
-												Vieta: b.location === 'teacher' ? 'Privāti' : 'Uz vietas'
-											})
-										})
-									const ws = XLSX.utils.json_to_sheet(rows)
-									const wb = XLSX.utils.book_new()
-									XLSX.utils.book_append_sheet(wb, ws, 'Statistika')
-									const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-									const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-									const a = document.createElement('a')
-									const url = URL.createObjectURL(blob)
-									a.href = url
-									const title = exportFrom && exportTo ? `${exportFrom}_lidz_${exportTo}` : selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })
-									a.download = `statistika-berni-${title}.xlsx`
-									a.click()
-									setTimeout(() => URL.revokeObjectURL(url), 1500)
-								} catch (e) { alert('Neizdevās eksportēt XLSX') }
-							}} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Lejupielādēt statistiku</button>
+								}
+								const rows = Object.entries(agg)
+									.sort((a, b) => a[1].childName.localeCompare(b[1].childName))
+									.map(([_, v]) => ({
+										Skolēns: v.childName,
+										'Individuālās nodarbības': v.individualHad,
+										'Grupu nodarbības': v.groupHad,
+										'Atceltas (vēlu) individuālās': v.individualLateCancels,
+										'Atceltas (vēlu) grupu': v.groupLateCancels,
+									}))
+								const ws = XLSX.utils.json_to_sheet(rows)
+								const wb = XLSX.utils.book_new()
+								XLSX.utils.book_append_sheet(wb, ws, 'Bērni')
+								const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+								const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+								const a = document.createElement('a')
+								const url = URL.createObjectURL(blob)
+								a.href = url
+								const title = exportFrom && exportTo ? `${exportFrom}_lidz_${exportTo}` : selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })
+								a.download = `statistika-berni-${title}.xlsx`
+								a.click()
+								setTimeout(() => URL.revokeObjectURL(url), 1500)
+							} catch (e) { alert('Neizdevās eksportēt XLSX') }
+						}} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Lejupielādēt statistiku</button>
 						</div>
 					</div>
 				</div>
@@ -1152,7 +1362,7 @@ const AdminCalendar = () => {
 						</div>
 					</div>
 					<div>
-						<button onClick={async () => {
+					<button onClick={async () => {
 							try {
 								const XLSX: any = await import('xlsx')
 								let from: Date
@@ -1175,53 +1385,71 @@ const AdminCalendar = () => {
 										return d >= from && d <= to
 									} catch { return false }
 								}
-                                const rows = bookings
-                                    .filter((b: any) => {
-                                        if (!inRange(b.date)) return false
-                                        if (teacherFilter && String(b.teacherId) !== teacherFilter) return false
-                                        const lessonTs = new Date(`${b.date}T${b.time || '00:00'}:00`).getTime()
-                                        const nowTs = Date.now()
-                                        const isNotikusi = b.status === 'accepted' && !isNaN(lessonTs) && lessonTs < nowTs
-                                        const updatedAtTs = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
-                                        const dayStart = new Date(b.date)
-                                        dayStart.setHours(0,0,0,0)
-                                        const isLateUserCancel = b.status === 'cancelled' && b.cancelledBy === 'user' && updatedAtTs >= dayStart.getTime()
-                                        return isNotikusi || isLateUserCancel
-                                    })
-                                    .sort((a: any, b: any) => (a.date === b.date ? String(a.time).localeCompare(String(b.time)) : new Date(a.date).getTime() - new Date(b.date).getTime()))
-                                    .map((b: any) => {
-                                        const lessonTs = new Date(`${b.date}T${b.time || '00:00'}:00`).getTime()
-                                        const nowTs = Date.now()
-                                        const isNotikusi = b.status === 'accepted' && !isNaN(lessonTs) && lessonTs < nowTs
-                                        const statusLv = isNotikusi ? 'Notikusi' : 'Atcelts'
-                                        return ({
-                                            Datums: new Date(b.date).toLocaleDateString('lv-LV'),
-                                            Laiks: b.time || '',
-                                            Pasniedzējs: b.teacherName || '',
-                                            Skolēns: b.studentName || b.userName || '',
-                                            Statuss: statusLv,
-                                            Apmaksāts: b.paid === true ? 'Jā' : 'Nē',
-                                            Apmeklēts: b.attended === true ? 'Jā' : 'Nē',
-                                            'Grupu/Individuāli': b.lessonType === 'group' ? 'Grupu' : 'Individuāli',
-                                            'Atlaižu kods': b.discountCode || '',
-                                            Veids: b.modality === 'zoom' ? 'Attālināti' : 'Klātienē',
-                                            Vieta: b.location === 'teacher' ? 'Privāti' : 'Uz vietas'
-                                        })
-                                    })
-								const ws = XLSX.utils.json_to_sheet(rows)
-								const wb = XLSX.utils.book_new()
-								XLSX.utils.book_append_sheet(wb, ws, 'Statistika')
-								const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-								const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-								const a = document.createElement('a')
-								const url = URL.createObjectURL(blob)
-								a.href = url
-								const title = exportFrom && exportTo ? `${exportFrom}_lidz_${exportTo}` : selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })
-								a.download = `statistika-${title}.xlsx`
-								a.click()
-								setTimeout(() => URL.revokeObjectURL(url), 1500)
-							} catch (e) { alert('Neizdevās eksportēt XLSX') }
-						}} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Lejupielādēt statistiku</button>
+						const toTs = (date: string, time?: string) => new Date(`${date}T${time || '00:00'}:00`).getTime()
+						// Build earliest accepted booking per student (per teacher not needed here)
+						const earliestByStudent: Record<string, number> = {}
+						for (const b of bookings as any[]) {
+							if (b.status !== 'accepted') continue
+							const sid = String(b.studentId || b.userId || '')
+							if (!sid) continue
+							const ts = toTs(b.date, b.time)
+							if (!earliestByStudent[sid] || ts < earliestByStudent[sid]) earliestByStudent[sid] = ts
+						}
+						const nowTs = Date.now()
+						const agg: Record<string, { childName: string; groupHad: number; individualHad: number; groupLateCancels: number; individualLateCancels: number }> = {}
+						for (const b of bookings as any[]) {
+							if (!inRange(b.date)) continue
+							if (teacherFilter && String(b.teacherId) !== teacherFilter) continue
+							const studentId = String(b.studentId || b.userId || '')
+							if (!studentId) continue
+							if (childFilter && studentId !== childFilter) continue
+							const isGroup = b.lessonType === 'group'
+							const lessonTs = toTs(b.date, b.time)
+							agg[studentId] ||= { childName: b.studentName || b.userName || '—', groupHad: 0, individualHad: 0, groupLateCancels: 0, individualLateCancels: 0 }
+							// Teacher late cancellations
+							if (b.status === 'cancelled' && b.cancelledBy === 'teacher') {
+								const updatedAtTs = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
+								const dayStart = new Date(b.date); dayStart.setHours(0,0,0,0)
+								const isLateTeacherCancel = updatedAtTs >= dayStart.getTime()
+								if (isLateTeacherCancel) {
+									if (isGroup) agg[studentId].groupLateCancels++
+									else agg[studentId].individualLateCancels++
+								}
+								continue
+							}
+							// Count lessons had: accepted and occurred
+							if (b.status === 'accepted' && !isNaN(lessonTs) && lessonTs < nowTs) {
+								const isFirstEver = earliestByStudent[studentId] === lessonTs
+								if (isFirstEver && b.attended !== true) {
+									continue
+								}
+								if (isGroup) agg[studentId].groupHad++
+								else agg[studentId].individualHad++
+							}
+						}
+						const rows = Object.entries(agg)
+							.sort((a, b) => a[1].childName.localeCompare(b[1].childName))
+							.map(([_, v]) => ({
+								Skolēns: v.childName,
+								'Individuālās nodarbības': v.individualHad,
+								'Grupu nodarbības': v.groupHad,
+								'Atceltas (vēlu) individuālās': v.individualLateCancels,
+								'Atceltas (vēlu) grupu': v.groupLateCancels,
+							}))
+						const ws = XLSX.utils.json_to_sheet(rows)
+						const wb = XLSX.utils.book_new()
+						XLSX.utils.book_append_sheet(wb, ws, 'Bērni')
+						const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+						const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+						const a = document.createElement('a')
+						const url = URL.createObjectURL(blob)
+						a.href = url
+						const title = exportFrom && exportTo ? `${exportFrom}_lidz_${exportTo}` : selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })
+						a.download = `statistika-berni-${title}.xlsx`
+						a.click()
+						setTimeout(() => URL.revokeObjectURL(url), 1500)
+					} catch (e) { alert('Neizdevās eksportēt XLSX') }
+					}} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Lejupielādēt statistiku</button>
 					</div>
 				</div>
 			</div>

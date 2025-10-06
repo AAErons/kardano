@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 type UserProfileProps = { userId: string }
 
 const UserProfile = ({ userId }: UserProfileProps) => {
-	const [activeTab, setActiveTab] = useState<'children' | 'bookings' | 'collab'>('bookings')
+	const [activeTab, setActiveTab] = useState<'children' | 'bookings' | 'collab' | 'reviews'>('bookings')
 	const [userInfo, setUserInfo] = useState<any>(null)
 	const [children, setChildren] = useState<any[]>([])
 	const [bookings, setBookings] = useState<any[]>([])
@@ -24,6 +24,10 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 	// Filters for Reservations tab
 	const [bookingStatusFilter, setBookingStatusFilter] = useState<Record<string, boolean>>({})
 	const [userCancelForms, setUserCancelForms] = useState<Record<string, { open: boolean; text: string; submitting?: boolean }>>({})
+	// Reviews state
+	const [reviews, setReviews] = useState<any[]>([])
+	const [loadingReviews, setLoadingReviews] = useState(false)
+	const [reviewForm, setReviewForm] = useState<Record<string, { rating: number; comment: string; submitting?: boolean }>>({})
 
 	const loadUserInfo = async () => {
 		if (!userId) return
@@ -78,6 +82,19 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 		} catch {}
 	}
 
+	const loadReviews = async () => {
+		if (!userId) return
+		setLoadingReviews(true)
+		try {
+			const r = await fetch(`/api/reviews?role=user&userId=${encodeURIComponent(userId)}`)
+			if (r.ok) {
+				const d = await r.json().catch(() => null)
+				if (d && Array.isArray(d.items)) setReviews(d.items)
+			}
+		} catch {}
+		setLoadingReviews(false)
+	}
+
 	useEffect(() => { loadUserInfo() }, [userId])
 // Ensure children count loads early for parent accounts
 useEffect(() => {
@@ -97,7 +114,18 @@ useEffect(() => {
 			loadTimeSlots()
 			if (userInfo?.accountType === 'children') loadChildren()
 		}
+		if (activeTab === 'reviews') loadReviews()
 	}, [activeTab, userId])
+
+	// Default select first child for collaboration tab (no 'none' option)
+	useEffect(() => {
+		if (activeTab === 'collab' && userInfo?.accountType === 'children' && children.length > 0) {
+			if (!selectedChildIdCollab) {
+				const firstId = String(children[0].id || children[0]._id)
+				setSelectedChildIdCollab(firstId)
+			}
+		}
+	}, [activeTab, userInfo?.accountType, children, selectedChildIdCollab])
 
 	// Removed background polling; we refresh when tabs open and on demand via buttons
 	useEffect(() => {}, [userId, userInfo?.accountType, activeTab])
@@ -122,11 +150,11 @@ useEffect(() => {
 						<div className="text-sm text-gray-700">
 							{userInfo?.email || '—'}
 						</div>
-						{userInfo?.phone && (
-							<div className="text-sm text-gray-700">
-								{userInfo.phone}
-							</div>
-						)}
+					{userInfo?.phone && (
+						<div className="text-sm text-gray-700">
+							{userInfo.phone}
+						</div>
+					)}
                         {userInfo?.createdAt && (
 							<div className="text-sm text-gray-700">
 								<strong>Reģistrācijas datums:</strong> {new Date(userInfo.createdAt).toLocaleDateString('lv-LV')}
@@ -157,6 +185,9 @@ useEffect(() => {
 							</button>
 						) : null
 					})()}
+					<button onClick={() => setActiveTab('reviews')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'reviews' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>
+						Nodarbību vērtējumi
+					</button>
 				</div>
 			</div>
 
@@ -394,12 +425,101 @@ useEffect(() => {
 				</div>
 			)}
 
+			{activeTab === 'reviews' && (
+				<div className="bg-white rounded-2xl shadow p-6">
+					<h3 className="text-lg font-semibold text-black mb-4">Nodarbību vērtējumi</h3>
+					<div className="flex items-center justify-end mb-3">
+						<button onClick={() => loadReviews()} disabled={loadingReviews} className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50 disabled:opacity-60">{loadingReviews ? 'Ielādē...' : 'Atjaunot'}</button>
+					</div>
+					{loadingReviews ? (
+						<div className="text-center py-8 text-gray-500">Ielādē...</div>
+					) : reviews.length === 0 ? (
+						<div className="text-center py-8 text-gray-500">Nav pieprasījumu vai novērtējumu</div>
+					) : (
+						<div className="space-y-3">
+							{reviews.map((r: any) => {
+								const isApproved = r.status === 'approved'
+								const isPending = r.status === 'pending'
+								return (
+									<div key={String(r._id)} className="border border-gray-200 rounded-lg p-4">
+										<div className="flex items-center justify-between mb-2">
+											<div className="text-sm text-gray-700">
+												<strong>Pasniedzējs:</strong> {r.teacherName || '—'}
+												{r.lesson && (
+													<span className="ml-2 text-xs text-gray-600">({new Date(r.lesson.date).toLocaleDateString('lv-LV')} {r.lesson.time})</span>
+												)}
+											</div>
+									<span className={`px-2 py-0.5 text-xs rounded-full border ${isApproved ? 'bg-green-50 text-green-800 border-green-200' : isPending ? 'bg-yellow-50 text-yellow-800 border-yellow-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
+										{isApproved ? 'Apstiprināts' : isPending ? 'Gaida apstiprinājumu' : (r.status === 'denied' ? 'Noraidīts' : 'Pieprasīts')}
+											</span>
+										</div>
+								{isApproved ? (
+											<div className="text-sm text-gray-700">
+												<strong>Vērtējums:</strong> {r.rating} / 5
+												{r.comment && <div className="mt-1 whitespace-pre-line">{r.comment}</div>}
+											</div>
+								) : isPending ? (
+									<div className="text-sm text-gray-600">Atsauksme nosūtīta un gaida apstiprinājumu.</div>
+								) : (
+											<div className="text-sm">
+												<div className="flex items-center gap-2 mb-2">
+													<label className="text-xs text-gray-700">Vērtējums</label>
+													<select value={reviewForm[String(r._id)]?.rating ?? 5} onChange={e => {
+														const id = String(r._id)
+														setReviewForm(prev => ({ ...prev, [id]: { rating: Number(e.target.value), comment: prev[id]?.comment || '' } }))
+													}} className="p-1 border border-gray-300 rounded text-xs">
+														{[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
+													</select>
+												</div>
+												<textarea placeholder="Komentārs (neobligāti)" value={reviewForm[String(r._id)]?.comment || ''} onChange={e => {
+													const id = String(r._id)
+													setReviewForm(prev => ({ ...prev, [id]: { rating: prev[id]?.rating ?? 5, comment: e.target.value } }))
+												}} className="w-full p-2 border border-gray-300 rounded-lg text-sm" rows={2} />
+												<div className="mt-2 flex items-center gap-2">
+													<button disabled={reviewForm[String(r._id)]?.submitting} onClick={async () => {
+														const id = String(r._id)
+														const frm = reviewForm[id] || { rating: 5, comment: '' }
+														if (!(frm.rating >= 1 && frm.rating <= 5)) { alert('Nederīgs vērtējums'); return }
+														setReviewForm(prev => ({ ...prev, [id]: { ...frm, submitting: true } }))
+														try {
+															const resp = await fetch('/api/reviews', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, action: 'submit', rating: frm.rating, comment: frm.comment || '' }) })
+															if (!resp.ok) { const e = await resp.json().catch(() => ({})); alert(e.error || 'Neizdevās iesniegt'); setReviewForm(prev => ({ ...prev, [id]: { ...frm, submitting: false } })); return }
+															await loadReviews()
+														} finally {
+															setReviewForm(prev => ({ ...prev, [id]: { ...frm, submitting: false } }))
+														}
+													}} className="text-sm bg-yellow-400 hover:bg-yellow-500 text-black rounded-md px-3 py-1">Iesniegt vērtējumu</button>
+												</div>
+											</div>
+										)}
+									</div>
+								)
+							})}
+						</div>
+					)}
+				</div>
+			)}
+
 			{activeTab === 'collab' && (
 				<div className="bg-white rounded-2xl shadow p-6">
 					<h3 className="text-lg font-semibold text-black mb-4">Sadarbības</h3>
 					{(() => {
 						const collabIds = Array.from(new Set((bookings || []).filter(b => b.extendPreferred === true).map(b => String(b.teacherId))))
-						if (collabIds.length === 0) return <div className="text-gray-500">Nav ilgtermiņa sadarbību</div>
+						const collabChildByTeacher: Record<string, string> = {}
+						;(bookings || []).forEach(b => {
+							try {
+								if (b && b.extendPreferred === true && b.status === 'accepted' && (b.studentId || b.userId)) {
+									const tid = String(b.teacherId)
+									const sid = String(b.studentId || b.userId || '')
+									if (tid && sid && !collabChildByTeacher[tid]) collabChildByTeacher[tid] = sid
+								}
+							} catch {}
+						})
+						// Filter teachers by selected child for parent accounts
+						const filteredTeacherIds = (userInfo?.accountType === 'children')
+							? collabIds.filter(tid => collabChildByTeacher[tid] && String(collabChildByTeacher[tid]) === String(selectedChildIdCollab))
+							: collabIds
+						// Keep filters visible; if no teachers for selected child, show empty state below filters
 						const todayStr = new Date().toISOString().slice(0,10)
 						return (
 							<div className="space-y-6">
@@ -435,14 +555,15 @@ useEffect(() => {
 									<div>
 										<label className="block text-xs font-medium text-gray-700 mb-1">Bērns</label>
 										<select value={selectedChildIdCollab} onChange={e => setSelectedChildIdCollab(e.target.value)} className="w-full max-w-xs p-2 border border-gray-300 rounded-lg text-sm">
-											<option value="">—</option>
 											{children.map((c: any) => (
 												<option key={c.id || c._id} value={String(c.id || c._id)}>{c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim()}</option>
 											))}
 										</select>
 									</div>
 								)}
-                                {collabIds.map(tid => {
+								{filteredTeacherIds.length === 0 ? (
+									<div className="text-gray-500">Nav ilgtermiņa sadarbību</div>
+								) : filteredTeacherIds.map(tid => {
                                     const teacherSlots = (timeSlots || []).filter(s => {
 										if (String(s.teacherId) !== tid) return false
 										if (s.available === false) return false
@@ -475,10 +596,20 @@ useEffect(() => {
 									})
 									const sel = selectedCollab[tid] || {}
 									const toggleKey = (key: string) => setSelectedCollab(prev => ({ ...prev, [tid]: { ...(prev[tid] || {}), [key]: !(prev[tid]?.[key]) } }))
-									const reserve = async () => {
+										const reserve = async () => {
 										const selectedTimes = Object.entries(sel).filter(([,v]) => v).map(([k]) => k)
                                         if (selectedTimes.length === 0) return
-										if (userInfo?.accountType === 'children' && children.length > 0 && !selectedChildIdCollab) { setCollabMessage('Lūdzu izvēlieties bērnu'); return }
+											if (userInfo?.accountType === 'children' && children.length > 0 && !selectedChildIdCollab) { setCollabMessage('Lūdzu izvēlieties bērnu'); return }
+											// Enforce one-child-per-teacher long-term relationship
+											if (userInfo?.accountType === 'children') {
+												const assignedChildId = collabChildByTeacher[tid]
+												if (assignedChildId && String(selectedChildIdCollab || '') !== String(assignedChildId)) {
+													const assignedChild = children.find((c: any) => String(c.id || c._id) === String(assignedChildId))
+													const assignedName = assignedChild ? (assignedChild.name || `${assignedChild.firstName || ''} ${assignedChild.lastName || ''}`.trim()) : 'norādītais bērns'
+													setCollabMessage(`Šim pasniedzējam ilgtermiņa sadarbība pieejama tikai bērnam: ${assignedName}.`)
+													return
+												}
+											}
 										setLoadingCollab(true)
 										setCollabMessage(null)
 										try {
@@ -530,9 +661,9 @@ useEffect(() => {
 															</div>
 														)
 													})}
-													<div className="pt-2">
-														<button disabled={loadingCollab || Object.values(sel).every(v => !v) || (userInfo?.accountType === 'children' && children.length > 0 && !selectedChildIdCollab)} onClick={reserve} className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-black font-semibold px-4 py-2 rounded-lg">Rezervēt izvēlētos laikus</button>
-													</div>
+										<div className="pt-2">
+										<button disabled={loadingCollab || Object.values(sel).every(v => !v) || (userInfo?.accountType === 'children' && children.length > 0 && !selectedChildIdCollab)} onClick={reserve} className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-black font-semibold px-4 py-2 rounded-lg">Rezervēt izvēlētos laikus</button>
+										</div>
 												</div>
 											)}
 										</div>

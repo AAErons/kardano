@@ -138,8 +138,11 @@ export default async function handler(req: any, res: any) {
 
       const updateDoc: any = {
         description: description || '',
-        availability: availability || [],
         updatedAt: new Date(),
+      }
+      const shouldUpdateAvailability = Array.isArray(availability)
+      if (shouldUpdateAvailability) {
+        updateDoc.availability = availability
       }
 
       if (typeof firstName === 'string') updateDoc.firstName = firstName.trim()
@@ -220,13 +223,15 @@ export default async function handler(req: any, res: any) {
         console.warn('[teacher-profile] failed to create notification', e)
       }
 
-      // Generate time slots from availability
-      try {
-        console.log('[teacher-profile] Generating time slots for teacher', userId)
-        console.log('[teacher-profile] Availability data:', JSON.stringify(availability, null, 2))
-        await generateTimeSlotsFromAvailability(db, userId, availability || [])
-      } catch (e) {
-        console.warn('[teacher-profile] failed to generate time slots', e)
+      // Generate time slots from availability ONLY if availability was updated
+      if (shouldUpdateAvailability) {
+        try {
+          console.log('[teacher-profile] Generating time slots for teacher', userId)
+          console.log('[teacher-profile] Availability data:', JSON.stringify(availability, null, 2))
+          await generateTimeSlotsFromAvailability(db, userId, availability || [])
+        } catch (e) {
+          console.warn('[teacher-profile] failed to generate time slots', e)
+        }
       }
 
       return res.status(200).json({ ok: true })

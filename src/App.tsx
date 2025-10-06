@@ -9,15 +9,20 @@ import LessonsSection from './components/LessonsSection.js'
 
 function App() {
 	const [activeSection, setActiveSection] = useState<'home' | 'lessons' | 'tutors' | 'calendar' | 'profile'>('home')
+	const [openRegisterOnProfile, setOpenRegisterOnProfile] = useState(false)
+	const [calendarTeacherPref, setCalendarTeacherPref] = useState<string>('')
 
 	useEffect(() => {
 		try {
 			const params = new URLSearchParams(window.location.search)
 			const open = params.get('open')
 			if (open === 'calendar') {
+				const t = params.get('teacher')
+				if (t) setCalendarTeacherPref(t)
 				setActiveSection('calendar')
 			} else if (open === 'login' || open === 'register' || params.has('invite')) {
 				setActiveSection('profile')
+				if (open === 'register' || params.has('invite')) setOpenRegisterOnProfile(true)
 			}
 		} catch {}
 	}, [])
@@ -29,8 +34,13 @@ function App() {
 			{activeSection === 'home' && <LandingPage go={(section: 'home' | 'lessons' | 'tutors' | 'calendar' | 'profile') => setActiveSection(section)} />}
 			{activeSection === 'lessons' && <LessonsSection />}
 			{activeSection === 'tutors' && <TutorsSection />}
-			{activeSection === 'calendar' && <CalendarSection />}
-			{activeSection === 'profile' && <ProfileSection />}
+			{activeSection === 'calendar' && <CalendarSection initialTeacherId={calendarTeacherPref} />}
+			{activeSection === 'profile' && (
+				<ProfileSection 
+					openRegisterFromUrl={openRegisterOnProfile}
+					onConsumedOpenRegister={() => setOpenRegisterOnProfile(false)}
+				/>
+			)}
 			
 			<Footer />
 		</div>

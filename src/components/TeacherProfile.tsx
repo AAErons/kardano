@@ -83,6 +83,11 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
   const [altForms, setAltForms] = useState<Record<string, { open: boolean; selected?: string; submitting?: boolean }>>({})
   const [incForms, setIncForms] = useState<Record<string, { open: boolean; newSize?: number; submitting?: boolean }>>({})
 
+	// Reviews state for single-time request per user
+	const [reviews, setReviews] = useState<any[]>([])
+	const [loadingReviews, setLoadingReviews] = useState(false)
+	const [sentReviewReqByUser, setSentReviewReqByUser] = useState<Record<string, boolean>>({})
+
 	useEffect(() => {
 		const load = async () => {
 			try {
@@ -135,13 +140,33 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 		setLoadingBookings(false)
 	}
 
+	const loadReviews = async () => {
+		if (!teacherId) return
+		setLoadingReviews(true)
+		try {
+			const r = await fetch(`/api/reviews?role=worker&userId=${encodeURIComponent(teacherId)}`)
+			if (r.ok) {
+				const d = await r.json().catch(() => null)
+				if (d && Array.isArray(d.items)) {
+					setReviews(d.items)
+					// Precompute sent map
+					const m: Record<string, boolean> = {}
+					d.items.forEach((x: any) => { if (x && x.userId && (x.status === 'requested' || x.status === 'submitted')) m[String(x.userId)] = true })
+					setSentReviewReqByUser(m)
+				}
+			}
+		} catch {}
+		setLoadingReviews(false)
+	}
+
 	useEffect(() => {
-        if (activeTab === 'notifications') loadNotifications()
+	        if (activeTab === 'notifications') loadNotifications()
 		if (activeTab === 'bookings') loadBookings()
+		if (activeTab === 'attendance') { loadBookings(); loadReviews() }
 	}, [activeTab, teacherId])
 
 	// Ensure bookings are available in profile calendar
-	useEffect(() => { if (teacherId) loadBookings() }, [teacherId])
+	useEffect(() => { if (teacherId) { loadBookings(); } }, [teacherId])
 
 	// Background refresh for badges (notifications only)
 	useEffect(() => {
@@ -865,17 +890,36 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 								</div>
 								{decided.length > 0 && (
 									<div className="pt-4 border-t border-gray-200">
-										<h4 className="text-sm font-semibold text-gray-800 mb-2">Iepriekšējie lēmumi</h4>
+								<h4 className="text-sm font-semibold text-gray-800 mb-2">
+									Iepriekšējie lēmumi
+									<span className="ml-2 text-xs text-gray-500">
+										{loadingReviews ? 'Ielādē novērtējumus…' : `Novērtējumi: ${(reviews || []).filter((r: any) => r.status === 'submitted').length}`}
+									</span>
+								</h4>
 										<div className="space-y-2">
-											{decided.map((b: any) => {
+									{decided.map((b: any) => {
 												const dateStr = new Date(b.date).toLocaleDateString('lv-LV')
-												return (
+										const userKey = String(b.userId || '')
+										const requestAlreadySent = Boolean(sentReviewReqByUser[userKey])
+										return (
 													<div key={`${b._id}-dec`} className="border border-gray-100 rounded-lg p-3 bg-gray-50">
 														<div className="flex flex-wrap items-center gap-3 text-xs text-gray-700">
 															<span className="font-medium text-gray-800">{b.studentName || b.userName || '—'}</span>
 															<span>({dateStr} {b.time})</span>
 															<span className={`px-2 py-0.5 rounded-full border ${b.attended ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>Apmeklēja: {b.attended ? 'Jā' : 'Nē'}</span>
 															<span className={`px-2 py-0.5 rounded-full border ${b.extendPreferred ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>Sadarbība: {b.extendPreferred ? 'Jā' : 'Nē'}</span>
+													<div className="ml-auto" />
+													{userKey && !requestAlreadySent ? (
+														<button onClick={async () => {
+															try {
+																const r = await fetch('/api/reviews', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teacherId, userId: userKey, bookingId: String(b._id) }) })
+																if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās nosūtīt pieprasījumu'); return }
+																setSentReviewReqByUser(prev => ({ ...prev, [userKey]: true }))
+															} catch { alert('Kļūda') }
+														}} className="text-xs bg-yellow-400 hover:bg-yellow-500 text-black rounded-md px-3 py-1">Palūgt novērtējumu</button>
+													) : userKey ? (
+														<span className="text-xs text-green-700">Pieprasījums nosūtīts</span>
+													) : null}
 														</div>
 													</div>
 												)

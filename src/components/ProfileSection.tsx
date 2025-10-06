@@ -132,7 +132,7 @@ interface Worker {
 // return workers
 // }
 
-const ProfileSection = () => {
+const ProfileSection = ({ openRegisterFromUrl, onConsumedOpenRegister }: { openRegisterFromUrl?: boolean; onConsumedOpenRegister?: () => void }) => {
 	const [role, setRole] = useState<Role>(null)
 	const [username, setUsername] = useState('')
 	const [password, setPassword] = useState('')
@@ -143,31 +143,41 @@ const ProfileSection = () => {
 	const [isWorkerActive, setIsWorkerActive] = useState<boolean | null>(null)
 
 	useEffect(() => {
-		// Load persisted auth
+		// Load persisted auth and capture role synchronously for URL handling
+		let savedRole: Role = null
 		try {
 			const raw = localStorage.getItem('auth')
 			if (raw) {
 				const saved = JSON.parse(raw)
 				if (saved && (saved.role === 'admin' || saved.role === 'worker' || saved.role === 'user')) {
-					setRole(saved.role)
+					savedRole = saved.role as Role
+					setRole(savedRole)
 					if (saved.userId) setUserId(saved.userId)
 					if (typeof saved.active === 'boolean') setIsWorkerActive(saved.active)
 				}
 			}
 		} catch {}
 
-		// Prefill login identifier from URL and handle open parameters
+		// Prefill login identifier from URL
 		try {
 			const params = new URLSearchParams(window.location.search)
 			const prefill = params.get('prefill')
 			if (prefill) setUsername(prefill)
-			
-			const open = params.get('open')
-			if (open === 'register') {
-				setIsRegistrationOpen(true)
-			}
 		} catch {}
 	}, [])
+
+	// Respect parent-provided openRegisterFromUrl only if logged out
+	useEffect(() => {
+		if (!role && openRegisterFromUrl) {
+			setIsRegistrationOpen(true)
+			if (onConsumedOpenRegister) onConsumedOpenRegister()
+		}
+	}, [openRegisterFromUrl, role, onConsumedOpenRegister])
+
+	// If user becomes logged in, ensure registration modal is closed
+	useEffect(() => {
+		if (role) setIsRegistrationOpen(false)
+	}, [role])
 
 	useEffect(() => {}, [role, userId])
 

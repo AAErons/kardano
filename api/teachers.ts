@@ -37,14 +37,30 @@ export default async function handler(req: any, res: any) {
 
     if (req.method === 'GET') {
       const docs = await users.find({ role: 'worker' }).project({ password: 0, passwordHash: 0 }).sort({ createdAt: -1 }).toArray()
-      return res.status(200).json({ items: docs.map((d: any) => ({ 
-        id: String(d._id), 
-        name: d.name || `${d.firstName || ''} ${d.lastName || ''}`.trim() || d.email || '', 
-        username: d.username || '', 
-        description: d.description || '', 
-        active: Boolean(d.active),
-        email: d.email || ''
-      })) })
+
+      // Enrich with teacher profile (photo, description) from 'teachers' collection
+      const teachersCol = db.collection('teachers')
+      const userIds = docs.map((d: any) => String(d._id))
+      const profiles = await teachersCol.find({ userId: { $in: userIds } }).project({ userId: 1, photo: 1, description: 1 }).toArray()
+      const userIdToProfile: Record<string, any> = {}
+      for (const p of profiles) userIdToProfile[String(p.userId)] = p
+
+      return res.status(200).json({ items: docs.map((d: any) => {
+        const profile = userIdToProfile[String(d._id)] || null
+        const name = d.name || `${d.firstName || ''} ${d.lastName || ''}`.trim() || d.email || ''
+        return {
+          id: String(d._id),
+          name,
+          firstName: d.firstName || '',
+          lastName: d.lastName || '',
+          username: d.username || '',
+          description: (profile && typeof profile.description === 'string' ? profile.description : '') || d.description || '',
+          active: Boolean(d.active),
+          email: d.email || '',
+          phone: d.phone || '',
+          photo: (profile && typeof profile.photo === 'string' && profile.photo) ? profile.photo : null,
+        }
+      }) })
     }
 
     if (req.method === 'POST') {
@@ -84,7 +100,7 @@ export default async function handler(req: any, res: any) {
     }
 
     if (req.method === 'PATCH') {
-      const { id, active, action } = (req.body || {}) as { id?: string; active?: boolean; action?: 'resetPassword' }
+      const { id, active, action, firstName, lastName, email, phone } = (req.body || {}) as { id?: string; active?: boolean; action?: 'resetPassword'; firstName?: string; lastName?: string; email?: string; phone?: string }
       if (!id) return res.status(400).json({ error: 'Missing id' })
       const { ObjectId } = await import('mongodb')
       const _id = new ObjectId(String(id))
@@ -97,8 +113,18 @@ export default async function handler(req: any, res: any) {
         return res.status(200).json({ ok: true, tempPassword })
       }
 
-      if (typeof active === 'boolean') {
-        await users.updateOne({ _id }, { $set: { active, updatedAt: new Date() } })
+      if (typeof active === 'boolean' || typeof firstName === 'string' || typeof lastName === 'string' || typeof email === 'string' || typeof phone === 'string') {
+        const setDoc: Record<string, any> = { updatedAt: new Date() }
+        if (typeof active === 'boolean') setDoc.active = active
+        if (typeof firstName === 'string') setDoc.firstName = firstName.trim()
+        if (typeof lastName === 'string') setDoc.lastName = lastName.trim()
+        if (typeof email === 'string') setDoc.email = email.trim()
+        if (typeof phone === 'string') setDoc.phone = phone.trim()
+        if (setDoc.firstName || setDoc.lastName) {
+          const joined = `${setDoc.firstName || ''} ${setDoc.lastName || ''}`.trim()
+          if (joined) setDoc.name = joined
+        }
+        await users.updateOne({ _id }, { $set: setDoc })
         return res.status(200).json({ ok: true })
       }
 
