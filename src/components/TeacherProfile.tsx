@@ -333,7 +333,7 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 										{daySlots.map(s => {
 											const lessonTypeLabel = s.lessonType === 'group' ? 'Grupu' : 'Individuāla'
 											const locationLabel = s.location === 'teacher' ? 'Privāti' : 'Uz vietas'
-											const modalityLabel = s.modality === 'zoom' ? 'Attālināti' : 'Klātienē'
+											const modalityLabel = s.modality === 'zoom' ? 'Attālināti' : s.modality === 'both' ? 'Klātienē vai attālināti' : 'Klātienē'
 											const capacity = s.lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
                                         const related = bookings.filter(b => b.date === s.date && b.time === s.time)
                                         const acceptedRelated = related.filter(b => b.status === 'accepted')
@@ -945,11 +945,11 @@ const TeacherOnboarding = ({ userId, onFinished, onCancel, allowProfileEdit = fa
 	const [saving, setSaving] = useState(false)
 	const [scheduleTab, setScheduleTab] = useState<'weekly'|'specific'>('weekly')
 	type HourKey = `${string}:${string}`
-	type HourOpts = { enabled: boolean; lessonType: 'individual' | 'group'; location: 'facility' | 'teacher'; modality: 'in_person' | 'zoom'; groupSize?: number }
+	type HourOpts = { enabled: boolean; lessonType: 'individual' | 'group'; location: 'facility' | 'teacher'; modality: 'in_person' | 'zoom' | 'both'; groupSize?: number }
 	const allowedStartHour = 8
 	const allowedEndHour = 22 // exclusive
 	const hourKeys: HourKey[] = Array.from({ length: allowedEndHour - allowedStartHour }, (_, i) => `${String(i + allowedStartHour).padStart(2, '0')}:00` as HourKey)
-	const createDefaultDay = (): Record<HourKey, HourOpts> => hourKeys.reduce((acc, h) => { acc[h] = { enabled: false, lessonType: 'individual', location: 'facility', modality: 'in_person' }; return acc }, {} as Record<HourKey, HourOpts>)
+	const createDefaultDay = (): Record<HourKey, HourOpts> => hourKeys.reduce((acc, h) => { acc[h] = { enabled: false, lessonType: 'individual', location: 'facility', modality: 'both' }; return acc }, {} as Record<HourKey, HourOpts>)
 	const [weeklyHours, setWeeklyHours] = useState<Record<string, Record<HourKey, HourOpts>>>(() => ({ '1': createDefaultDay(), '2': createDefaultDay(), '3': createDefaultDay(), '4': createDefaultDay(), '5': createDefaultDay(), '6': createDefaultDay(), '7': createDefaultDay() }))
 	const [openDay, setOpenDay] = useState<string | null>(null)
 	const [endDate, setEndDate] = useState<string>('')
@@ -959,7 +959,7 @@ const TeacherOnboarding = ({ userId, onFinished, onCancel, allowProfileEdit = fa
 
 	const toggleHour = (day: string, hour: HourKey, enabled: boolean) => { setWeeklyHours(prev => ({ ...prev, [day]: { ...prev[day], [hour]: { ...prev[day][hour], enabled } } })) }
 	const updateHourOpt = (day: string, hour: HourKey, field: 'lessonType'|'location'|'modality'|'groupSize', value: any) => { setWeeklyHours(prev => ({ ...prev, [day]: { ...prev[day], [hour]: { ...prev[day][hour], [field]: value } } })) }
-	const toggleOverrideHour = (date: string, hour: HourKey, enabled: boolean) => { setOverrides(prev => { const day = prev[date] ? { ...prev[date] } : createDefaultDay(); day[hour] = { ...(day[hour] || { enabled: false, lessonType: 'individual', location: 'facility', modality: 'in_person' }), enabled }; return { ...prev, [date]: day } }) }
+	const toggleOverrideHour = (date: string, hour: HourKey, enabled: boolean) => { setOverrides(prev => { const day = prev[date] ? { ...prev[date] } : createDefaultDay(); day[hour] = { ...(day[hour] || { enabled: false, lessonType: 'individual', location: 'facility', modality: 'both' }), enabled }; return { ...prev, [date]: day } }) }
 	const updateOverrideHourOpt = (date: string, hour: HourKey, field: 'lessonType'|'location'|'modality'|'groupSize', value: any) => { setOverrides(prev => { const day = prev[date] ? { ...prev[date] } : createDefaultDay(); day[hour] = { ...(day[hour] || { enabled: false, lessonType: 'individual', location: 'facility', modality: 'in_person' }), [field]: value }; return { ...prev, [date]: day } }) }
 
 	useEffect(() => {
@@ -1146,8 +1146,18 @@ const TeacherOnboarding = ({ userId, onFinished, onCancel, allowProfileEdit = fa
 																	<span className="text-xs text-red-600">Izvēloties privāto opciju, telpas jānodrošina pašiem.</span>
 																)}
 																<select value={o.modality} onChange={e => updateHourOpt(day, h, 'modality', e.target.value)} className="p-1 border border-gray-300 rounded text-xs">
-																	<option value="in_person">Klātienē</option>
-																	<option value="zoom">Attālināti</option>
+																	{o.lessonType === 'individual' ? (
+																		<>
+																			<option value="in_person">Klātienē</option>
+																			<option value="zoom">Attālināti</option>
+																			<option value="both">Klātienē vai attālināti</option>
+																		</>
+																	) : (
+																		<>
+																			<option value="in_person">Klātienē</option>
+																			<option value="zoom">Attālināti</option>
+																		</>
+																	)}
 																</select>
 															</div>
 														)}
@@ -1213,8 +1223,18 @@ const TeacherOnboarding = ({ userId, onFinished, onCancel, allowProfileEdit = fa
 														<span className="text-xs text-red-600">Izvēloties privāto opciju, telpas jānodrošina pašiem.</span>
 													)}
 													<select value={o.modality} onChange={e => updateOverrideHourOpt(overrideDate, h, 'modality', e.target.value)} className="p-1 border border-gray-300 rounded text-xs">
-														<option value="in_person">Klātienē</option>
-														<option value="zoom">Attālināti</option>
+														{o.lessonType === 'individual' ? (
+															<>
+																<option value="in_person">Klātienē</option>
+																<option value="zoom">Attālināti</option>
+																<option value="both">Klātienē vai attālināti</option>
+															</>
+														) : (
+															<>
+																<option value="in_person">Klātienē</option>
+																<option value="zoom">Attālināti</option>
+															</>
+														)}
 													</select>
 												</div>
 											)}

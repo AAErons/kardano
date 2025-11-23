@@ -12,7 +12,7 @@ interface TimeSlot {
 	available: boolean
 	lessonType?: 'individual' | 'group'
 	location?: 'facility' | 'teacher'
-	modality?: 'in_person' | 'zoom'
+	modality?: 'in_person' | 'zoom' | 'both'
 }
 
 const CalendarSection = ({ initialTeacherId }: { initialTeacherId?: string }) => {
@@ -189,7 +189,16 @@ const CalendarSection = ({ initialTeacherId }: { initialTeacherId?: string }) =>
 		if (selectedTeacherId && String(slot.teacherId) !== String(selectedTeacherId)) return false
 		if (filters.lessonType !== 'all' && slot.lessonType !== filters.lessonType) return false
 		if ((userRole === 'admin' || userRole === 'worker') && filters.location !== 'all' && slot.location !== filters.location) return false
-		if (filters.modality !== 'all' && slot.modality !== filters.modality) return false
+		
+		// Modality filter: 'all' shows everything including 'both', specific modality matches that or 'both'
+		if (filters.modality !== 'all') {
+			if (slot.modality === 'both') {
+				// 'both' slots match any filter since they offer both options
+				return true
+			}
+			if (slot.modality !== filters.modality) return false
+		}
+		
 		return true
 	}
 
@@ -220,6 +229,7 @@ const CalendarSection = ({ initialTeacherId }: { initialTeacherId?: string }) =>
 	const [bookingSlot, setBookingSlot] = useState<TimeSlot | null>(null)
 	const [children, setChildren] = useState<any[]>([])
 	const [selectedChildId, setSelectedChildId] = useState<string>('')
+	const [selectedModality, setSelectedModality] = useState<'in_person' | 'zoom'>('in_person')
 	const [bookingLoading, setBookingLoading] = useState(false)
 	const [bookingError, setBookingError] = useState<string | null>(null)
 	const [bookingSuccess, setBookingSuccess] = useState<string | null>(null)
@@ -471,8 +481,8 @@ const CalendarSection = ({ initialTeacherId }: { initialTeacherId?: string }) =>
                                             className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
                                         >
                                             <option value="all">Visi</option>
+                                            <option value="zoom">Attālināti</option>
                                             <option value="in_person">Klātienē</option>
-                                            <option value="zoom">Zoom</option>
                                         </select>
                                     </div>
                                 </div>
@@ -491,7 +501,7 @@ const CalendarSection = ({ initialTeacherId }: { initialTeacherId?: string }) =>
 							<div className="grid grid-cols-7 gap-1">
 								{/* Empty cells for days before month starts */}
 								{Array.from({ length: startingDay }, (_, index) => (
-									<div key={`empty-${index}`} className="h-16 lg:h-20"></div>
+									<div key={`empty-${index}`} className="h-20 lg:h-24"></div>
 								))}
 								
 								{/* Days of the month */}
@@ -503,10 +513,57 @@ const CalendarSection = ({ initialTeacherId }: { initialTeacherId?: string }) =>
 									const isPast = isPastDate(day)
 									const isSelected = selectedDay === day
 									
+									// Get all relevant slots (available + booked by user) for display
+									const allRelevantSlots = slots.filter(slot => {
+										if (isSlotPast(slot)) return false
+										if (!matchesFilters(slot)) return false
+										
+										// Include if available
+										if (slot.available) return true
+										
+										// Include if user has booked it (even if not available anymore)
+										if (userId) {
+											const key = `${slot.teacherId}|${slot.date}|${slot.time}`
+											if (justBookedKeys[key]) return true
+											return userBookings.some(b => 
+												String(b.userId) === String(userId) &&
+												String(b.teacherId) === String(slot.teacherId) &&
+												String(b.date) === String(slot.date) &&
+												String(b.time) === String(slot.time) &&
+												(b.status === 'pending' || b.status === 'pending_unavailable' || b.status === 'accepted')
+											)
+										}
+										return false
+									})
+									
+									// Count booked (filled circles) vs available (empty circles)
+									const bookedCount = allRelevantSlots.filter(slot => {
+										// Slot is booked if:
+										// 1. Not available (accepted by someone)
+										if (!slot.available) return true
+										
+										// 2. User has booked it
+										if (userId) {
+											const key = `${slot.teacherId}|${slot.date}|${slot.time}`
+											if (justBookedKeys[key]) return true
+											return userBookings.some(b => 
+												String(b.userId) === String(userId) &&
+												String(b.teacherId) === String(slot.teacherId) &&
+												String(b.date) === String(slot.date) &&
+												String(b.time) === String(slot.time) &&
+												(b.status === 'pending' || b.status === 'pending_unavailable' || b.status === 'accepted')
+											)
+										}
+										return false
+									}).length
+									
+									const availableCount = allRelevantSlots.length - bookedCount
+									const totalCircles = Math.min(allRelevantSlots.length, 8) // Cap at 8 circles for display
+									
 									return (
 										<div
 											key={day}
-											className={`h-16 lg:h-20 border border-gray-200 p-1 lg:p-2 transition-colors ${
+											className={`h-20 lg:h-24 border border-gray-200 p-1 transition-colors relative ${
 												isSelected
 													? 'bg-yellow-400 text-black font-bold cursor-pointer border-yellow-500 border-2'
 													: isPast
@@ -521,9 +578,34 @@ const CalendarSection = ({ initialTeacherId }: { initialTeacherId?: string }) =>
 													setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day))
 												}
 											}}
-									title={isPast ? 'Pagājušais datums' : hasSlots ? `${eligibleSlots.length} pieejam${eligibleSlots.length > 1 ? 'i' : 's'} laiks${eligibleSlots.length > 1 ? 'i' : ''}` : 'Nav pieejamu laiku'}
+											title={isPast ? 'Pagājušais datums' : (hasSlots || allRelevantSlots.length > 0) ? `${availableCount} pieejams, ${bookedCount} rezervēts` : 'Nav pieejamu laiku'}
 										>
-											<div className="text-xs lg:text-sm font-medium">{day}</div>
+											<div className="text-xs lg:text-sm font-medium mb-1">{day}</div>
+											
+											{/* Circle indicators for lesson slots */}
+											{allRelevantSlots.length > 0 && !isPast && (
+												<div className="flex flex-wrap gap-1 justify-center items-center px-0.5">
+													{Array.from({ length: totalCircles }, (_, i) => {
+														const isBooked = i < bookedCount
+														return (
+															<div
+																key={i}
+																className={`w-2 h-2 lg:w-2.5 lg:h-2.5 rounded-full border-2 ${
+																	isBooked 
+																		? 'bg-green-600 border-green-600' 
+																		: 'bg-white border-gray-400'
+																}`}
+																title={isBooked ? 'Rezervēts' : 'Pieejams'}
+															/>
+														)
+													})}
+													{allRelevantSlots.length > 8 && (
+														<span className="text-[9px] text-gray-600 font-semibold ml-0.5">
+															+{allRelevantSlots.length - 8}
+														</span>
+													)}
+												</div>
+											)}
 										</div>
 									)
 								})}
@@ -563,7 +645,7 @@ const CalendarSection = ({ initialTeacherId }: { initialTeacherId?: string }) =>
 													// Create lesson details display
 													const lessonTypeLabel = slot.lessonType === 'group' ? 'Grupu' : 'Individuāla'
 													const locationLabel = slot.location === 'teacher' ? 'Privāti' : 'Uz vietas'
-													const modalityLabel = slot.modality === 'zoom' ? 'Zoom' : 'Klātienē'
+													const modalityLabel = slot.modality === 'zoom' ? 'Attālināti' : slot.modality === 'both' ? 'Klātienē vai attālināti' : 'Klātienē'
 													
 													return (
 														<div key={slot.id} className="border border-gray-200 rounded-lg p-4 hover:border-yellow-400 transition-colors">
@@ -663,6 +745,18 @@ const CalendarSection = ({ initialTeacherId }: { initialTeacherId?: string }) =>
 									<div><span className="font-medium">Laiks:</span> {bookingSlot.time}</div>
 								</div>
 
+								{/* Modality selection if slot allows both */}
+								{bookingSlot.modality === 'both' && (
+									<div className="mt-4">
+										<label className="block text-xs font-medium text-gray-700 mb-1">Izvēlieties nodarbības veidu</label>
+										<select value={selectedModality} onChange={e => setSelectedModality(e.target.value as 'in_person' | 'zoom')} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-sm">
+											<option value="in_person">Klātienē</option>
+											<option value="zoom">Attālināti</option>
+										</select>
+										<p className="text-xs text-gray-500 mt-1">Šī nodarbība pieejama gan klātienē, gan attālināti.</p>
+									</div>
+								)}
+
 								{/* Child selection for parents */}
 								{children.length > 0 && (
 									<div className="mt-4">
@@ -681,7 +775,7 @@ const CalendarSection = ({ initialTeacherId }: { initialTeacherId?: string }) =>
 								{bookingSuccess && <div className="mt-3 text-sm text-green-700">{bookingSuccess}</div>}
 
 								<div className="mt-6 flex items-center justify-end gap-2">
-									<button onClick={() => { setBookingSlot(null); setBookingError(null); setBookingSuccess(null); }} className="px-4 py-2 border border-gray-300 rounded-lg">Atcelt</button>
+									<button onClick={() => { setBookingSlot(null); setBookingError(null); setBookingSuccess(null); setSelectedModality('in_person'); }} className="px-4 py-2 border border-gray-300 rounded-lg">Atcelt</button>
 										<button disabled={bookingLoading || !userId || (userRole === 'user' && children.length > 0 && !selectedChildId) || (userRole === 'user' && modalChildrenLoading)} onClick={async () => {
 										if (!bookingSlot || !userId) return
 										if (userRole === 'user' && children.length > 0 && !selectedChildId) { setBookingError('Lūdzu izvēlieties bērnu pirms apstiprināšanas'); return }
@@ -694,12 +788,15 @@ const CalendarSection = ({ initialTeacherId }: { initialTeacherId?: string }) =>
 										setBookingLoading(true)
 										setBookingError(null)
 										try {
+											// If slot has 'both' modality, use the user's choice; otherwise use the slot's modality
+											const finalModality = bookingSlot.modality === 'both' ? selectedModality : bookingSlot.modality
 											const r = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
 												userId,
 												teacherId: String(bookingSlot.teacherId),
 												date: bookingSlot.date,
 												time: bookingSlot.time,
-												studentId: selectedChildId || null
+												studentId: selectedChildId || null,
+												preferredModality: finalModality
 											}) })
 											if (!r.ok) {
 												const e = await r.json().catch(() => ({}))
@@ -721,7 +818,7 @@ const CalendarSection = ({ initialTeacherId }: { initialTeacherId?: string }) =>
 																	studentId: selectedChildId || null,
 																	status: 'pending'
 																}]))
-											setTimeout(() => { setBookingSlot(null); setBookingSuccess(null) }, 1200)
+											setTimeout(() => { setBookingSlot(null); setBookingSuccess(null); setSelectedModality('in_person'); }, 1200)
 										} catch (e: any) {
 											setBookingError(e?.message || 'Kļūda')
 										} finally {

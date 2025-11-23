@@ -132,7 +132,19 @@ interface Worker {
 // return workers
 // }
 
-const ProfileSection = ({ openRegisterFromUrl, onConsumedOpenRegister }: { openRegisterFromUrl?: boolean; onConsumedOpenRegister?: () => void }) => {
+const ProfileSection = ({ 
+	openRegisterFromUrl, 
+	onConsumedOpenRegister,
+	verificationMessage,
+	isVerifying,
+	onClearVerificationMessage
+}: { 
+	openRegisterFromUrl?: boolean
+	onConsumedOpenRegister?: () => void
+	verificationMessage?: { type: 'success' | 'error'; message: string } | null
+	isVerifying?: boolean
+	onClearVerificationMessage?: () => void
+}) => {
 	const [role, setRole] = useState<Role>(null)
 	const [username, setUsername] = useState('')
 	const [password, setPassword] = useState('')
@@ -215,7 +227,8 @@ const ProfileSection = ({ openRegisterFromUrl, onConsumedOpenRegister }: { openR
 
 	const handleRegistrationSuccess = () => {
 		setAuthError('')
-		alert('Reģistrācija veiksmīga! Tagad varat pieslēgties ar saviem datiem.')
+		setIsRegistrationOpen(false)
+		alert('Reģistrācija veiksmīga! Lūdzu pārbaudiet savu e-pastu un noklikšķiniet uz verificēšanas saites, lai pabeigtu reģistrāciju.')
 	}
 
 
@@ -240,6 +253,33 @@ const ProfileSection = ({ openRegisterFromUrl, onConsumedOpenRegister }: { openR
 				{!role && (
 					<div className="max-w-xl mx-auto bg-white rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8">
 						<h2 className="text-xl lg:text-2xl font-bold text-black mb-4">Pieslēgties</h2>
+						
+						{/* Email verification status */}
+						{isVerifying && (
+							<div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+								<p className="text-blue-800 text-sm">
+									<span className="animate-pulse">⏳</span> Verificē e-pastu...
+								</p>
+							</div>
+						)}
+						
+						{verificationMessage && (
+							<div className={`mb-4 p-4 border rounded-lg ${verificationMessage.type === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+								<div className="flex items-start justify-between">
+									<p className={`text-sm ${verificationMessage.type === 'success' ? 'text-green-800' : 'text-red-800'}`}>
+										{verificationMessage.type === 'success' ? '✅ ' : '❌ '}
+										{verificationMessage.message}
+									</p>
+									<button 
+										onClick={onClearVerificationMessage}
+										className={`ml-2 ${verificationMessage.type === 'success' ? 'text-green-600 hover:text-green-800' : 'text-red-600 hover:text-red-800'}`}
+									>
+										✕
+									</button>
+								</div>
+							</div>
+						)}
+						
 						<div className="space-y-3 sm:space-y-4">
 							<div>
 								<label className="block text-sm font-medium text-gray-700 mb-1">E-pasts vai lietotājvārds</label>

@@ -146,6 +146,10 @@ export default async function handler(req: any, res: any) {
 
     const now = new Date()
     
+    // Generate email verification token
+    const crypto = await import('crypto')
+    const verificationToken = crypto.randomBytes(32).toString('hex')
+    
     // Create user document (parent/account holder)
     const userDoc = {
       firstName: firstName.trim(),
@@ -155,6 +159,8 @@ export default async function handler(req: any, res: any) {
       accountType,
       role: 'user',
       active: true,
+      verified: false, // Email not verified yet
+      verificationToken,
       phone: phone?.trim() || undefined,
       discountCode: normalizedDiscountCode,
       createdAt: now,
@@ -241,11 +247,56 @@ export default async function handler(req: any, res: any) {
       console.warn('[register] failed to trigger cache invalidation:', cacheError)
     }
 
+    // Send verification email
+    try {
+      const { createTransport } = await import('nodemailer')
+      
+      const transporter = createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: false,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+      })
+
+      const verificationUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://kardano.lv'}/?verify=${verificationToken}`
+      
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM || process.env.SMTP_USER,
+        to: email,
+        subject: 'Apstipriniet savu e-pastu - Kardano',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #000;">Laipni lūdzam Kardano platformā!</h2>
+            <p>Sveiki, ${firstName}!</p>
+            <p>Paldies par reģistrēšanos Kardano matemātikas privātstundu platformā.</p>
+            <p>Lai pabeigtu reģistrāciju un varētu pieteikties, lūdzu apstipriniet savu e-pastu, noklikšķinot uz zemāk esošās saites:</p>
+            <p style="margin: 30px 0;">
+              <a href="${verificationUrl}" style="background-color: #FCD34D; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                Apstiprināt e-pastu
+              </a>
+            </p>
+            <p>Vai nokopējiet un ielīmējiet šo saiti pārlūkprogrammā:</p>
+            <p style="color: #0066cc; word-break: break-all;">${verificationUrl}</p>
+            <p style="margin-top: 30px; color: #666; font-size: 14px;">Ja jūs nereģistrējāties Kardano platformā, lūdzu ignorējiet šo e-pastu.</p>
+          </div>
+        `,
+      })
+      
+      console.log('[register] verification email sent', { email })
+    } catch (emailError) {
+      console.error('[register] verification email error', emailError)
+      // Don't fail registration if email fails, but log it
+    }
+
     return res.status(201).json({ 
       success: true,
-      message: 'Registration successful',
+      message: 'Registration successful. Please check your email to verify your account.',
       userId: userId,
-      studentIds: studentIds
+      studentIds: studentIds,
+      requiresVerification: true
     })
     
   } catch (e: any) {

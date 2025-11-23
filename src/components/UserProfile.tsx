@@ -12,7 +12,7 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 	const [selectedCollab, setSelectedCollab] = useState<Record<string, Record<string, boolean>>>({})
 	const [selectedChildIdCollab, setSelectedChildIdCollab] = useState<string>('')
 	const [collabMessage, setCollabMessage] = useState<string | null>(null)
-	const [collabFilters, setCollabFilters] = useState<{ from: string; to: string; lessonType: 'all'|'individual'|'group'; modality: 'all'|'in_person'|'zoom' }>(() => {
+	const [collabFilters, setCollabFilters] = useState<{ from: string; to: string; lessonType: 'all'|'individual'|'group'; modality: 'all'|'in_person'|'zoom'|'both' }>(() => {
 		const now = new Date()
 		const from = now.toISOString().slice(0,10)
 		const toDate = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate())
@@ -335,7 +335,7 @@ useEffect(() => {
                                                 {booking.status === 'accepted' && (
                                                     <div className="mt-2 space-y-1">
                                                         <p className="text-sm text-gray-700">
-                                                            <strong>Tikšanās veids:</strong> {(booking.modality === 'zoom') ? 'Attālināti' : 'Klātienē'}
+                                                            <strong>Tikšanās veids:</strong> {booking.modality === 'zoom' ? 'Attālināti' : booking.modality === 'both' ? 'Klātienē vai attālināti' : 'Klātienē'}
                                                         </p>
                                                         {booking.modality === 'zoom' ? (
                                                             <p className="text-sm text-gray-700">
@@ -547,6 +547,7 @@ useEffect(() => {
 												<option value="all">Visi</option>
 												<option value="in_person">Klātienē</option>
 												<option value="zoom">Attālināti</option>
+												<option value="both">Klātienē vai attālināti</option>
 											</select>
 										</div>
 									</div>
@@ -654,7 +655,7 @@ useEffect(() => {
 																			<input type="checkbox" checked={Boolean(sel[key])} onChange={() => toggleKey(key)} />
                                                                             <span>{tKey} ({count} dienas)</span>
 																			<span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">{sample?.lessonType === 'group' ? 'Grupu' : 'Individuāla'}</span>
-																			<span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">{sample?.modality === 'zoom' ? 'Attālināti' : 'Klātienē'}</span>
+																			<span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">{sample?.modality === 'zoom' ? 'Attālināti' : sample?.modality === 'both' ? 'Klātienē vai attālināti' : 'Klātienē'}</span>
 																		</label>
 																	)
 																})}

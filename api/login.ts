@@ -45,6 +45,12 @@ export default async function handler(req: any, res: any) {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
+    // Check if email is verified (only for accounts created after verification was implemented)
+    if (user.verified === false) {
+      console.log('[login] email not verified', { userId: String(user._id) })
+      return res.status(403).json({ error: 'E-pasts nav verificēts. Lūdzu pārbaudiet savu e-pastu un noklikšķiniet uz verificēšanas saites.', code: 'EMAIL_NOT_VERIFIED' })
+    }
+
     let ok = false
     if (typeof user.passwordHash === 'string') {
       const { default: argon2 } = await import('argon2')

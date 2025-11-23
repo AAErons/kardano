@@ -131,6 +131,26 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'Nothing to update' })
     }
 
+    if (req.method === 'DELETE') {
+      const { id } = (req.body || {}) as { id?: string }
+      if (!id) return res.status(400).json({ error: 'Missing id' })
+      const { ObjectId } = await import('mongodb')
+      const _id = new ObjectId(String(id))
+
+      // Delete teacher from users collection
+      await users.deleteOne({ _id })
+      
+      // Also delete their teacher profile if exists
+      const teachersCol = db.collection('teachers')
+      await teachersCol.deleteOne({ userId: String(id) })
+      
+      // Delete their time slots
+      const timeSlotsCol = db.collection('time_slots')
+      await timeSlotsCol.deleteMany({ teacherId: String(id) })
+
+      return res.status(200).json({ ok: true, message: 'Teacher deleted successfully' })
+    }
+
     return res.status(405).json({ error: 'Method Not Allowed' })
   } catch (e: any) {
     return res.status(500).json({ error: e?.message || 'Internal Error' })

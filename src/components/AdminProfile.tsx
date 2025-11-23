@@ -77,6 +77,7 @@ const AdminStudents = () => {
 		email: string
 		phone?: string
 		accountType: string
+		discountCode?: string
 	}>>({})
 	const [loading, setLoading] = useState(true)
 	const [bookingsByStudent, setBookingsByStudent] = useState<Record<string, any[]>>({})
@@ -87,7 +88,7 @@ const AdminStudents = () => {
 		try {
 			if (!forceRefresh) {
 				try {
-					const cached = localStorage.getItem('cache_admin_students_v1')
+					const cached = localStorage.getItem('cache_admin_students_v2')
 					if (cached) {
 						const { students: cachedStudents, users: cachedUsers, timestamp } = JSON.parse(cached)
 						if (timestamp && Date.now() - timestamp < 5 * 60 * 1000) {
@@ -122,7 +123,7 @@ const AdminStudents = () => {
 					userResults.forEach(result => { if (result) userMap[result.userId] = result.user })
 					setUsers(userMap)
 					const timestamp = Date.now()
-					try { localStorage.setItem('cache_admin_students_v1', JSON.stringify({ students: studentsData.students, users: userMap, timestamp })) } catch {}
+					try { localStorage.setItem('cache_admin_students_v2', JSON.stringify({ students: studentsData.students, users: userMap, timestamp })) } catch {}
 					setLastLoadTime(timestamp)
 				}
 			}
@@ -160,7 +161,7 @@ const AdminStudents = () => {
 
 	useEffect(() => {
 		const handleStorageChange = (e: StorageEvent) => {
-			if (e.key === 'cache_admin_students_v1' && e.newValue) {
+			if (e.key === 'cache_admin_students_v2' && e.newValue) {
 				try {
 					const { students: newStudents, users: newUsers, timestamp } = JSON.parse(e.newValue)
 					if (timestamp > lastLoadTime) {
@@ -182,7 +183,7 @@ const AdminStudents = () => {
 				if (response.ok) {
 					const data = await response.json()
 					if (data.success && data.lastUpdate) {
-						const cached = localStorage.getItem('cache_admin_students_v1')
+						const cached = localStorage.getItem('cache_admin_students_v2')
 						if (cached) {
 							const { timestamp } = JSON.parse(cached)
 							if (data.lastUpdate > timestamp) loadStudents(true)
@@ -271,6 +272,14 @@ const AdminStudents = () => {
 						{user?.accountType === 'children' && (
 							<div className="text-xs text-gray-500 mt-1">Vecāks: {user.firstName} {user.lastName} ({user.email})</div>
 						)}
+						{user?.discountCode && (
+							<div className="text-xs mt-1">
+								<span className="inline-flex items-center px-2 py-0.5 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200">
+									<span className="font-medium">Atlaides kods:</span>
+									<span className="ml-1 font-mono">{user.discountCode}</span>
+								</span>
+							</div>
+						)}
 									</div>
 									<div className="text-xs text-gray-500">{new Date(student.createdAt).toLocaleDateString('lv-LV')}</div>
 								</div>
@@ -314,6 +323,8 @@ const AdminTeachers = () => {
 	const [loadingProfileId, setLoadingProfileId] = useState<string | null>(null)
     const [editing, setEditing] = useState<Record<string, boolean>>({})
     const [editForm, setEditForm] = useState<Record<string, { firstName: string; lastName: string; email: string; phone: string; description: string; photo: string }>>({})
+	const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+	const [deleting, setDeleting] = useState<string | null>(null)
 
 	useEffect(() => {
 		try {
@@ -440,7 +451,61 @@ const AdminTeachers = () => {
 												}
 											}
 										}}>{openId === t.id ? 'Aizvērt profilu' : 'Skatīt profilu'}</button>
+										<button 
+											className="text-sm border border-red-300 text-red-600 hover:bg-red-50 rounded-md px-2 py-1" 
+											onClick={() => setDeleteConfirm(t.id)}
+										>
+											Dzēst
+										</button>
 									</div>
+									{deleteConfirm === t.id && (
+										<div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+											<p className="text-sm text-red-800 mb-3">
+												Vai tiešām vēlaties dzēst pasniedzēju <strong>{t.name}</strong>? 
+												Tiks dzēsti arī viņa profils un visi laika sloti. Šī darbība ir neatgriezeniska.
+											</p>
+											<div className="flex gap-2">
+												<button
+													disabled={deleting === t.id}
+													className="text-sm bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-semibold rounded-md px-3 py-1"
+													onClick={async () => {
+														setDeleting(t.id)
+														try {
+															const r = await fetch('/api/teachers', {
+																method: 'DELETE',
+																headers: { 'Content-Type': 'application/json' },
+																body: JSON.stringify({ id: t.id })
+															})
+															if (!r.ok) {
+																const e = await r.json().catch(() => ({}))
+																alert(e.error || 'Neizdevās dzēst pasniedzēju')
+																return
+															}
+															// Remove from list
+															setItems(prev => {
+																const next = prev.filter(x => x.id !== t.id)
+																try { localStorage.setItem('cache_admin_teachers_v1', JSON.stringify({ items: next, ts: Date.now() })) } catch {}
+																return next
+															})
+															setDeleteConfirm(null)
+														} catch (err) {
+															alert('Kļūda dzēšot pasniedzēju')
+														} finally {
+															setDeleting(null)
+														}
+													}}
+												>
+													{deleting === t.id ? 'Dzēš...' : 'Jā, dzēst'}
+												</button>
+												<button
+													className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50"
+													onClick={() => setDeleteConfirm(null)}
+												>
+													Atcelt
+												</button>
+											</div>
+										</div>
+									)}
 								</div>
                                 {editing[t.id] && (
                                     <div className="border-t border-gray-200 p-4 bg-yellow-50">
@@ -1192,7 +1257,15 @@ const AdminCalendar = () => {
 									const ts = toTs(b.date, b.time)
 									if (!earliestByStudent[sid] || ts < earliestByStudent[sid]) earliestByStudent[sid] = ts
 								}
-								const agg: Record<string, { childName: string; groupHad: number; individualHad: number; groupLateCancels: number; individualLateCancels: number }> = {}
+								const agg: Record<string, { childName: string; groupHad: number; individualHad: number; groupLateCancels: number; individualLateCancels: number; discountCode: string }> = {}
+								// Build a map of userId to discount code from bookings
+								const userDiscountCodes: Record<string, string> = {}
+								for (const b of bookings as any[]) {
+									const uid = String(b.userId || '')
+									if (uid && b.userDiscountCode && !userDiscountCodes[uid]) {
+										userDiscountCodes[uid] = b.userDiscountCode
+									}
+								}
 								for (const b of bookings as any[]) {
 									if (!inRange(b.date)) continue
 									const studentId = String(b.studentId || b.userId || '')
@@ -1200,7 +1273,9 @@ const AdminCalendar = () => {
 									if (childFilter && studentId !== childFilter) continue
 									const isGroup = b.lessonType === 'group'
 									const lessonTs = toTs(b.date, b.time)
-									agg[studentId] ||= { childName: b.studentName || b.userName || '—', groupHad: 0, individualHad: 0, groupLateCancels: 0, individualLateCancels: 0 }
+									const userId = String(b.userId || '')
+									const discountCode = userDiscountCodes[userId] || b.userDiscountCode || '—'
+									agg[studentId] ||= { childName: b.studentName || b.userName || '—', groupHad: 0, individualHad: 0, groupLateCancels: 0, individualLateCancels: 0, discountCode }
 									// Teacher late cancellations
 									if (b.status === 'cancelled' && b.cancelledBy === 'teacher') {
 										const updatedAtTs = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
@@ -1224,21 +1299,119 @@ const AdminCalendar = () => {
 									.sort((a, b) => a[1].childName.localeCompare(b[1].childName))
 									.map(([_, v]) => ({
 										Skolēns: v.childName,
+										'Atlaides kods': v.discountCode,
 										'Individuālās nodarbības': v.individualHad,
 										'Grupu nodarbības': v.groupHad,
 										'Atceltas (vēlu) individuālās': v.individualLateCancels,
 										'Atceltas (vēlu) grupu': v.groupLateCancels,
 									}))
-								const ws = XLSX.utils.json_to_sheet(rows)
+								
+								// Create worksheet with title row
+								const title = exportFrom && exportTo ? `${exportFrom} līdz ${exportTo}` : selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })
+								const ws = XLSX.utils.aoa_to_sheet([
+									[`Skolēnu statistika - ${title}`],
+									[],
+									['Skolēns', 'Atlaides kods', 'Individuālās nodarbības', 'Grupu nodarbības', 'Atceltas (vēlu) individuālās', 'Atceltas (vēlu) grupu']
+								])
+								
+								// Add data rows
+								XLSX.utils.sheet_add_json(ws, rows, { origin: 'A4', skipHeader: true })
+								
+								// Calculate totals
+								const totalIndividual = rows.reduce((sum, r) => sum + r['Individuālās nodarbības'], 0)
+								const totalGroup = rows.reduce((sum, r) => sum + r['Grupu nodarbības'], 0)
+								const totalCancelIndividual = rows.reduce((sum, r) => sum + r['Atceltas (vēlu) individuālās'], 0)
+								const totalCancelGroup = rows.reduce((sum, r) => sum + r['Atceltas (vēlu) grupu'], 0)
+								
+								// Add totals row
+								const lastRow = rows.length + 4
+								XLSX.utils.sheet_add_aoa(ws, [['KOPĀ:', '', totalIndividual, totalGroup, totalCancelIndividual, totalCancelGroup]], { origin: `A${lastRow}` })
+								
+								// Set column widths
+								ws['!cols'] = [
+									{ wch: 25 }, // Skolēns
+									{ wch: 15 }, // Atlaides kods
+									{ wch: 22 }, // Individuālās
+									{ wch: 18 }, // Grupu
+									{ wch: 26 }, // Atceltas individuālās
+									{ wch: 22 }  // Atceltas grupu
+								]
+								
+								// Style title
+								if (!ws['A1']) ws['A1'] = { t: 's', v: '' }
+								ws['A1'].s = {
+									font: { bold: true, sz: 16, color: { rgb: '000000' } },
+									alignment: { horizontal: 'left', vertical: 'center' },
+									fill: { fgColor: { rgb: 'FCD34D' } }
+								}
+								
+								// Merge title cells
+								if (!ws['!merges']) ws['!merges'] = []
+								ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } })
+								
+								// Style header row
+								const headerCells = ['A3', 'B3', 'C3', 'D3', 'E3', 'F3']
+								headerCells.forEach(cell => {
+									if (!ws[cell]) ws[cell] = { t: 's', v: '' }
+									ws[cell].s = {
+										font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 12 },
+										fill: { fgColor: { rgb: '1F2937' } },
+										alignment: { horizontal: 'center', vertical: 'center' },
+										border: {
+											top: { style: 'thin', color: { rgb: '000000' } },
+											bottom: { style: 'thin', color: { rgb: '000000' } },
+											left: { style: 'thin', color: { rgb: '000000' } },
+											right: { style: 'thin', color: { rgb: '000000' } }
+										}
+									}
+								})
+								
+								// Style data rows with alternating colors
+								for (let i = 0; i < rows.length; i++) {
+									const rowNum = i + 4
+									const isEven = i % 2 === 0
+									const cells = ['A', 'B', 'C', 'D', 'E', 'F'].map(col => `${col}${rowNum}`)
+									cells.forEach((cell, idx) => {
+										if (!ws[cell]) ws[cell] = { t: 's', v: '' }
+										ws[cell].s = {
+											fill: { fgColor: { rgb: isEven ? 'FFFFFF' : 'F9FAFB' } },
+											alignment: { horizontal: (idx === 0 || idx === 1) ? 'left' : 'center', vertical: 'center' },
+											border: {
+												top: { style: 'thin', color: { rgb: 'E5E7EB' } },
+												bottom: { style: 'thin', color: { rgb: 'E5E7EB' } },
+												left: { style: 'thin', color: { rgb: 'E5E7EB' } },
+												right: { style: 'thin', color: { rgb: 'E5E7EB' } }
+											}
+										}
+									})
+								}
+								
+								// Style totals row
+								const totalCells = ['A', 'B', 'C', 'D', 'E', 'F'].map(col => `${col}${lastRow}`)
+								totalCells.forEach((cell, idx) => {
+									if (!ws[cell]) ws[cell] = { t: 's', v: '' }
+									ws[cell].s = {
+										font: { bold: true, sz: 12 },
+										fill: { fgColor: { rgb: 'FEF3C7' } },
+										alignment: { horizontal: idx === 0 ? 'left' : 'center', vertical: 'center' },
+										border: {
+											top: { style: 'medium', color: { rgb: '000000' } },
+											bottom: { style: 'medium', color: { rgb: '000000' } },
+											left: { style: 'thin', color: { rgb: '000000' } },
+											right: { style: 'thin', color: { rgb: '000000' } }
+										}
+									}
+								})
+								
 								const wb = XLSX.utils.book_new()
-								XLSX.utils.book_append_sheet(wb, ws, 'Bērni')
+								XLSX.utils.book_append_sheet(wb, ws, 'Skolēnu statistika')
 								const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
 								const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
 								const a = document.createElement('a')
 								const url = URL.createObjectURL(blob)
 								a.href = url
-								const title = exportFrom && exportTo ? `${exportFrom}_lidz_${exportTo}` : selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })
-								a.download = `statistika-berni-${title}.xlsx`
+								const filename = exportFrom && exportTo ? `${exportFrom}_lidz_${exportTo}` : selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })
+								a.download = `statistika-berni-${filename}.xlsx`
 								a.click()
 								setTimeout(() => URL.revokeObjectURL(url), 1500)
 							} catch (e) { alert('Neizdevās eksportēt XLSX') }
@@ -1396,7 +1569,15 @@ const AdminCalendar = () => {
 							if (!earliestByStudent[sid] || ts < earliestByStudent[sid]) earliestByStudent[sid] = ts
 						}
 						const nowTs = Date.now()
-						const agg: Record<string, { childName: string; groupHad: number; individualHad: number; groupLateCancels: number; individualLateCancels: number }> = {}
+						const agg: Record<string, { childName: string; groupHad: number; individualHad: number; groupLateCancels: number; individualLateCancels: number; discountCode: string }> = {}
+						// Build a map of userId to discount code from bookings
+						const userDiscountCodes: Record<string, string> = {}
+						for (const b of bookings as any[]) {
+							const uid = String(b.userId || '')
+							if (uid && b.userDiscountCode && !userDiscountCodes[uid]) {
+								userDiscountCodes[uid] = b.userDiscountCode
+							}
+						}
 						for (const b of bookings as any[]) {
 							if (!inRange(b.date)) continue
 							if (teacherFilter && String(b.teacherId) !== teacherFilter) continue
@@ -1405,7 +1586,9 @@ const AdminCalendar = () => {
 							if (childFilter && studentId !== childFilter) continue
 							const isGroup = b.lessonType === 'group'
 							const lessonTs = toTs(b.date, b.time)
-							agg[studentId] ||= { childName: b.studentName || b.userName || '—', groupHad: 0, individualHad: 0, groupLateCancels: 0, individualLateCancels: 0 }
+							const userId = String(b.userId || '')
+							const discountCode = userDiscountCodes[userId] || b.userDiscountCode || '—'
+							agg[studentId] ||= { childName: b.studentName || b.userName || '—', groupHad: 0, individualHad: 0, groupLateCancels: 0, individualLateCancels: 0, discountCode }
 							// Teacher late cancellations
 							if (b.status === 'cancelled' && b.cancelledBy === 'teacher') {
 								const updatedAtTs = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
@@ -1431,21 +1614,119 @@ const AdminCalendar = () => {
 							.sort((a, b) => a[1].childName.localeCompare(b[1].childName))
 							.map(([_, v]) => ({
 								Skolēns: v.childName,
+								'Atlaides kods': v.discountCode,
 								'Individuālās nodarbības': v.individualHad,
 								'Grupu nodarbības': v.groupHad,
 								'Atceltas (vēlu) individuālās': v.individualLateCancels,
 								'Atceltas (vēlu) grupu': v.groupLateCancels,
 							}))
-						const ws = XLSX.utils.json_to_sheet(rows)
+						
+						// Create worksheet with title row
+						const title = exportFrom && exportTo ? `${exportFrom} līdz ${exportTo}` : selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })
+						const ws = XLSX.utils.aoa_to_sheet([
+							[`Skolēnu statistika - ${title}`],
+							[],
+							['Skolēns', 'Atlaides kods', 'Individuālās nodarbības', 'Grupu nodarbības', 'Atceltas (vēlu) individuālās', 'Atceltas (vēlu) grupu']
+						])
+						
+						// Add data rows
+						XLSX.utils.sheet_add_json(ws, rows, { origin: 'A4', skipHeader: true })
+						
+						// Calculate totals
+						const totalIndividual = rows.reduce((sum, r) => sum + r['Individuālās nodarbības'], 0)
+						const totalGroup = rows.reduce((sum, r) => sum + r['Grupu nodarbības'], 0)
+						const totalCancelIndividual = rows.reduce((sum, r) => sum + r['Atceltas (vēlu) individuālās'], 0)
+						const totalCancelGroup = rows.reduce((sum, r) => sum + r['Atceltas (vēlu) grupu'], 0)
+						
+						// Add totals row
+						const lastRow = rows.length + 4
+						XLSX.utils.sheet_add_aoa(ws, [['KOPĀ:', '', totalIndividual, totalGroup, totalCancelIndividual, totalCancelGroup]], { origin: `A${lastRow}` })
+						
+						// Set column widths
+						ws['!cols'] = [
+							{ wch: 25 }, // Skolēns
+							{ wch: 15 }, // Atlaides kods
+							{ wch: 22 }, // Individuālās
+							{ wch: 18 }, // Grupu
+							{ wch: 26 }, // Atceltas individuālās
+							{ wch: 22 }  // Atceltas grupu
+						]
+						
+						// Style title
+						if (!ws['A1']) ws['A1'] = { t: 's', v: '' }
+						ws['A1'].s = {
+							font: { bold: true, sz: 16, color: { rgb: '000000' } },
+							alignment: { horizontal: 'left', vertical: 'center' },
+							fill: { fgColor: { rgb: 'FCD34D' } }
+						}
+						
+						// Merge title cells
+						if (!ws['!merges']) ws['!merges'] = []
+						ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } })
+						
+						// Style header row
+						const headerCells = ['A3', 'B3', 'C3', 'D3', 'E3', 'F3']
+						headerCells.forEach(cell => {
+							if (!ws[cell]) ws[cell] = { t: 's', v: '' }
+							ws[cell].s = {
+								font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 12 },
+								fill: { fgColor: { rgb: '1F2937' } },
+								alignment: { horizontal: 'center', vertical: 'center' },
+								border: {
+									top: { style: 'thin', color: { rgb: '000000' } },
+									bottom: { style: 'thin', color: { rgb: '000000' } },
+									left: { style: 'thin', color: { rgb: '000000' } },
+									right: { style: 'thin', color: { rgb: '000000' } }
+								}
+							}
+						})
+						
+						// Style data rows with alternating colors
+						for (let i = 0; i < rows.length; i++) {
+							const rowNum = i + 4
+							const isEven = i % 2 === 0
+							const cells = ['A', 'B', 'C', 'D', 'E', 'F'].map(col => `${col}${rowNum}`)
+							cells.forEach((cell, idx) => {
+								if (!ws[cell]) ws[cell] = { t: 's', v: '' }
+								ws[cell].s = {
+									fill: { fgColor: { rgb: isEven ? 'FFFFFF' : 'F9FAFB' } },
+									alignment: { horizontal: (idx === 0 || idx === 1) ? 'left' : 'center', vertical: 'center' },
+									border: {
+										top: { style: 'thin', color: { rgb: 'E5E7EB' } },
+										bottom: { style: 'thin', color: { rgb: 'E5E7EB' } },
+										left: { style: 'thin', color: { rgb: 'E5E7EB' } },
+										right: { style: 'thin', color: { rgb: 'E5E7EB' } }
+									}
+								}
+							})
+						}
+						
+						// Style totals row
+						const totalCells = ['A', 'B', 'C', 'D', 'E', 'F'].map(col => `${col}${lastRow}`)
+						totalCells.forEach((cell, idx) => {
+							if (!ws[cell]) ws[cell] = { t: 's', v: '' }
+							ws[cell].s = {
+								font: { bold: true, sz: 12 },
+								fill: { fgColor: { rgb: 'FEF3C7' } },
+								alignment: { horizontal: idx === 0 ? 'left' : 'center', vertical: 'center' },
+								border: {
+									top: { style: 'medium', color: { rgb: '000000' } },
+									bottom: { style: 'medium', color: { rgb: '000000' } },
+									left: { style: 'thin', color: { rgb: '000000' } },
+									right: { style: 'thin', color: { rgb: '000000' } }
+								}
+							}
+						})
+						
 						const wb = XLSX.utils.book_new()
-						XLSX.utils.book_append_sheet(wb, ws, 'Bērni')
+						XLSX.utils.book_append_sheet(wb, ws, 'Skolēnu statistika')
 						const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
 						const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
 						const a = document.createElement('a')
 						const url = URL.createObjectURL(blob)
 						a.href = url
-						const title = exportFrom && exportTo ? `${exportFrom}_lidz_${exportTo}` : selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })
-						a.download = `statistika-berni-${title}.xlsx`
+						const filename = exportFrom && exportTo ? `${exportFrom}_lidz_${exportTo}` : selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })
+						a.download = `statistika-berni-${filename}.xlsx`
 						a.click()
 						setTimeout(() => URL.revokeObjectURL(url), 1500)
 					} catch (e) { alert('Neizdevās eksportēt XLSX') }
@@ -1504,7 +1785,7 @@ const AdminCalendar = () => {
 										{daySlots.map(s => {
 											const lessonTypeLabel = s.lessonType === 'group' ? 'Grupu' : 'Individuāla'
 											const locationLabel = s.location === 'teacher' ? 'Privāti' : 'Uz vietas'
-											const modalityLabel = s.modality === 'zoom' ? 'Attālināti' : 'Klātienē'
+											const modalityLabel = s.modality === 'zoom' ? 'Attālināti' : s.modality === 'both' ? 'Klātienē vai attālināti' : 'Klātienē'
 											const capacity = s.lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
 											const related = bookings.filter((b: any) => b.date === s.date && b.time === s.time && String(b.teacherId) === String(s.teacherId))
 											const acceptedRelated = related.filter((b: any) => b.status === 'accepted')

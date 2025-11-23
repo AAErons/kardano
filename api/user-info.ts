@@ -53,6 +53,7 @@ export default async function handler(req: any, res: any) {
       email: user.email,
       accountType: user.accountType,
       phone: user.phone,
+      discountCode: user.discountCode,
       studentCount: studentCount,
       createdAt: user.createdAt
     }

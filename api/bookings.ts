@@ -20,6 +20,7 @@ type CreateBookingBody = {
   time: string // HH:MM
   studentId?: string | null
   batchId?: string | null
+  preferredModality?: 'in_person' | 'zoom' | null
 }
 
 export default async function handler(req: any, res: any) {
@@ -41,6 +42,7 @@ export default async function handler(req: any, res: any) {
       const time = String(body.time || '')
       const studentId = body.studentId ? String(body.studentId) : null
       const batchId = body.batchId ? String(body.batchId) : null
+      const preferredModality = body.preferredModality
       if (!userId || !teacherId || !date || !time) {
         return res.status(400).json({ error: 'Missing userId, teacherId, date or time' })
       }
@@ -64,6 +66,15 @@ export default async function handler(req: any, res: any) {
         return res.status(409).json({ error: 'Time slot is no longer available' })
       }
 
+      // Determine final modality: if slot has 'both', use user's preference; otherwise use slot's modality
+      let finalModality = slot.modality || 'in_person'
+      if (finalModality === 'both' && preferredModality) {
+        finalModality = preferredModality
+      } else if (finalModality === 'both') {
+        // Default to in_person if slot is 'both' but no preference provided
+        finalModality = 'in_person'
+      }
+
       // Create booking with pending status; include slot attributes for later logic
       const bookingDoc = {
         userId,
@@ -74,7 +85,7 @@ export default async function handler(req: any, res: any) {
         lessonType: slot.lessonType || 'individual',
         groupSize: typeof slot.groupSize === 'number' ? slot.groupSize : undefined,
         location: slot.location || 'facility',
-        modality: slot.modality || 'in_person',
+        modality: finalModality,
         status: 'pending', // pending | accepted | declined | declined_conflict | cancelled
         createdAt: now,
         updatedAt: now,
@@ -141,6 +152,7 @@ export default async function handler(req: any, res: any) {
             enhanced.userEmail = user.email
             enhanced.userPhone = user.phone
             enhanced.userRole = user.role // Add role to distinguish account types
+            enhanced.userDiscountCode = user.discountCode || null // Add discount code for exports
           }
         } catch {}
         

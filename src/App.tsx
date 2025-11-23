@@ -11,11 +11,44 @@ function App() {
 	const [activeSection, setActiveSection] = useState<'home' | 'lessons' | 'tutors' | 'calendar' | 'profile'>('home')
 	const [openRegisterOnProfile, setOpenRegisterOnProfile] = useState(false)
 	const [calendarTeacherPref, setCalendarTeacherPref] = useState<string>('')
+	const [verificationMessage, setVerificationMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+	const [isVerifying, setIsVerifying] = useState(false)
 
 	useEffect(() => {
 		try {
 			const params = new URLSearchParams(window.location.search)
 			const open = params.get('open')
+			const verifyToken = params.get('verify')
+			
+			// Handle email verification
+			if (verifyToken) {
+				setActiveSection('profile')
+				setIsVerifying(true)
+				
+				fetch('/api/verify-email', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ token: verifyToken })
+				})
+				.then(r => r.json())
+				.then(data => {
+					if (data.success) {
+						setVerificationMessage({ type: 'success', message: data.message })
+					} else {
+						setVerificationMessage({ type: 'error', message: data.error || 'Verification failed' })
+					}
+				})
+				.catch(() => {
+					setVerificationMessage({ type: 'error', message: 'Neizdevās verificēt e-pastu. Lūdzu mēģiniet vēlreiz.' })
+				})
+				.finally(() => {
+					setIsVerifying(false)
+					// Clean URL
+					window.history.replaceState({}, '', '/?open=login')
+				})
+				return
+			}
+			
 			if (open === 'calendar') {
 				const t = params.get('teacher')
 				if (t) setCalendarTeacherPref(t)
@@ -39,6 +72,9 @@ function App() {
 				<ProfileSection 
 					openRegisterFromUrl={openRegisterOnProfile}
 					onConsumedOpenRegister={() => setOpenRegisterOnProfile(false)}
+					verificationMessage={verificationMessage}
+					isVerifying={isVerifying}
+					onClearVerificationMessage={() => setVerificationMessage(null)}
 				/>
 			)}
 			

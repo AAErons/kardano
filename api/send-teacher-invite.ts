@@ -81,7 +81,7 @@ export default async function handler(req: any, res: any) {
         },
       })
 
-      const loginUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/?open=login&prefill=${encodeURIComponent(email)}&invite=${userId}`
+      const loginUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://kardano.lv'}/?open=login&prefill=${encodeURIComponent(email)}&invite=${userId}`
       
       await transporter.sendMail({
         from: process.env.SMTP_FROM || process.env.SMTP_USER,
@@ -112,7 +112,7 @@ export default async function handler(req: any, res: any) {
       message: 'Teacher invited successfully',
       email: email,
       tempPassword: tempPassword,
-      loginUrl: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/?open=login&prefill=${encodeURIComponent(email)}&invite=${userId}`,
+      loginUrl: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://kardano.lv'}/?open=login&prefill=${encodeURIComponent(email)}&invite=${userId}`,
       userId: userId
     })
     
