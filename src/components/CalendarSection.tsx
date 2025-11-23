@@ -558,7 +558,18 @@ const CalendarSection = ({ initialTeacherId }: { initialTeacherId?: string }) =>
 									}).length
 									
 									const availableCount = allRelevantSlots.length - bookedCount
-									const totalCircles = Math.min(allRelevantSlots.length, 8) // Cap at 8 circles for display
+									const totalSlots = allRelevantSlots.length
+									
+									// Dynamic circle sizing based on total number of slots
+									let circleSize = 'w-2 h-2 lg:w-2.5 lg:h-2.5'
+									let gap = 'gap-1'
+									if (totalSlots > 50) {
+										circleSize = 'w-1 h-1 lg:w-1.5 lg:h-1.5'
+										gap = 'gap-0.5'
+									} else if (totalSlots > 30) {
+										circleSize = 'w-1.5 h-1.5 lg:w-2 lg:h-2'
+										gap = 'gap-0.5'
+									}
 									
 									return (
 										<div
@@ -582,15 +593,15 @@ const CalendarSection = ({ initialTeacherId }: { initialTeacherId?: string }) =>
 										>
 											<div className="text-xs lg:text-sm font-medium mb-1">{day}</div>
 											
-											{/* Circle indicators for lesson slots */}
+											{/* Circle indicators for lesson slots - show all in multiple rows */}
 											{allRelevantSlots.length > 0 && !isPast && (
-												<div className="flex flex-wrap gap-1 justify-center items-center px-0.5">
-													{Array.from({ length: totalCircles }, (_, i) => {
+												<div className={`flex flex-wrap ${gap} justify-center items-center px-0.5`}>
+													{Array.from({ length: totalSlots }, (_, i) => {
 														const isBooked = i < bookedCount
 														return (
 															<div
 																key={i}
-																className={`w-2 h-2 lg:w-2.5 lg:h-2.5 rounded-full border-2 ${
+																className={`${circleSize} rounded-full border ${
 																	isBooked 
 																		? 'bg-green-600 border-green-600' 
 																		: 'bg-white border-gray-400'
@@ -599,11 +610,6 @@ const CalendarSection = ({ initialTeacherId }: { initialTeacherId?: string }) =>
 															/>
 														)
 													})}
-													{allRelevantSlots.length > 8 && (
-														<span className="text-[9px] text-gray-600 font-semibold ml-0.5">
-															+{allRelevantSlots.length - 8}
-														</span>
-													)}
 												</div>
 											)}
 										</div>
