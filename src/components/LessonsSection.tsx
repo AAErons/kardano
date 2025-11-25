@@ -16,63 +16,81 @@ const LessonsSection = () => {
 			<div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow">
 				<h3 className="text-xl font-bold text-black mb-2 text-center">Individuāla nodarbība</h3>
 				<div className="mb-3 pb-3 border-b border-gray-200">
-					<div className="text-sm font-medium text-gray-600 mb-2">Ilgums: 45 min</div>
-					<div className="flex gap-2">
+					<div className="flex items-center justify-center gap-1.5 text-sm font-medium text-gray-600 mb-2">
+						<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<circle cx="12" cy="12" r="10" strokeWidth="2"/>
+							<path strokeWidth="2" strokeLinecap="round" d="M12 6v6l4 2"/>
+						</svg>
+						<span>45 min</span>
+					</div>
+					<div className="flex gap-2 justify-center">
 						<span className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-1 rounded-full">Pamatskolai</span>
 						<span className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-1 rounded-full">Vidusskolai</span>
 					</div>
 				</div>
-				<p className="text-gray-700 mb-3">
+				<p className="text-gray-700 mb-3 indent-8">
 					Individuālā nodarbība ir ideāla izvēle, ja vēlies mācīties savā ritmā un vidē, kur visa uzmanība ir vērsta tikai uz Tevi un Taviem mērķiem. Šajās nodarbībās mēs varam koncentrēties uz tieši to, kas Tev visvairāk nepieciešams – vai tā būtu tekošās tēmas apguve, gatavošanās pārbaudes darbiem vai pat matemātiskās loģikas un domāšanas attīstīšana ārpus tam, ko paredzēts apgūt skolā.
 				</p>
-				<p className="text-gray-700 mb-3">
+				<p className="text-gray-700 mb-3 indent-8">
 					Individuālais darbs ļauj pasniedzējam pielāgot pieeju Tavam zināšanu līmenim, tempam un mācīšanās ieradumiem. Tas nodrošina ne tikai ātrāku progresu, bet arī patiesi drošu, atbalstošu vidi, kurā ir viegli uzdot jautājumus, kļūdīties un augt.
 				</p>
-				<p className="text-gray-700 font-semibold mb-4">
+				<p className="text-gray-700 font-semibold mb-4 indent-8">
 					Savu panākumu galvenā atslēga esi Tu! Bet mēs ar prieku palīdzēsim Tev atrast īsto ceļu līdz virsotnei.
 				</p>
 			</div>
 			<div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow">
 				<h3 className="text-xl font-bold text-black mb-2 text-center">Grupu nodarbība (līdz 4 skolēniem)</h3>
 				<div className="mb-3 pb-3 border-b border-gray-200">
-					<div className="text-sm font-medium text-gray-600 mb-2">Ilgums: 45 min</div>
-					<div className="flex gap-2">
+					<div className="flex items-center justify-center gap-1.5 text-sm font-medium text-gray-600 mb-2">
+						<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<circle cx="12" cy="12" r="10" strokeWidth="2"/>
+							<path strokeWidth="2" strokeLinecap="round" d="M12 6v6l4 2"/>
+						</svg>
+						<span>45 min</span>
+					</div>
+					<div className="flex gap-2 justify-center">
 						<span className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-1 rounded-full">Pamatskolai</span>
 						<span className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-1 rounded-full">Vidusskolai</span>
 					</div>
 				</div>
-				<p className="text-gray-700 mb-3">
+				<p className="text-gray-700 mb-3 indent-8">
 					Grupu nodarbības ir lieliska iespēja uzlabot savas zināšanas, strādājot ne tikai individuāli, bet arī komandā, vienlaikus, saglabājot personisku atgriezenisko saiti no skolotāja. Šajās nodarbībās mēs strādājam nelielās grupās, lai katrs skolēns saņemtu individuālu atbalstu, vienlaikus gūstot motivāciju un degsmi no kopā padarītā.
 				</p>
-				<p className="text-gray-700 mb-3">
+				<p className="text-gray-700 mb-3 indent-8">
 					Mācības grupā palīdz ne tikai labāk izprast tēmas, bet arī attīstīt analītisko domāšanu un ļauj uz situāciju paskatītites plāšāk - ieklausoties citu idejās un salīdzinot tās ar savējām, izvērtējot kopīgo, atšķirīgo, pozitīvo un negatīvo katram no risinājumiem.
 				</p>
-				<p className="text-gray-700 mb-4">
+				<p className="text-gray-700 mb-4 indent-8">
 					Nelielais dalībnieku skaits ļauj pasniedzējam saglabāt tiešu kontaktu ar katru skolēnu — pielāgot uzdevumus, sekot līdzi progresam un nodrošināt atbalstošu atmosfēru, kurā katram ir vieta izaugsmei.
 				</p>
-				<p className="text-gray-700 font-semibold mb-4">
+				<p className="text-gray-700 font-semibold mb-4 indent-8">
 					Ceļš uz panākumiem nav jāiet vienam. Kopā - gudrāki!
 				</p>
 			</div>
 			<div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow">
 				<h3 className="text-xl font-bold text-black mb-2 text-center">Gatavošanās eksāmeniem (līdz 4 skolēniem)</h3>
 				<div className="mb-3 pb-3 border-b border-gray-200">
-					<div className="text-sm font-medium text-gray-600 mb-2">Ilgums: 45 min</div>
-					<div className="flex gap-2">
+					<div className="flex items-center justify-center gap-1.5 text-sm font-medium text-gray-600 mb-2">
+						<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<circle cx="12" cy="12" r="10" strokeWidth="2"/>
+							<path strokeWidth="2" strokeLinecap="round" d="M12 6v6l4 2"/>
+						</svg>
+						<span>45 min</span>
+					</div>
+					<div className="flex gap-2 justify-center">
 						<span className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-1 rounded-full">VPD</span>
 						<span className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-1 rounded-full">Iestājeksāmeni</span>
 					</div>
 				</div>
-				<p className="text-gray-700 mb-3">
+				<p className="text-gray-700 mb-3 indent-8">
 					Gatavošanās eksāmeniem ir mūsu specialitāte jau gandrīz dekādi. Mūsu grupās skolēni strādā fokusētā, motivējošā vidē, kurā kopā atkārtojam visu svarīgāko, sakārtojam zināšanas un pieeju darbam tā, lai eksāmena dienā valdītu pārliecība, nevis stress.
 				</p>
-				<p className="text-gray-700 mb-3">
+				<p className="text-gray-700 mb-3 indent-8">
 					Nodarbībās mērķtiecīgi pārskatām gaidāmajā eksāmenam nepieciešamo mācību vielu, trenējam biežāk sastopamos uzdevumu tipus un mācāmies stratēģijas, kuras palīdz efektīvāk izmantot mūsu rīcībā esošās zināšanas, pieejamo formulu lapu un atļauj mums īstenot eksāmenā iecerēto. Diskusijas grupā ļauj ieraudzīt problēmas no dažādiem skatpunktiem, kamēr salīdzinoši mazais grupas lielums nodrošina, ka katrs saņem individuālu uzmanību, atbalstu un atgriezenisko saiti.
 				</p>
-				<p className="text-gray-700 mb-4">
+				<p className="text-gray-700 mb-4 indent-8">
 					Grupas dinamika palīdz noturēt motivāciju un ritmu, savukārt pasniedzēja vadība — koncentrēties tieši uz to, kas eksāmenā patiešām ir svarīgi. Šajās nodarbībās tiek stiprināta gan priekšmeta pamatzināšanu kārtīga izpratne, gan pārliecība par savām spējām pielietot apgūtās metodes un rīkus.
 				</p>
-				<p className="text-gray-700 font-semibold mb-4">
+				<p className="text-gray-700 font-semibold mb-4 indent-8">
 					Eksāmenu rakstīsi Tu, bet ļauj mums būt tiem, kuri Tev atbrīvo no satraukuma un dod pārliecību, ka eksāmens ir domāts lai pārbaudītu ko Tu zini, nevis ko Tu nezini, un Tu zini daudz!
 				</p>
 			</div>
