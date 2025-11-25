@@ -112,7 +112,7 @@ const TutorCard = ({ tutor }: { tutor: Tutor }) => {
 			{/* Tutor Details */}
 			<div className="p-6">
 				<div className="mb-2">
-					<p className="text-gray-700">{tutor.description || '—'}</p>
+					<p className="text-gray-700 whitespace-pre-line">{tutor.description || '—'}</p>
 				</div>
 
 				{/* Action */}
