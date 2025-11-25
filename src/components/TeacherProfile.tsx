@@ -257,10 +257,6 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 		return { daysInMonth, startingDay }
 	}
 	const getSlotsForDate = (dateStr: string) => (slots || []).filter((s: any) => s?.date === dateStr)
-	const hasSlotsOn = (y: number, m: number, day: number) => {
-		const ds = `${y}-${String(m + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
-		return getSlotsForDate(ds).length > 0
-	}
 	const { daysInMonth, startingDay } = getDaysInMonth(selectedDate)
 
 	return (
@@ -314,14 +310,12 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 							<div key={`empty-${i}`} className="h-20 lg:h-24" />
 						))}
 						{Array.from({ length: daysInMonth }, (_, idx) => {
-							const day = idx + 1
-							const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
-							const daySlots = getSlotsForDate(dateStr)
-							const nowTs = Date.now()
-							const dateTs = new Date(dateStr).getTime()
-							const isPast = dateTs < nowTs - 24 * 60 * 60 * 1000
-							
-							// Categorize slots
+						const day = idx + 1
+						const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+						const daySlots = getSlotsForDate(dateStr)
+						const nowTs = Date.now()
+						
+						// Categorize slots
 							const pastSlots: any[] = []
 							const bookedSlots: any[] = []
 							const availableSlots: any[] = []
