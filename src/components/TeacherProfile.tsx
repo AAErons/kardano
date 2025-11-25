@@ -168,13 +168,14 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 	// Ensure bookings are available in profile calendar
 	useEffect(() => { if (teacherId) { loadBookings(); } }, [teacherId])
 
-	// Background refresh for badges (notifications only)
+	// Background refresh for badges (notifications and bookings)
 	useEffect(() => {
 		if (!teacherId) return
 		let timer: any
 		const tick = async () => {
 			try {
 				await loadNotifications(true)
+				await loadBookings()
 			} catch {}
 		}
 		tick()
@@ -258,6 +259,10 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 	}
 	const getSlotsForDate = (dateStr: string) => (slots || []).filter((s: any) => s?.date === dateStr)
 	const { daysInMonth, startingDay } = getDaysInMonth(selectedDate)
+	
+	// Compute badge counts
+	const unreadNotifCount = notifications.filter(n => n.unread).length
+	const pendingBookingsCount = bookings.filter(b => b.status === 'pending' || b.status === 'pending_unavailable').length
 
 	return (
 		<div className="space-y-6">
@@ -284,10 +289,12 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 			<div className="bg-white rounded-2xl shadow-xl p-2">
 				<div className="flex gap-2">
 					<button onClick={() => setActiveTab('profile')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'profile' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Profils</button>
-					<button onClick={() => setActiveTab('notifications')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'notifications' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>
-						Paziņojumi {notifications.filter(n => n.unread).length > 0 && <span className="ml-2 inline-block text-xs bg-red-500 text-white rounded-full px-2 py-0.5">{notifications.filter(n => n.unread).length}</span>}
-					</button>
-					<button onClick={() => setActiveTab('bookings')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'bookings' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Rezervācijas</button>
+				<button onClick={() => setActiveTab('notifications')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'notifications' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>
+					Paziņojumi {unreadNotifCount > 0 && <span className="ml-2 inline-block text-xs bg-red-500 text-white rounded-full px-2 py-0.5">{unreadNotifCount}</span>}
+				</button>
+				<button onClick={() => setActiveTab('bookings')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'bookings' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>
+					Rezervācijas {pendingBookingsCount > 0 && <span className="ml-2 inline-block text-xs bg-red-500 text-white rounded-full px-2 py-0.5">{pendingBookingsCount}</span>}
+				</button>
 					<button onClick={() => setActiveTab('attendance')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'attendance' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Nodarbību apmeklējums</button>
 				</div>
 			</div>
