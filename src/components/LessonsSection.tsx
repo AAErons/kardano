@@ -13,15 +13,23 @@ const LessonsSection = () => {
 
 				{/* Offer cards */}
 				<div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 mb-10">
-					<div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow">
-						<h3 className="text-xl font-bold text-black mb-2">Individuāla nodarbība</h3>
-						<p className="text-gray-700 mb-3">Koncentrēta uzmanība un pielāgots temps.</p>
-						<div className="text-sm text-gray-600 mb-4">Ilgums: 60–90 min</div>
-						<div className="flex gap-2">
-							<span className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-1 rounded-full">Pamatskolai</span>
-							<span className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-1 rounded-full">Vidusskolai</span>
-						</div>
+				<div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow">
+					<h3 className="text-xl font-bold text-black mb-3">Individuāla nodarbība</h3>
+					<p className="text-gray-700 mb-3">
+						Individuālā nodarbība ir ideāla izvēle, ja vēlies mācīties savā ritmā un vidē, kur visa uzmanība ir vērsta tikai uz Tevi un Taviem mērķiem. Šajās nodarbībās mēs varam koncentrēties uz tieši to, kas Tev visvairāk nepieciešams – vai tā būtu tekošās tēmas apguve, gatavošanās pārbaudes darbiem vai pat matemātiskās loģikas un domāšanas attīstīšana ārpus tam, ko paredzēts apgūt skolā.
+					</p>
+					<p className="text-gray-700 mb-3">
+						Individuālais darbs ļauj pasniedzējam pielāgot pieeju Tavam zināšanu līmenim, tempam un mācīšanās ieradumiem. Tas nodrošina ne tikai ātrāku progresu, bet arī patiesi drošu, atbalstošu vidi, kurā ir viegli uzdot jautājumus, kļūdīties un augt.
+					</p>
+					<p className="text-gray-700 mb-4">
+						Savu panākumu galvenā atslēga esi Tu! Bet mēs ar prieku palīdzēsim Tev atrast īsto ceļu līdz virsotnei.
+					</p>
+					<div className="text-sm text-gray-600 mb-4">Ilgums: 60–90 min</div>
+					<div className="flex gap-2">
+						<span className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-1 rounded-full">Pamatskolai</span>
+						<span className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-1 rounded-full">Vidusskolai</span>
 					</div>
+				</div>
 					<div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow">
 						<h3 className="text-xl font-bold text-black mb-2">Eksāmenu sagatavošana</h3>
 						<p className="text-gray-700 mb-3">Mērķtiecīgi treniņi ar uzdevumiem un atgriezenisko saiti.</p>
