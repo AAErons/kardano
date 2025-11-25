@@ -309,20 +309,65 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 									<button onClick={() => { setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)); setSelectedDay(null) }} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Nākamais</button>
 								</div>
 							</div>
-						<div className="grid grid-cols-7 gap-1">
-							{Array.from({ length: startingDay }, (_, i) => (
-								<div key={`empty-${i}`} className="h-16" />
-							))}
-							{Array.from({ length: daysInMonth }, (_, idx) => {
-								const day = idx + 1
-								const has = hasSlotsOn(selectedDate.getFullYear(), selectedDate.getMonth(), day)
-								return (
-									<div key={day} className={`h-16 border p-1 ${has ? 'bg-green-50' : 'bg-blue-50'}`} onClick={() => { setSelectedDay(day); setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)) }}>
-										<div className="text-xs font-medium">{day}</div>
-									</div>
-								)
-							})}
-						</div>
+					<div className="grid grid-cols-7 gap-1">
+						{Array.from({ length: startingDay }, (_, i) => (
+							<div key={`empty-${i}`} className="h-20 lg:h-24" />
+						))}
+						{Array.from({ length: daysInMonth }, (_, idx) => {
+							const day = idx + 1
+							const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+							const daySlots = getSlotsForDate(dateStr)
+							const nowTs = Date.now()
+							const dateTs = new Date(dateStr).getTime()
+							const isPast = dateTs < nowTs - 24 * 60 * 60 * 1000
+							
+							// Categorize slots
+							const pastSlots: any[] = []
+							const bookedSlots: any[] = []
+							const availableSlots: any[] = []
+							
+							daySlots.forEach((s: any) => {
+								const slotTs = new Date(`${s.date}T${s.time}:00`).getTime()
+								const lessonType = s.lessonType || 'individual'
+								const capacity = lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
+								const related = bookings.filter(b => b.date === s.date && b.time === s.time)
+								const effectiveRelated = related.filter(b => b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable')
+								const bookedCount = effectiveRelated.length
+								const isBooked = bookedCount >= capacity || s.available === false
+								
+								if (slotTs < nowTs) {
+									pastSlots.push(s)
+								} else if (isBooked) {
+									bookedSlots.push(s)
+								} else {
+									availableSlots.push(s)
+								}
+							})
+							
+							const totalSlots = daySlots.length
+							const circleSize = totalSlots > 50 ? 'w-1 h-1 lg:w-1.5 lg:h-1.5' : totalSlots > 30 ? 'w-1.5 h-1.5 lg:w-2 lg:h-2' : 'w-2 h-2 lg:w-2.5 lg:h-2.5'
+							const gapSize = totalSlots > 50 ? 'gap-0.5' : totalSlots > 30 ? 'gap-1' : 'gap-1.5'
+							
+							return (
+								<div key={day} className={`h-20 lg:h-24 border p-1 cursor-pointer ${daySlots.length > 0 ? 'bg-green-50 hover:bg-green-100' : 'bg-blue-50 hover:bg-blue-100'}`} onClick={() => { setSelectedDay(day); setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)) }}>
+									<div className="text-xs font-medium mb-1">{day}</div>
+									{daySlots.length > 0 && (
+										<div className={`flex flex-wrap ${gapSize}`}>
+											{pastSlots.map((_, i) => (
+												<div key={`past-${i}`} className={`${circleSize} rounded-full bg-gray-400`} title="Pagājis" />
+											))}
+											{bookedSlots.map((_, i) => (
+												<div key={`booked-${i}`} className={`${circleSize} rounded-full bg-green-600`} title="Rezervēts" />
+											))}
+											{availableSlots.map((_, i) => (
+												<div key={`avail-${i}`} className={`${circleSize} rounded-full border-2 border-green-600 bg-white`} title="Pieejams" />
+											))}
+										</div>
+									)}
+								</div>
+							)
+						})}
+					</div>
 						{selectedDay && (() => {
 							const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`
 							const daySlots = getSlotsForDate(dateStr)
