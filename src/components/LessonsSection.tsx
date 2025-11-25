@@ -14,7 +14,7 @@ const LessonsSection = () => {
 				{/* Offer cards */}
 				<div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 mb-10">
 			<div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow">
-				<h3 className="text-xl font-bold text-black mb-2">Individuāla nodarbība</h3>
+				<h3 className="text-xl font-bold text-black mb-2 text-center">Individuāla nodarbība</h3>
 				<div className="mb-3 pb-3 border-b border-gray-200">
 					<div className="text-sm font-medium text-gray-600 mb-2">Ilgums: 45 min</div>
 					<div className="flex gap-2">
@@ -33,7 +33,7 @@ const LessonsSection = () => {
 				</p>
 			</div>
 			<div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow">
-				<h3 className="text-xl font-bold text-black mb-2">Grupu nodarbība (līdz 4 skolēniem)</h3>
+				<h3 className="text-xl font-bold text-black mb-2 text-center">Grupu nodarbība (līdz 4 skolēniem)</h3>
 				<div className="mb-3 pb-3 border-b border-gray-200">
 					<div className="text-sm font-medium text-gray-600 mb-2">Ilgums: 45 min</div>
 					<div className="flex gap-2">
@@ -55,7 +55,7 @@ const LessonsSection = () => {
 				</p>
 			</div>
 			<div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow">
-				<h3 className="text-xl font-bold text-black mb-2">Gatavošanās eksāmeniem (līdz 4 skolēniem)</h3>
+				<h3 className="text-xl font-bold text-black mb-2 text-center">Gatavošanās eksāmeniem (līdz 4 skolēniem)</h3>
 				<div className="mb-3 pb-3 border-b border-gray-200">
 					<div className="text-sm font-medium text-gray-600 mb-2">Ilgums: 45 min</div>
 					<div className="flex gap-2">
