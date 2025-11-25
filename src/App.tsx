@@ -49,14 +49,14 @@ function App() {
 				return
 			}
 			
-			if (open === 'calendar') {
-				const t = params.get('teacher')
-				if (t) setCalendarTeacherPref(t)
-				setActiveSection('calendar')
-			} else if (open === 'login' || open === 'register' || params.has('invite')) {
-				setActiveSection('profile')
-				if (open === 'register' || params.has('invite')) setOpenRegisterOnProfile(true)
-			}
+		if (open === 'calendar') {
+			const t = params.get('teacher')
+			if (t) setCalendarTeacherPref(t)
+			setActiveSection('calendar')
+		} else if (open === 'login' || open === 'register') {
+			setActiveSection('profile')
+			if (open === 'register') setOpenRegisterOnProfile(true)
+		}
 		} catch {}
 	}, [])
 
