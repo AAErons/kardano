@@ -795,14 +795,18 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
             {b.address && (
               <div className="text-sm text-gray-700"><strong>Adrese:</strong> {b.address}</div>
             )}
-            {b.status === 'accepted' && (
-              <div className="mt-2">
-                <button onClick={() => {
-                  const id = String(b._id)
-                  setReasonForms(prev => ({ ...prev, [id]: { open: true, action: 'cancel', text: '' } }))
-                }} className="text-xs bg-red-500 hover:bg-red-600 text-white rounded-md px-3 py-1">Atcelt</button>
-              </div>
-            )}
+            {b.status === 'accepted' && (() => {
+              const lessonDateTime = new Date(`${b.date}T${b.time}:00`)
+              const isPastLesson = lessonDateTime.getTime() < Date.now()
+              return !isPastLesson ? (
+                <div className="mt-2">
+                  <button onClick={() => {
+                    const id = String(b._id)
+                    setReasonForms(prev => ({ ...prev, [id]: { open: true, action: 'cancel', text: '' } }))
+                  }} className="text-xs bg-red-500 hover:bg-red-600 text-white rounded-md px-3 py-1">Atcelt</button>
+                </div>
+              ) : null
+            })()}
             {reasonForms[String(b._id)]?.open && (
               <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
                 <label className="block text-xs font-medium text-gray-700 mb-1">Pamatojums</label>
