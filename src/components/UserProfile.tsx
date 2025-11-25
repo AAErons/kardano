@@ -218,28 +218,32 @@ useEffect(() => {
 						<h3 className="text-lg font-semibold text-black">Manas rezervācijas</h3>
 						<div className="flex items-center gap-2">
 							{/* Status filters: Gaida, Pieņemts, Notikusi, Noraidīts */}
-                            <div className="hidden md:flex items-center gap-3 mr-2">
-								<label className="flex items-center gap-1 text-xs text-gray-700">
-									<input type="checkbox" checked={Boolean(bookingStatusFilter['gaida'])} onChange={e => setBookingStatusFilter(prev => ({ ...prev, ['gaida']: e.target.checked }))} />
-									<span>Gaida</span>
-								</label>
-								<label className="flex items-center gap-1 text-xs text-gray-700">
-									<input type="checkbox" checked={Boolean(bookingStatusFilter['accepted'])} onChange={e => setBookingStatusFilter(prev => ({ ...prev, ['accepted']: e.target.checked }))} />
-									<span>Pieņemts</span>
-								</label>
-								<label className="flex items-center gap-1 text-xs text-gray-700">
-									<input type="checkbox" checked={Boolean(bookingStatusFilter['notikusi'])} onChange={e => setBookingStatusFilter(prev => ({ ...prev, ['notikusi']: e.target.checked }))} />
-									<span>Notikusi</span>
-								</label>
-								<label className="flex items-center gap-1 text-xs text-gray-700">
-									<input type="checkbox" checked={Boolean(bookingStatusFilter['declined'])} onChange={e => setBookingStatusFilter(prev => ({ ...prev, ['declined']: e.target.checked }))} />
-									<span>Noraidīts</span>
-								</label>
-                                <label className="flex items-center gap-1 text-xs text-gray-700">
-                                    <input type="checkbox" checked={Boolean(bookingStatusFilter['cancelled'])} onChange={e => setBookingStatusFilter(prev => ({ ...prev, ['cancelled']: e.target.checked }))} />
-                                    <span>Atcelts</span>
-                                </label>
-							</div>
+                        <div className="hidden md:flex items-center gap-3 mr-2">
+							<label className="flex items-center gap-1 text-xs text-gray-700">
+								<input type="checkbox" checked={Boolean(bookingStatusFilter['gaida'])} onChange={e => setBookingStatusFilter(prev => ({ ...prev, ['gaida']: e.target.checked }))} />
+								<span>Gaida</span>
+							</label>
+							<label className="flex items-center gap-1 text-xs text-gray-700">
+								<input type="checkbox" checked={Boolean(bookingStatusFilter['accepted'])} onChange={e => setBookingStatusFilter(prev => ({ ...prev, ['accepted']: e.target.checked }))} />
+								<span>Pieņemts</span>
+							</label>
+							<label className="flex items-center gap-1 text-xs text-gray-700">
+								<input type="checkbox" checked={Boolean(bookingStatusFilter['notikusi'])} onChange={e => setBookingStatusFilter(prev => ({ ...prev, ['notikusi']: e.target.checked }))} />
+								<span>Notikusi</span>
+							</label>
+							<label className="flex items-center gap-1 text-xs text-gray-700">
+								<input type="checkbox" checked={Boolean(bookingStatusFilter['declined'])} onChange={e => setBookingStatusFilter(prev => ({ ...prev, ['declined']: e.target.checked }))} />
+								<span>Noraidīts</span>
+							</label>
+                            <label className="flex items-center gap-1 text-xs text-gray-700">
+                                <input type="checkbox" checked={Boolean(bookingStatusFilter['cancelled'])} onChange={e => setBookingStatusFilter(prev => ({ ...prev, ['cancelled']: e.target.checked }))} />
+                                <span>Atcelts</span>
+                            </label>
+                            <label className="flex items-center gap-1 text-xs text-gray-700">
+                                <input type="checkbox" checked={Boolean(bookingStatusFilter['expired'])} onChange={e => setBookingStatusFilter(prev => ({ ...prev, ['expired']: e.target.checked }))} />
+                                <span>Noilgusi</span>
+                            </label>
+						</div>
 							<button onClick={() => { window.location.href = '/?open=calendar' }} className="text-sm bg-yellow-400 hover:bg-yellow-500 text-black rounded-md px-3 py-1">Rezervē nodarbību</button>
 							<button onClick={() => loadBookings()} disabled={loadingBookings} className="text-sm border border-gray-300 rounded-md px-3 py-1 hover:bg-gray-50 disabled:opacity-60">{loadingBookings ? 'Ielādē...' : 'Atjaunot'}</button>
 						</div>
@@ -258,12 +262,13 @@ useEffect(() => {
 										const s = b.status
 										const dt = new Date(`${b.date}T${b.time || '00:00'}:00`)
 										const isPastAccepted = s === 'accepted' && !isNaN(dt.getTime()) && dt.getTime() < Date.now()
-										if (bookingStatusFilter['gaida'] && (s === 'pending' || s === 'pending_unavailable')) return true
-										if (bookingStatusFilter['accepted'] && s === 'accepted' && !isPastAccepted) return true
-										if (bookingStatusFilter['notikusi'] && isPastAccepted) return true
-										if (bookingStatusFilter['declined'] && (s === 'declined' || s === 'declined_conflict')) return true
-                                    if (bookingStatusFilter['cancelled'] && s === 'cancelled') return true
-										return false
+								if (bookingStatusFilter['gaida'] && (s === 'pending' || s === 'pending_unavailable')) return true
+								if (bookingStatusFilter['accepted'] && s === 'accepted' && !isPastAccepted) return true
+								if (bookingStatusFilter['notikusi'] && isPastAccepted) return true
+								if (bookingStatusFilter['declined'] && (s === 'declined' || s === 'declined_conflict')) return true
+                                if (bookingStatusFilter['cancelled'] && s === 'cancelled') return true
+                                if (bookingStatusFilter['expired'] && s === 'expired') return true
+								return false
 									})
 									.sort((a, b) => {
 										const ta = new Date(`${a.date}T${a.time || '00:00'}:00`).getTime()
@@ -274,29 +279,33 @@ useEffect(() => {
                                 const bookingDateTime = new Date(`${booking.date}T${booking.time}:00`)
                                 const isPast = !isNaN(bookingDateTime.getTime()) && bookingDateTime.getTime() < Date.now()
                                 const isPastAccepted = isPast && booking.status === 'accepted'
-                                const statusClass = isPastAccepted
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : booking.status === 'accepted'
-                                        ? 'bg-green-100 text-green-800'
-                                        : booking.status === 'declined'
-                                            ? 'bg-red-100 text-red-800'
-                                            : booking.status === 'declined_conflict'
-                                                ? 'bg-orange-100 text-orange-800'
-                                                : booking.status === 'cancelled'
-                                                    ? 'bg-red-100 text-red-800'
+                            const statusClass = isPastAccepted
+                                ? 'bg-blue-100 text-blue-800'
+                                : booking.status === 'accepted'
+                                    ? 'bg-green-100 text-green-800'
+                                    : booking.status === 'declined'
+                                        ? 'bg-red-100 text-red-800'
+                                        : booking.status === 'declined_conflict'
+                                            ? 'bg-orange-100 text-orange-800'
+                                            : booking.status === 'cancelled'
+                                                ? 'bg-red-100 text-red-800'
+                                                : booking.status === 'expired'
+                                                    ? 'bg-gray-100 text-gray-800'
                                                     : booking.status === 'pending_unavailable'
                                                         ? 'bg-gray-100 text-gray-800'
                                                         : 'bg-yellow-100 text-yellow-800'
-                                const statusLabel = isPastAccepted
-                                    ? 'Notikusi'
-                                    : booking.status === 'accepted'
-                                        ? 'Pieņemts'
-                                        : booking.status === 'declined'
-                                            ? 'Noraidīts'
-                                            : booking.status === 'declined_conflict'
-                                                ? 'Noraidīts (konflikts)'
-                                                : booking.status === 'cancelled'
-                                                    ? 'Atcelts'
+                            const statusLabel = isPastAccepted
+                                ? 'Notikusi'
+                                : booking.status === 'accepted'
+                                    ? 'Pieņemts'
+                                    : booking.status === 'declined'
+                                        ? 'Noraidīts'
+                                        : booking.status === 'declined_conflict'
+                                            ? 'Noraidīts (konflikts)'
+                                            : booking.status === 'cancelled'
+                                                ? 'Atcelts'
+                                                : booking.status === 'expired'
+                                                    ? 'Noilgusi'
                                                     : booking.status === 'pending_unavailable'
                                                         ? 'Gaida (nav pieejams)'
                                                         : 'Gaida apstiprinājumu'
@@ -347,25 +356,25 @@ useEffect(() => {
                                                             </p>
                                                         )}
                                                     </div>
-                                                )}
-                                                {(booking.status === 'pending' || booking.status === 'pending_unavailable') && (
-                                                    <div className="pt-2">
-                                                        <button onClick={async () => {
-                                                            try {
-                                                                const now = new Date()
-                                                                const bookingDate = new Date(booking.date + 'T00:00:00')
-                                                                const isSameDay = now.getFullYear() === bookingDate.getFullYear() && now.getMonth() === bookingDate.getMonth() && now.getDate() === bookingDate.getDate()
-                                                                if (isSameDay) {
-                                                                    const ok = confirm('Atcelot pēc 00:00 šīs pašas dienas laikā, nauda netiks atgriezta. Vai turpināt?')
-                                                                    if (!ok) return
-                                                                }
-                                                                const r = await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', bookingId: String(booking._id) }) })
-                                                                if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās atcelt'); return }
-                                                                await loadBookings()
-                                                            } catch { alert('Kļūda') }
-                                                        }} className="text-sm bg-red-500 hover:bg-red-600 text-white rounded-md px-3 py-1">Atcelt</button>
-                                                    </div>
-                                                )}
+                                            )}
+                                            {(booking.status === 'pending' || booking.status === 'pending_unavailable') && !isPast && (
+                                                <div className="pt-2">
+                                                    <button onClick={async () => {
+                                                        try {
+                                                            const now = new Date()
+                                                            const bookingDate = new Date(booking.date + 'T00:00:00')
+                                                            const isSameDay = now.getFullYear() === bookingDate.getFullYear() && now.getMonth() === bookingDate.getMonth() && now.getDate() === bookingDate.getDate()
+                                                            if (isSameDay) {
+                                                                const ok = confirm('Atcelot pēc 00:00 šīs pašas dienas laikā, nauda netiks atgriezta. Vai turpināt?')
+                                                                if (!ok) return
+                                                            }
+                                                            const r = await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', bookingId: String(booking._id) }) })
+                                                            if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās atcelt'); return }
+                                                            await loadBookings()
+                                                        } catch { alert('Kļūda') }
+                                                    }} className="text-sm bg-red-500 hover:bg-red-600 text-white rounded-md px-3 py-1">Atcelt</button>
+                                                </div>
+                                            )}
                                                 {(booking.status === 'accepted' && !isPastAccepted) && (
                                                     <div className="pt-2">
                                                         {!userCancelForms[String(booking._id)]?.open ? (
