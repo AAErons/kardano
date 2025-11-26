@@ -303,70 +303,121 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 				<div className="bg-white rounded-2xl shadow p-6">
 					{/* Calendar (read-only for this teacher) */}
 						<div className="space-y-4">
-							<div className="flex items-center justify-between">
-								<div className="text-lg font-semibold text-black">
-									{selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })}
-								</div>
-								<div className="flex items-center gap-2">
-									<button onClick={() => { setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)); setSelectedDay(null) }} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Iepriekšējais</button>
-									<button onClick={() => { setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)); setSelectedDay(null) }} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Nākamais</button>
-								</div>
+						<div className="flex items-center justify-between">
+							<div className="text-lg font-semibold text-black">
+								{selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })}
 							</div>
-					<div className="grid grid-cols-7 gap-1">
+							<div className="flex items-center gap-2">
+								<button onClick={() => { setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)); setSelectedDay(null) }} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Iepriekšējais</button>
+								<button onClick={() => { setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)); setSelectedDay(null) }} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Nākamais</button>
+							</div>
+						</div>
+						
+						{/* Legend */}
+						<div className="flex flex-wrap items-center gap-3 text-xs bg-gray-50 p-3 rounded-lg border border-gray-200">
+							<span className="font-semibold text-gray-700">Leģenda:</span>
+							<div className="flex items-center gap-1.5">
+								<div className="w-3 h-3 rounded-full border-2 border-green-600 bg-white"></div>
+								<span className="text-gray-700">Pieejams</span>
+							</div>
+							<div className="flex items-center gap-1.5">
+								<div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+								<span className="text-gray-700">Gaida apstiprinājumu</span>
+							</div>
+							<div className="flex items-center gap-1.5">
+								<div className="w-3 h-3 rounded-full bg-green-600"></div>
+								<span className="text-gray-700">Apstiprināts</span>
+							</div>
+							<div className="flex items-center gap-1.5">
+								<div className="w-3 h-3 rounded-full bg-blue-500"></div>
+								<span className="text-gray-700">Notikusi</span>
+							</div>
+							<div className="flex items-center gap-1.5">
+								<div className="w-3 h-3 rounded-full bg-gray-500"></div>
+								<span className="text-gray-700">Noilgusi</span>
+							</div>
+						</div>
+						
+				<div className="grid grid-cols-7 gap-1">
 						{Array.from({ length: startingDay }, (_, i) => (
 							<div key={`empty-${i}`} className="h-20 lg:h-24" />
 						))}
 						{Array.from({ length: daysInMonth }, (_, idx) => {
 						const day = idx + 1
-						const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
-						const daySlots = getSlotsForDate(dateStr)
-						const nowTs = Date.now()
+					const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+					const daySlots = getSlotsForDate(dateStr)
+					const nowTs = Date.now()
+					
+				// Categorize slots
+					const expiredSlots: any[] = []
+					const completedSlots: any[] = []
+					const acceptedSlots: any[] = []
+					const pendingSlots: any[] = []
+					const availableSlots: any[] = []
+					
+					daySlots.forEach((s: any) => {
+						const slotTs = new Date(`${s.date}T${s.time}:00`).getTime()
+						const lessonType = s.lessonType || 'individual'
+						const capacity = lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
+						const related = bookings.filter(b => b.date === s.date && b.time === s.time)
+						const expiredRelated = related.filter(b => b.status === 'expired')
+						const acceptedRelated = related.filter(b => b.status === 'accepted')
+						const pendingRelated = related.filter(b => b.status === 'pending' || b.status === 'pending_unavailable')
+						const effectiveRelated = related.filter(b => b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable')
+						const bookedCount = effectiveRelated.length
+						const isBooked = bookedCount >= capacity || s.available === false
 						
-						// Categorize slots
-							const pastSlots: any[] = []
-							const bookedSlots: any[] = []
-							const availableSlots: any[] = []
-							
-							daySlots.forEach((s: any) => {
-								const slotTs = new Date(`${s.date}T${s.time}:00`).getTime()
-								const lessonType = s.lessonType || 'individual'
-								const capacity = lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
-								const related = bookings.filter(b => b.date === s.date && b.time === s.time)
-								const effectiveRelated = related.filter(b => b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable')
-								const bookedCount = effectiveRelated.length
-								const isBooked = bookedCount >= capacity || s.available === false
-								
-								if (slotTs < nowTs) {
-									pastSlots.push(s)
-								} else if (isBooked) {
-									bookedSlots.push(s)
-								} else {
-									availableSlots.push(s)
-								}
-							})
-							
-							const totalSlots = daySlots.length
-							const circleSize = totalSlots > 50 ? 'w-1 h-1 lg:w-1.5 lg:h-1.5' : totalSlots > 30 ? 'w-1.5 h-1.5 lg:w-2 lg:h-2' : 'w-2 h-2 lg:w-2.5 lg:h-2.5'
-							const gapSize = totalSlots > 50 ? 'gap-0.5' : totalSlots > 30 ? 'gap-1' : 'gap-1.5'
-							
-							return (
-								<div key={day} className={`h-20 lg:h-24 border p-1 cursor-pointer ${daySlots.length > 0 ? 'bg-green-50 hover:bg-green-100' : 'bg-blue-50 hover:bg-blue-100'}`} onClick={() => { setSelectedDay(day); setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)) }}>
-									<div className="text-xs font-medium mb-1">{day}</div>
-									{daySlots.length > 0 && (
-										<div className={`flex flex-wrap ${gapSize}`}>
-											{pastSlots.map((_, i) => (
-												<div key={`past-${i}`} className={`${circleSize} rounded-full bg-gray-400`} title="Pagājis" />
-											))}
-											{bookedSlots.map((_, i) => (
-												<div key={`booked-${i}`} className={`${circleSize} rounded-full bg-green-600`} title="Rezervēts" />
-											))}
-											{availableSlots.map((_, i) => (
-												<div key={`avail-${i}`} className={`${circleSize} rounded-full border-2 border-green-600 bg-white`} title="Pieejams" />
-											))}
-										</div>
-									)}
+						if (slotTs < nowTs) {
+							// Past slot - determine if expired or completed
+							if (expiredRelated.length > 0) {
+								expiredSlots.push(s)
+							} else if (acceptedRelated.length > 0 || related.length > 0) {
+								completedSlots.push(s)
+							} else {
+								completedSlots.push(s) // Default to completed for past slots
+							}
+						} else if (isBooked) {
+							// Future booked slot - determine if accepted or pending
+							if (acceptedRelated.length > 0) {
+								acceptedSlots.push(s)
+							} else if (pendingRelated.length > 0) {
+								pendingSlots.push(s)
+							} else {
+								pendingSlots.push(s) // Default to pending
+							}
+						} else {
+							availableSlots.push(s)
+						}
+					})
+					
+					const totalSlots = daySlots.length
+					const circleSize = totalSlots > 50 ? 'w-1 h-1 lg:w-1.5 lg:h-1.5' : totalSlots > 30 ? 'w-1.5 h-1.5 lg:w-2 lg:h-2' : 'w-2 h-2 lg:w-2.5 lg:h-2.5'
+					const gapSize = totalSlots > 50 ? 'gap-0.5' : totalSlots > 30 ? 'gap-1' : 'gap-1.5'
+					
+					return (
+						<div key={day} className={`h-20 lg:h-24 border p-1 cursor-pointer ${daySlots.length > 0 ? 'bg-green-50 hover:bg-green-100' : 'bg-blue-50 hover:bg-blue-100'}`} onClick={() => { setSelectedDay(day); setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)) }}>
+							<div className="text-xs font-medium mb-1">{day}</div>
+							{daySlots.length > 0 && (
+								<div className={`flex flex-wrap ${gapSize}`}>
+									{expiredSlots.map((_, i) => (
+										<div key={`expired-${i}`} className={`${circleSize} rounded-full bg-gray-500`} title="Noilgusi" />
+									))}
+									{completedSlots.map((_, i) => (
+										<div key={`completed-${i}`} className={`${circleSize} rounded-full bg-blue-500`} title="Notikusi" />
+									))}
+									{acceptedSlots.map((_, i) => (
+										<div key={`accepted-${i}`} className={`${circleSize} rounded-full bg-green-600`} title="Apstiprināts" />
+									))}
+									{pendingSlots.map((_, i) => (
+										<div key={`pending-${i}`} className={`${circleSize} rounded-full bg-yellow-500`} title="Gaida apstiprinājumu" />
+									))}
+									{availableSlots.map((_, i) => (
+										<div key={`avail-${i}`} className={`${circleSize} rounded-full border-2 border-green-600 bg-white`} title="Pieejams" />
+									))}
 								</div>
-							)
+							)}
+						</div>
+					)
 						})}
 					</div>
 						{selectedDay && (() => {
@@ -384,15 +435,60 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
                                         const related = bookings.filter(b => b.date === s.date && b.time === s.time)
                                         const acceptedRelated = related.filter(b => b.status === 'accepted')
                                         const pendingRelated = related.filter(b => b.status === 'pending' || b.status === 'pending_unavailable')
+                                        const expiredRelated = related.filter(b => b.status === 'expired')
                                         const effectiveRelated = related.filter(b => b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable')
                                         const bookedCount = effectiveRelated.length
                                         const isAvailable = s.available !== false && bookedCount < capacity
 											const slotKey = `${s.date}|${s.time}`
+											
+											// Check if slot is in the past
+											const isPast = (() => {
+												try {
+													const slotDateTime = new Date(`${s.date}T${s.time}:00`)
+													return slotDateTime.getTime() < Date.now()
+												} catch {
+													return false
+												}
+											})()
+											
+										// Determine status label and styling
+										let statusLabel = 'Pieejams'
+										let statusClass = 'bg-green-100 text-green-800 border-green-200'
+										let cardClass = 'bg-green-50 border-green-200'
+										
+										if (isPast) {
+											// Past slots
+											if (expiredRelated.length > 0) {
+												// Had pending bookings that expired
+												statusLabel = 'Noilgusi'
+												statusClass = 'bg-gray-100 text-gray-800 border-gray-200'
+												cardClass = 'bg-gray-50 border-gray-200'
+											} else if (acceptedRelated.length > 0 || related.length > 0) {
+												// Had accepted bookings or any other bookings that happened
+												statusLabel = 'Notikusi'
+												statusClass = 'bg-blue-100 text-blue-800 border-blue-200'
+												cardClass = 'bg-blue-50 border-blue-200'
+											}
+										} else if (!isAvailable) {
+											// Future slots that are booked
+											if (acceptedRelated.length > 0) {
+												// Has accepted bookings
+												statusLabel = 'Apstiprināts'
+												statusClass = 'bg-green-100 text-green-800 border-green-200'
+												cardClass = 'bg-green-50 border-green-200'
+											} else if (pendingRelated.length > 0) {
+												// Has pending bookings
+												statusLabel = 'Gaida apstiprinājumu'
+												statusClass = 'bg-yellow-100 text-yellow-800 border-yellow-200'
+												cardClass = 'bg-yellow-50 border-yellow-200'
+											}
+										}
+											
 											return (
-												<div key={s.id} className={`border rounded-lg p-3 ${isAvailable ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+												<div key={s.id} className={`border rounded-lg p-3 ${cardClass}`}>
 													<div className="flex items-center justify-between mb-1">
 														<div className="text-lg font-semibold text-black">{s.time}</div>
-														<span className={`text-xs px-2 py-0.5 rounded-full ${isAvailable ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-yellow-100 text-yellow-800 border border-yellow-200'}`}>{isAvailable ? 'Pieejams' : 'Rezervēts'}</span>
+														<span className={`text-xs px-2 py-0.5 rounded-full border ${statusClass}`}>{statusLabel}</span>
 													</div>
 													<div className="flex flex-wrap gap-2 text-xs">
 														<span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full border border-blue-200">{lessonTypeLabel}</span>
@@ -506,8 +602,26 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
   const getTs = (v: any) => {
     try { return new Date(v?.createdAt || 0).getTime() || 0 } catch { return 0 }
   };
+  
+  // Helper to check if a booking time has passed
+  const isPastBooking = (b: any) => {
+    try {
+      const bookingDateTime = new Date(`${b.date}T${b.time}:00`)
+      return bookingDateTime.getTime() < Date.now()
+    } catch {
+      return false
+    }
+  };
+  
   const pending = bookings
-    .filter(x => x.status === 'pending' || x.status === 'pending_unavailable')
+    .filter(x => {
+      // Include pending/pending_unavailable that haven't passed, or expired ones
+      if (x.status === 'expired') return false // Expired handled separately
+      if (x.status === 'pending' || x.status === 'pending_unavailable') {
+        return !isPastBooking(x) // Only show if not past
+      }
+      return false
+    })
     .sort((a, b) => getTs(b) - getTs(a));
   const grouped: Record<string, any[]> = {};
   pending.forEach(b => {
@@ -517,8 +631,13 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 
   const batchKeys = Object.keys(grouped);
   // Sort batch groups by newest createdAt among items in the group
+  // Filter out batches where all bookings are in the past
   const batchGroups = batchKeys
     .filter(k => !k.startsWith('__single__') && grouped[k].length > 1)
+    .filter(k => {
+      // Keep batch only if at least one booking is not in the past
+      return grouped[k].some(b => !isPastBooking(b))
+    })
     .sort((ka, kb) => {
       const maxA = Math.max(...grouped[ka].map(getTs));
       const maxB = Math.max(...grouped[kb].map(getTs));
@@ -562,10 +681,17 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
               <strong>Laiki:</strong> {dateTimes}
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
+															{list.some((x: any) => !isPastBooking(x)) && (
  															<button onClick={async () => {
  																try {
- 																	const needsZoom = list.some((x: any) => (slots.find(s => String(s.teacherId) === tid && s.date === x.date && s.time === x.time)?.modality || x.modality) === 'zoom')
- 																	const needsTeacherAddress = list.some((x: any) => (slots.find(s => String(s.teacherId) === tid && s.date === x.date && s.time === x.time)?.location || x.location) === 'teacher')
+ 																	// Only accept bookings that haven't passed
+ 																	const validBookings = list.filter((x: any) => !isPastBooking(x))
+ 																	if (validBookings.length === 0) {
+ 																		alert('Visas rezervācijas ir noilgušas')
+ 																		return
+ 																	}
+ 																	const needsZoom = validBookings.some((x: any) => (slots.find(s => String(s.teacherId) === tid && s.date === x.date && s.time === x.time)?.modality || x.modality) === 'zoom')
+ 																	const needsTeacherAddress = validBookings.some((x: any) => (slots.find(s => String(s.teacherId) === tid && s.date === x.date && s.time === x.time)?.location || x.location) === 'teacher')
  																	let zoomLink = ''
  																	let address = ''
  																	if (needsZoom) { zoomLink = prompt('Ievadiet Zoom saiti') || '' }
@@ -575,17 +701,24 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
  																	loadBookings()
  																} catch { alert('Kļūda apstrādē') }
  															}} className="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-3 py-1.5 rounded">Apstiprināt visus</button>
+															)}
  														</div>
-														<div className="mt-3 space-y-2">
-															{[...list].sort((a: any, b: any) => getTs(b) - getTs(a)).map((bi: any) => {
-																const label = `${new Date(bi.date).toLocaleDateString('lv-LV')} ${bi.time} — ${bi.studentName || bi.userName || '—'}`
-																const createdStr = bi.createdAt ? new Date(bi.createdAt).toLocaleString('lv-LV') : ''
-																return (
-																	<div key={bi._id} className="flex items-center justify-between text-sm">
-																		<div className="text-gray-700">
-																			<div>{label}</div>
-																			{createdStr && <div className="text-sm text-gray-700"><strong>Izveidots:</strong> {createdStr}</div>}
-																		</div>
+													<div className="mt-3 space-y-2">
+														{[...list].sort((a: any, b: any) => getTs(b) - getTs(a)).map((bi: any) => {
+															const label = `${new Date(bi.date).toLocaleDateString('lv-LV')} ${bi.time} — ${bi.studentName || bi.userName || '—'}`
+															const createdStr = bi.createdAt ? new Date(bi.createdAt).toLocaleString('lv-LV') : ''
+															const isBookingPast = isPastBooking(bi)
+															return (
+																<div key={bi._id} className="flex items-center justify-between text-sm">
+																	<div className="text-gray-700">
+																		<div>{label}</div>
+																		{createdStr && <div className="text-sm text-gray-700"><strong>Izveidots:</strong> {createdStr}</div>}
+																	</div>
+																	{isBookingPast ? (
+																		<span className="px-2 py-0.5 text-xs rounded-full border bg-gray-50 text-gray-800 border-gray-200">
+																			Noilgusi
+																		</span>
+																	) : (
 																		<div className="flex gap-2">
 																			<button onClick={async () => {
 																				try {
@@ -608,9 +741,10 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 																				} catch { alert('Kļūda') }
 																		}} className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded">Noraidīt</button>
 																		</div>
-																	</div>
-															)
-														})}
+																	)}
+																</div>
+														)
+													})}
 													</div>
  												</div>
         );
@@ -618,8 +752,11 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 
       {singles.map(b => {
         const dateStr = new Date(b.date).toLocaleDateString('lv-LV')
+        const isBookingPast = isPastBooking(b)
         const isPending = b.status === 'pending'
         const isPendingUnavailable = b.status === 'pending_unavailable'
+        // If booking is past and still pending, treat it as expired
+        const effectiveStatus = (isPending || isPendingUnavailable) && isBookingPast ? 'expired' : b.status
         const tid = String(teacherId)
         const slot = slots.find(s => String(s.teacherId) === tid && s.date === b.date && s.time === b.time)
         const mod = (slot?.modality || b.modality)
@@ -635,8 +772,8 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
           <div key={b._id} className="border border-gray-200 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm text-gray-700"><strong>Datums:</strong> {dateStr} {b.time}</div>
-              <span className={`px-2 py-0.5 text-xs rounded-full border ${b.status === 'accepted' ? 'bg-green-50 text-green-800 border-green-200' : b.status === 'declined' ? 'bg-red-50 text-red-800 border-red-200' : b.status === 'cancelled' ? 'bg-red-50 text-red-800 border-red-200' : b.status === 'expired' ? 'bg-gray-50 text-gray-800 border-gray-200' : 'bg-yellow-50 text-yellow-800 border-yellow-200'}`}>
-                {b.status === 'accepted' ? 'Apstiprināts' : b.status === 'declined' ? 'Noraidīts' : b.status === 'cancelled' ? 'Atcelts' : b.status === 'expired' ? 'Noilgusi' : 'Gaida'}
+              <span className={`px-2 py-0.5 text-xs rounded-full border ${effectiveStatus === 'accepted' ? 'bg-green-50 text-green-800 border-green-200' : effectiveStatus === 'declined' ? 'bg-red-50 text-red-800 border-red-200' : effectiveStatus === 'cancelled' ? 'bg-red-50 text-red-800 border-red-200' : effectiveStatus === 'expired' ? 'bg-gray-50 text-gray-800 border-gray-200' : 'bg-yellow-50 text-yellow-800 border-yellow-200'}`}>
+                {effectiveStatus === 'accepted' ? 'Apstiprināts' : effectiveStatus === 'declined' ? 'Noraidīts' : effectiveStatus === 'cancelled' ? 'Atcelts' : effectiveStatus === 'expired' ? 'Noilgusi' : 'Gaida'}
               </span>
             </div>
             {b.declineReason && (
@@ -657,7 +794,7 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
             )}
             <div className="text-sm text-gray-700"><strong>Phone:</strong> {b.userPhone || '—'}</div>
             <div className="text-sm text-gray-700"><strong>Email:</strong> {b.userEmail || '—'}</div>
-            {isPending && !isFull && (
+            {isPending && !isFull && !isBookingPast && (
               <div className="mt-2 space-y-2">
                 {needsZoom && (
                   <div>
@@ -693,7 +830,7 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
               </div>
             )}
 
-            {isPendingUnavailable && (
+            {isPendingUnavailable && !isBookingPast && (
               <div className="mt-2 space-y-3">
                 <div className="text-xs text-yellow-800 bg-yellow-50 border border-yellow-200 rounded p-2">Šis laiks vairs nav pieejams apstiprināšanai.</div>
                 <div className="flex flex-wrap items-center gap-2">
