@@ -361,15 +361,18 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 						const capacity = lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
 						const related = bookings.filter(b => b.date === s.date && b.time === s.time)
 						const expiredRelated = related.filter(b => b.status === 'expired')
+						// Also treat past pending/pending_unavailable as expired
+						const pastPendingRelated = related.filter(b => (b.status === 'pending' || b.status === 'pending_unavailable') && slotTs < nowTs)
+						const hasExpired = expiredRelated.length > 0 || pastPendingRelated.length > 0
 						const acceptedRelated = related.filter(b => b.status === 'accepted')
-						const pendingRelated = related.filter(b => b.status === 'pending' || b.status === 'pending_unavailable')
+						const pendingRelated = related.filter(b => (b.status === 'pending' || b.status === 'pending_unavailable') && slotTs >= nowTs)
 						const effectiveRelated = related.filter(b => b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable')
 						const bookedCount = effectiveRelated.length
 						const isBooked = bookedCount >= capacity || s.available === false
 						
 						if (slotTs < nowTs) {
 							// Past slot - determine if expired or completed
-							if (expiredRelated.length > 0) {
+							if (hasExpired) {
 								expiredSlots.push(s)
 							} else if (acceptedRelated.length > 0 || related.length > 0) {
 								completedSlots.push(s)
@@ -431,17 +434,10 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 											const lessonTypeLabel = s.lessonType === 'group' ? 'Grupu' : 'Individuāla'
 											const locationLabel = s.location === 'teacher' ? 'Privāti' : 'Uz vietas'
 											const modalityLabel = s.modality === 'zoom' ? 'Attālināti' : s.modality === 'both' ? 'Klātienē vai attālināti' : 'Klātienē'
-											const capacity = s.lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
+										const capacity = s.lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
                                         const related = bookings.filter(b => b.date === s.date && b.time === s.time)
-                                        const acceptedRelated = related.filter(b => b.status === 'accepted')
-                                        const pendingRelated = related.filter(b => b.status === 'pending' || b.status === 'pending_unavailable')
-                                        const expiredRelated = related.filter(b => b.status === 'expired')
-                                        const effectiveRelated = related.filter(b => b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable')
-                                        const bookedCount = effectiveRelated.length
-                                        const isAvailable = s.available !== false && bookedCount < capacity
-											const slotKey = `${s.date}|${s.time}`
-											
-											// Check if slot is in the past
+                                        
+                                        // Check if slot is in the past
 											const isPast = (() => {
 												try {
 													const slotDateTime = new Date(`${s.date}T${s.time}:00`)
@@ -450,39 +446,50 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 													return false
 												}
 											})()
+                                        
+                                        const acceptedRelated = related.filter(b => b.status === 'accepted')
+                                        const expiredRelated = related.filter(b => b.status === 'expired')
+                                        // Also treat past pending/pending_unavailable as expired
+                                        const pastPendingRelated = related.filter(b => (b.status === 'pending' || b.status === 'pending_unavailable') && isPast)
+                                        const hasExpired = expiredRelated.length > 0 || pastPendingRelated.length > 0
+                                        const pendingRelated = related.filter(b => (b.status === 'pending' || b.status === 'pending_unavailable') && !isPast)
+                                        const effectiveRelated = related.filter(b => b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable')
+                                        const bookedCount = effectiveRelated.length
+                                        const isAvailable = s.available !== false && bookedCount < capacity
+											const slotKey = `${s.date}|${s.time}`
 											
-										// Determine status label and styling
-										let statusLabel = 'Pieejams'
-										let statusClass = 'bg-green-100 text-green-800 border-green-200'
-										let cardClass = 'bg-green-50 border-green-200'
-										
-										if (isPast) {
-											// Past slots
-											if (expiredRelated.length > 0) {
-												// Had pending bookings that expired
-												statusLabel = 'Noilgusi'
-												statusClass = 'bg-gray-100 text-gray-800 border-gray-200'
-												cardClass = 'bg-gray-50 border-gray-200'
-											} else if (acceptedRelated.length > 0 || related.length > 0) {
-												// Had accepted bookings or any other bookings that happened
-												statusLabel = 'Notikusi'
-												statusClass = 'bg-blue-100 text-blue-800 border-blue-200'
-												cardClass = 'bg-blue-50 border-blue-200'
+											// Determine status label and styling
+											let statusLabel = 'Pieejams'
+											let statusClass = 'bg-green-100 text-green-800 border-green-200'
+											let cardClass = 'bg-green-50 border-green-200'
+											
+											if (isPast) {
+												// Past slots
+												if (hasExpired) {
+													// Had pending bookings that expired
+													statusLabel = 'Noilgusi'
+													statusClass = 'bg-gray-100 text-gray-800 border-gray-200'
+													cardClass = 'bg-gray-50 border-gray-200'
+												} else if (acceptedRelated.length > 0 || related.length > 0) {
+													// Had accepted bookings or any other bookings that happened
+													statusLabel = 'Notikusi'
+													statusClass = 'bg-blue-100 text-blue-800 border-blue-200'
+													cardClass = 'bg-blue-50 border-blue-200'
+												}
+											} else if (!isAvailable) {
+												// Future slots that are booked
+												if (acceptedRelated.length > 0) {
+													// Has accepted bookings
+													statusLabel = 'Apstiprināts'
+													statusClass = 'bg-green-100 text-green-800 border-green-200'
+													cardClass = 'bg-green-50 border-green-200'
+												} else if (pendingRelated.length > 0) {
+													// Has pending bookings
+													statusLabel = 'Gaida apstiprinājumu'
+													statusClass = 'bg-yellow-100 text-yellow-800 border-yellow-200'
+													cardClass = 'bg-yellow-50 border-yellow-200'
+												}
 											}
-										} else if (!isAvailable) {
-											// Future slots that are booked
-											if (acceptedRelated.length > 0) {
-												// Has accepted bookings
-												statusLabel = 'Apstiprināts'
-												statusClass = 'bg-green-100 text-green-800 border-green-200'
-												cardClass = 'bg-green-50 border-green-200'
-											} else if (pendingRelated.length > 0) {
-												// Has pending bookings
-												statusLabel = 'Gaida apstiprinājumu'
-												statusClass = 'bg-yellow-100 text-yellow-800 border-yellow-200'
-												cardClass = 'bg-yellow-50 border-yellow-200'
-											}
-										}
 											
 											return (
 												<div key={s.id} className={`border rounded-lg p-3 ${cardClass}`}>
@@ -614,14 +621,7 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
   };
   
   const pending = bookings
-    .filter(x => {
-      // Include pending/pending_unavailable that haven't passed, or expired ones
-      if (x.status === 'expired') return false // Expired handled separately
-      if (x.status === 'pending' || x.status === 'pending_unavailable') {
-        return !isPastBooking(x) // Only show if not past
-      }
-      return false
-    })
+    .filter(x => x.status === 'pending' || x.status === 'pending_unavailable' || x.status === 'expired')
     .sort((a, b) => getTs(b) - getTs(a));
   const grouped: Record<string, any[]> = {};
   pending.forEach(b => {
@@ -631,13 +631,8 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 
   const batchKeys = Object.keys(grouped);
   // Sort batch groups by newest createdAt among items in the group
-  // Filter out batches where all bookings are in the past
   const batchGroups = batchKeys
     .filter(k => !k.startsWith('__single__') && grouped[k].length > 1)
-    .filter(k => {
-      // Keep batch only if at least one booking is not in the past
-      return grouped[k].some(b => !isPastBooking(b))
-    })
     .sort((ka, kb) => {
       const maxA = Math.max(...grouped[ka].map(getTs));
       const maxB = Math.max(...grouped[kb].map(getTs));
@@ -666,6 +661,7 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
         const dateTimes = list
           .map(x => `${new Date(x.date).toLocaleDateString('lv-LV')} ${x.time}`)
           .join(', ');
+        const allPast = list.every((x: any) => isPastBooking(x));
 
         return (
           <div key={`batch-${k}`} className="border border-gray-200 rounded-lg p-4">
@@ -673,8 +669,8 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
               <div className="text-sm text-gray-700 font-semibold">
                 Vairāku nodarbību rezervācijas pieprasījums ({list.length})
               </div>
-              <span className="px-2 py-0.5 text-xs rounded-full border bg-yellow-50 text-yellow-800 border-yellow-200">
-                Gaida
+              <span className={`px-2 py-0.5 text-xs rounded-full border ${allPast ? 'bg-gray-50 text-gray-800 border-gray-200' : 'bg-yellow-50 text-yellow-800 border-yellow-200'}`}>
+                {allPast ? 'Noilgusi' : 'Gaida'}
               </span>
             </div>
             <div className="text-sm text-gray-700">
