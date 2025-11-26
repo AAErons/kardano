@@ -513,28 +513,13 @@ const CalendarSection = ({ initialTeacherId, initialLessonTypeFilter }: { initia
 									const isPast = isPastDate(day)
 									const isSelected = selectedDay === day
 									
-									// Get all relevant slots (available + booked by user) for display
-									const allRelevantSlots = slots.filter(slot => {
-										if (isSlotPast(slot)) return false
-										if (!matchesFilters(slot)) return false
-										
-										// Include if available
-										if (slot.available) return true
-										
-										// Include if user has booked it (even if not available anymore)
-										if (userId) {
-											const key = `${slot.teacherId}|${slot.date}|${slot.time}`
-											if (justBookedKeys[key]) return true
-											return userBookings.some(b => 
-												String(b.userId) === String(userId) &&
-												String(b.teacherId) === String(slot.teacherId) &&
-												String(b.date) === String(slot.date) &&
-												String(b.time) === String(slot.time) &&
-												(b.status === 'pending' || b.status === 'pending_unavailable' || b.status === 'accepted')
-											)
-										}
-										return false
-									})
+								// Get all relevant slots for display (both available and booked)
+								// Everyone sees the same circles regardless of login status
+								const allRelevantSlots = slots.filter(slot => {
+									if (isSlotPast(slot)) return false
+									if (!matchesFilters(slot)) return false
+									return true // Include all slots (available and unavailable) for consistent view
+								})
 									
 								// Count booked (filled circles) vs available (empty circles)
 								// All users see the same view: filled = accepted by teacher, empty = available
