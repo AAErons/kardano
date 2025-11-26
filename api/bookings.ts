@@ -255,11 +255,20 @@ export default async function handler(req: any, res: any) {
       if (!action) return res.status(400).json({ error: 'Missing action' })
       if (action !== 'accept_batch' && !bookingId) return res.status(400).json({ error: 'Missing bookingId' })
       const { ObjectId } = await import('mongodb')
-      const _id = new ObjectId(String(bookingId))
-
-      const booking = await bookings.findOne({ _id })
-      if (!booking) return res.status(404).json({ error: 'Booking not found' })
-      const teacherIdEffective = String(teacherId || booking.teacherId)
+      
+      // For accept_batch, we don't need bookingId or booking lookup
+      let _id: any = null
+      let booking: any = null
+      let teacherIdEffective: string = ''
+      
+      if (action !== 'accept_batch') {
+        _id = new ObjectId(String(bookingId))
+        booking = await bookings.findOne({ _id })
+        if (!booking) return res.status(404).json({ error: 'Booking not found' })
+        teacherIdEffective = String(teacherId || booking.teacherId)
+      } else {
+        teacherIdEffective = String(teacherId || '')
+      }
 
       if (action === 'decline') {
         const { reason } = (req.body || {}) as { reason?: string }
