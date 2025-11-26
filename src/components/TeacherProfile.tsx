@@ -262,7 +262,17 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 	
 	// Compute badge counts
 	const unreadNotifCount = notifications.filter(n => n.unread).length
-	const pendingBookingsCount = bookings.filter(b => b.status === 'pending' || b.status === 'pending_unavailable').length
+	// Only count pending bookings that haven't passed their time yet
+	const pendingBookingsCount = bookings.filter(b => {
+		if (b.status !== 'pending' && b.status !== 'pending_unavailable') return false
+		// Check if booking time has passed
+		try {
+			const bookingDateTime = new Date(`${b.date}T${b.time}:00`)
+			return bookingDateTime.getTime() >= Date.now()
+		} catch {
+			return true // If can't parse, include it to be safe
+		}
+	}).length
 
 	return (
 		<div className="space-y-6">
