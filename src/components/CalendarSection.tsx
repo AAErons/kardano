@@ -536,26 +536,12 @@ const CalendarSection = ({ initialTeacherId, initialLessonTypeFilter }: { initia
 										return false
 									})
 									
-									// Count booked (filled circles) vs available (empty circles)
-									const bookedCount = allRelevantSlots.filter(slot => {
-										// Slot is booked if:
-										// 1. Not available (accepted by someone)
-										if (!slot.available) return true
-										
-										// 2. User has booked it
-										if (userId) {
-											const key = `${slot.teacherId}|${slot.date}|${slot.time}`
-											if (justBookedKeys[key]) return true
-											return userBookings.some(b => 
-												String(b.userId) === String(userId) &&
-												String(b.teacherId) === String(slot.teacherId) &&
-												String(b.date) === String(slot.date) &&
-												String(b.time) === String(slot.time) &&
-												(b.status === 'pending' || b.status === 'pending_unavailable' || b.status === 'accepted')
-											)
-										}
-										return false
-									}).length
+								// Count booked (filled circles) vs available (empty circles)
+								// All users see the same view: filled = accepted by teacher, empty = available
+								const bookedCount = allRelevantSlots.filter(slot => {
+									// Slot is booked (filled circle) only if it's been accepted and marked unavailable
+									return slot.available === false
+								}).length
 									
 									const availableCount = allRelevantSlots.length - bookedCount
 									const totalSlots = allRelevantSlots.length
@@ -589,29 +575,29 @@ const CalendarSection = ({ initialTeacherId, initialLessonTypeFilter }: { initia
 													setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day))
 												}
 											}}
-											title={isPast ? 'Pagājušais datums' : (hasSlots || allRelevantSlots.length > 0) ? `${availableCount} pieejams, ${bookedCount} rezervēts` : 'Nav pieejamu laiku'}
+											title={isPast ? 'Pagājušais datums' : (hasSlots || allRelevantSlots.length > 0) ? `${availableCount} pieejams, ${bookedCount} apstiprināts` : 'Nav pieejamu laiku'}
 										>
-											<div className="text-xs lg:text-sm font-medium mb-1">{day}</div>
-											
-											{/* Circle indicators for lesson slots - show all in multiple rows */}
-											{allRelevantSlots.length > 0 && !isPast && (
-												<div className={`flex flex-wrap ${gap} justify-center items-center px-0.5`}>
-													{Array.from({ length: totalSlots }, (_, i) => {
-														const isBooked = i < bookedCount
-														return (
-															<div
-																key={i}
-																className={`${circleSize} rounded-full border ${
-																	isBooked 
-																		? 'bg-green-600 border-green-600' 
-																		: 'bg-white border-gray-400'
-																}`}
-																title={isBooked ? 'Rezervēts' : 'Pieejams'}
-															/>
-														)
-													})}
-												</div>
-											)}
+										<div className="text-xs lg:text-sm font-medium mb-1">{day}</div>
+										
+										{/* Circle indicators: filled = accepted by teacher, empty = available */}
+										{allRelevantSlots.length > 0 && !isPast && (
+											<div className={`flex flex-wrap ${gap} justify-center items-center px-0.5`}>
+												{Array.from({ length: totalSlots }, (_, i) => {
+													const isBooked = i < bookedCount
+													return (
+														<div
+															key={i}
+															className={`${circleSize} rounded-full border ${
+																isBooked 
+																	? 'bg-green-600 border-green-600' 
+																	: 'bg-white border-gray-400'
+															}`}
+															title={isBooked ? 'Apstiprināts' : 'Pieejams'}
+														/>
+													)
+												})}
+											</div>
+										)}
 										</div>
 									)
 								})}

@@ -1245,7 +1245,13 @@ const TeacherOnboarding = ({ userId, onFinished, onCancel, allowProfileEdit = fa
 		try {
 			const availabilityData = generateAvailabilityData()
 			const payload: any = { userId, availability: availabilityData }
-			if (allowProfileEdit) { payload.firstName = firstName.trim(); payload.lastName = lastName.trim(); payload.photo = photo; payload.description = description.trim() }
+			// Always include description and photo to prevent losing them
+			if (description.trim()) payload.description = description.trim()
+			if (photo) payload.photo = photo
+			if (allowProfileEdit) { 
+				payload.firstName = firstName.trim()
+				payload.lastName = lastName.trim()
+			}
 			const response = await fetch('/api/teacher-profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
 			if (response.ok) onFinished(); else alert('Kļūda saglabājot profilu')
 		} catch { alert('Kļūda savienojumā') } finally { setSaving(false) }
