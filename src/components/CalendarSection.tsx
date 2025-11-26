@@ -15,7 +15,7 @@ interface TimeSlot {
 	modality?: 'in_person' | 'zoom' | 'both'
 }
 
-const CalendarSection = ({ initialTeacherId }: { initialTeacherId?: string }) => {
+const CalendarSection = ({ initialTeacherId, initialLessonTypeFilter }: { initialTeacherId?: string, initialLessonTypeFilter?: 'individual' | 'group' | '' }) => {
 	const [selectedDate, setSelectedDate] = useState(new Date())
 	const [selectedDay, setSelectedDay] = useState<number | null>(null)
 	const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
@@ -31,7 +31,7 @@ const CalendarSection = ({ initialTeacherId }: { initialTeacherId?: string }) =>
 	
 	// Filter states
 	const [filters, setFilters] = useState({
-		lessonType: 'all' as 'all' | 'individual' | 'group',
+		lessonType: (initialLessonTypeFilter || 'all') as 'all' | 'individual' | 'group',
 		location: 'all' as 'all' | 'facility' | 'teacher',
 		modality: 'all' as 'all' | 'in_person' | 'zoom'
 	})

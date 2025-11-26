@@ -11,6 +11,7 @@ function App() {
 	const [activeSection, setActiveSection] = useState<'home' | 'lessons' | 'tutors' | 'calendar' | 'profile'>('home')
 	const [openRegisterOnProfile, setOpenRegisterOnProfile] = useState(false)
 	const [calendarTeacherPref, setCalendarTeacherPref] = useState<string>('')
+	const [calendarLessonTypeFilter, setCalendarLessonTypeFilter] = useState<'individual' | 'group' | ''>('')
 	const [verificationMessage, setVerificationMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 	const [isVerifying, setIsVerifying] = useState(false)
 
@@ -60,15 +61,20 @@ function App() {
 		} catch {}
 	}, [])
 
+	const handleBookingClick = (lessonType: 'individual' | 'group') => {
+		setCalendarLessonTypeFilter(lessonType)
+		setActiveSection('calendar')
+	}
+
 	return (
 		<div className="min-h-screen bg-white">
 			<Header activeSection={activeSection} setActiveSection={setActiveSection} />
 			
-			{activeSection === 'home' && <LandingPage go={(section: 'home' | 'lessons' | 'tutors' | 'calendar' | 'profile') => setActiveSection(section)} />}
-			{activeSection === 'lessons' && <LessonsSection />}
-			{activeSection === 'tutors' && <TutorsSection />}
-			{activeSection === 'calendar' && <CalendarSection initialTeacherId={calendarTeacherPref} />}
-			{activeSection === 'profile' && (
+		{activeSection === 'home' && <LandingPage go={(section: 'home' | 'lessons' | 'tutors' | 'calendar' | 'profile') => setActiveSection(section)} />}
+		{activeSection === 'lessons' && <LessonsSection onBookingClick={handleBookingClick} />}
+		{activeSection === 'tutors' && <TutorsSection />}
+		{activeSection === 'calendar' && <CalendarSection initialTeacherId={calendarTeacherPref} initialLessonTypeFilter={calendarLessonTypeFilter} />}
+		{activeSection === 'profile' && (
 				<ProfileSection 
 					openRegisterFromUrl={openRegisterOnProfile}
 					onConsumedOpenRegister={() => setOpenRegisterOnProfile(false)}

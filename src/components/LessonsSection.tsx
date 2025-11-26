@@ -1,4 +1,8 @@
-const LessonsSection = () => {
+type LessonsSectionProps = {
+	onBookingClick?: (lessonType: 'individual' | 'group') => void
+}
+
+const LessonsSection = ({ onBookingClick }: LessonsSectionProps) => {
 	return (
 		<div className="min-h-screen bg-white py-8 lg:py-16 px-4">
 			<div className="max-w-7xl mx-auto">
@@ -13,7 +17,7 @@ const LessonsSection = () => {
 
 				{/* Offer cards */}
 				<div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 mb-10">
-			<div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow">
+			<div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow flex flex-col">
 				<h3 className="text-xl font-bold text-black mb-2 text-center">Individuāla nodarbība</h3>
 				<div className="mb-3 pb-3 border-b border-gray-200">
 					<div className="flex items-center justify-center gap-1.5 text-sm font-medium text-gray-600 mb-2">
@@ -21,7 +25,7 @@ const LessonsSection = () => {
 							<circle cx="12" cy="12" r="10" strokeWidth="2"/>
 							<path strokeWidth="2" strokeLinecap="round" d="M12 6v6l4 2"/>
 						</svg>
-						<span>45 min</span>
+						<span>60 min</span>
 					</div>
 					<div className="flex gap-2 justify-center">
 						<span className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-1 rounded-full">Pamatskolai</span>
@@ -37,8 +41,14 @@ const LessonsSection = () => {
 				<p className="text-gray-700 font-semibold mb-4 indent-8">
 					Savu panākumu galvenā atslēga esi Tu! Bet mēs ar prieku palīdzēsim Tev atrast īsto ceļu līdz virsotnei.
 				</p>
+				<button 
+					onClick={() => onBookingClick?.('individual')}
+					className="mt-auto w-full bg-black text-white font-semibold py-3 px-6 rounded-lg hover:bg-gray-800 transition-colors"
+				>
+					Rezervēt
+				</button>
 			</div>
-			<div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow">
+			<div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow flex flex-col">
 				<h3 className="text-xl font-bold text-black mb-2 text-center">Grupu nodarbība (līdz 4 skolēniem)</h3>
 				<div className="mb-3 pb-3 border-b border-gray-200">
 					<div className="flex items-center justify-center gap-1.5 text-sm font-medium text-gray-600 mb-2">
@@ -46,7 +56,7 @@ const LessonsSection = () => {
 							<circle cx="12" cy="12" r="10" strokeWidth="2"/>
 							<path strokeWidth="2" strokeLinecap="round" d="M12 6v6l4 2"/>
 						</svg>
-						<span>45 min</span>
+						<span>60 min</span>
 					</div>
 					<div className="flex gap-2 justify-center">
 						<span className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-1 rounded-full">Pamatskolai</span>
@@ -65,8 +75,14 @@ const LessonsSection = () => {
 				<p className="text-gray-700 font-semibold mb-4 indent-8">
 					Ceļš uz panākumiem nav jāiet vienam. Kopā - gudrāki!
 				</p>
+				<button 
+					onClick={() => onBookingClick?.('group')}
+					className="mt-auto w-full bg-black text-white font-semibold py-3 px-6 rounded-lg hover:bg-gray-800 transition-colors"
+				>
+					Rezervēt
+				</button>
 			</div>
-			<div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow">
+			<div className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow flex flex-col">
 				<h3 className="text-xl font-bold text-black mb-2 text-center">Gatavošanās eksāmeniem (līdz 4 skolēniem)</h3>
 				<div className="mb-3 pb-3 border-b border-gray-200">
 					<div className="flex items-center justify-center gap-1.5 text-sm font-medium text-gray-600 mb-2">
@@ -74,7 +90,7 @@ const LessonsSection = () => {
 							<circle cx="12" cy="12" r="10" strokeWidth="2"/>
 							<path strokeWidth="2" strokeLinecap="round" d="M12 6v6l4 2"/>
 						</svg>
-						<span>45 min</span>
+						<span>60 min</span>
 					</div>
 					<div className="flex gap-2 justify-center">
 						<span className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 px-3 py-1 rounded-full">VPD</span>
@@ -93,6 +109,12 @@ const LessonsSection = () => {
 				<p className="text-gray-700 font-semibold mb-4 indent-8">
 					Eksāmenu rakstīsi Tu, bet ļauj mums būt tiem, kuri Tev atbrīvo no satraukuma un dod pārliecību, ka eksāmens ir domāts lai pārbaudītu ko Tu zini, nevis ko Tu nezini, un Tu zini daudz!
 				</p>
+				<button 
+					onClick={() => onBookingClick?.('group')}
+					className="mt-auto w-full bg-black text-white font-semibold py-3 px-6 rounded-lg hover:bg-gray-800 transition-colors"
+				>
+					Rezervēt
+				</button>
 			</div>
 				</div>
 
