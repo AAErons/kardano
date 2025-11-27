@@ -6,6 +6,7 @@ import CalendarSection from './components/CalendarSection.js'
 import Footer from './components/Footer.js'
 import ProfileSection from './components/ProfileSection.js'
 import LessonsSection from './components/LessonsSection.js'
+import HelpWidget from './components/HelpWidget.js'
 
 function App() {
 	const [activeSection, setActiveSection] = useState<'home' | 'lessons' | 'tutors' | 'calendar' | 'profile'>('home')
@@ -83,10 +84,13 @@ function App() {
 					onClearVerificationMessage={() => setVerificationMessage(null)}
 				/>
 			)}
-			
-			<Footer />
-		</div>
-	)
+		
+		<Footer />
+		
+		{/* Floating Help Widget - visible on all pages */}
+		<HelpWidget />
+	</div>
+)
 }
 
 export default App
