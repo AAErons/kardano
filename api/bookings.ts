@@ -135,74 +135,7 @@ export default async function handler(req: any, res: any) {
 
       const items = await bookings.find(query).sort({ date: 1, time: 1 }).toArray()
       
-      // Check for expired bookings (pending bookings that have passed their time)
-      const now = Date.now()
-      const expiredBookings: any[] = []
-      
-      for (const item of items) {
-        if ((item.status === 'pending' || item.status === 'pending_unavailable') && item.date && item.time) {
-          try {
-            const bookingDateTime = new Date(`${item.date}T${item.time}:00`)
-            if (!isNaN(bookingDateTime.getTime()) && bookingDateTime.getTime() < now) {
-              expiredBookings.push(item)
-            }
-          } catch {}
-        }
-      }
-      
-      // Update expired bookings and notify admin
-      if (expiredBookings.length > 0) {
-        const { ObjectId } = await import('mongodb')
-        for (const expiredItem of expiredBookings) {
-          try {
-            // Update status to expired
-            await bookings.updateOne(
-              { _id: expiredItem._id },
-              { 
-                $set: { 
-                  status: 'expired',
-                  updatedAt: new Date()
-                } 
-              }
-            )
-            
-            // Update the item in our array for the response
-            expiredItem.status = 'expired'
-            
-            // Get user and teacher details for notification
-            const user = await users.findOne({ _id: new ObjectId(expiredItem.userId) }).catch(() => null as any)
-            const teacher = await users.findOne({ _id: new ObjectId(expiredItem.teacherId) }).catch(() => null as any)
-            
-            const userName = user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email) : 'Lietotājs'
-            const teacherName = teacher ? (teacher.firstName && teacher.lastName ? `${teacher.firstName} ${teacher.lastName}` : teacher.email) : 'Pasniedzējs'
-            
-            // Format date and time for notification
-            const formattedDate = new Date(expiredItem.date).toLocaleDateString('lv-LV')
-            const formattedTime = expiredItem.time
-            
-            // Find all admin users
-            const admins = await users.find({ role: 'admin' }).toArray()
-            
-            // Create notification for each admin
-            for (const admin of admins) {
-              await notifications.insertOne({
-                type: 'booking_expired',
-                title: 'Rezervācija noilgusi',
-                message: `Pasniedzējs ${teacherName} nav atbildējis uz rezervācijas pieprasījumu no ${userName}. Rezervācijas laiks: ${formattedDate} ${formattedTime}.`,
-                recipientRole: 'admin',
-                recipientUserId: String(admin._id),
-                actorUserId: expiredItem.teacherId,
-                actorName: teacherName,
-                unread: true,
-                related: { bookingId: String(expiredItem._id), date: expiredItem.date, time: expiredItem.time },
-                createdAt: new Date(),
-              })
-            }
-          } catch (err) {
-            console.error('Error processing expired booking:', err)
-          }
-        }
-      }
+      // Note: Expired booking checks are now handled by the hourly cron job at /api/cron/check-expired-bookings
       
       // Enhance with user and student details
       const enhancedItems = await Promise.all(items.map(async (item: any) => {

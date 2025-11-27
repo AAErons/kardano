@@ -94,23 +94,41 @@ const LandingPage = ({ go }: { go?: (section: 'home' | 'lessons' | 'tutors' | 'c
 					<h2 className="text-2xl lg:text-3xl font-bold text-black mb-6 lg:mb-8">
 						SAZINIES AR MUMS
 					</h2>
-					<div className="grid md:grid-cols-3 gap-6 lg:gap-8">
-						<div className="bg-white p-4 lg:p-6 rounded-lg shadow-md">
-							<div className="text-3xl lg:text-4xl mb-3 lg:mb-4">📞</div>
-							<h3 className="text-lg lg:text-xl font-semibold text-black mb-2">Tālrunis</h3>
-							<p className="text-base lg:text-lg text-gray-700">22327484</p>
-						</div>
-						<div className="bg-white p-4 lg:p-6 rounded-lg shadow-md">
-							<div className="text-3xl lg:text-4xl mb-3 lg:mb-4">✉️</div>
-							<h3 className="text-lg lg:text-xl font-semibold text-black mb-2">E-pasts</h3>
-							<p className="text-base lg:text-lg text-gray-700">kardano.info@gmail.com</p>
-						</div>
-						<div className="bg-white p-4 lg:p-6 rounded-lg shadow-md">
-							<div className="text-3xl lg:text-4xl mb-3 lg:mb-4">📱</div>
-							<h3 className="text-lg lg:text-xl font-semibold text-black mb-2">Facebook</h3>
-							<p className="text-base lg:text-lg text-gray-700">Rakstot ziņojumu</p>
-						</div>
-					</div>
+				<div className="grid md:grid-cols-3 gap-6 lg:gap-8">
+					{/* Phone/WhatsApp */}
+					<a
+						href="https://wa.me/37123234450"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="bg-white p-4 lg:p-6 rounded-lg shadow-md hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer"
+					>
+						<div className="text-3xl lg:text-4xl mb-3 lg:mb-4">📞</div>
+						<h3 className="text-lg lg:text-xl font-semibold text-black mb-2">Tālrunis</h3>
+						<p className="text-base lg:text-lg text-gray-700">23234450</p>
+					</a>
+					
+					{/* Email */}
+					<a
+						href="mailto:kardano.info@gmail.com"
+						className="bg-white p-4 lg:p-6 rounded-lg shadow-md hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer"
+					>
+						<div className="text-3xl lg:text-4xl mb-3 lg:mb-4">✉️</div>
+						<h3 className="text-lg lg:text-xl font-semibold text-black mb-2">E-pasts</h3>
+						<p className="text-base lg:text-lg text-gray-700">kardano.info@gmail.com</p>
+					</a>
+					
+				{/* Facebook Messenger */}
+				<a
+					href="https://m.me/kardanoschool"
+					target="_blank"
+					rel="noopener noreferrer"
+					className="bg-white p-4 lg:p-6 rounded-lg shadow-md hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer"
+				>
+						<div className="text-3xl lg:text-4xl mb-3 lg:mb-4">📱</div>
+						<h3 className="text-lg lg:text-xl font-semibold text-black mb-2">Facebook</h3>
+						<p className="text-base lg:text-lg text-gray-700">Rakstot ziņojumu</p>
+					</a>
+				</div>
 				</div>
 			</section>
 		</div>

@@ -44,7 +44,7 @@ const Footer = () => {
 						<div className="space-y-3 text-gray-300">
 							<div className="flex items-center">
 								<span className="mr-2">📞</span>
-								<span>22327484</span>
+								<span>23234450</span>
 							</div>
 							<div className="flex items-center">
 								<span className="mr-2">✉️</span>

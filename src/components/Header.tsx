@@ -40,7 +40,7 @@ const Header = ({ activeSection, setActiveSection }: HeaderProps) => {
 					<div className="hidden lg:flex items-center space-x-4 text-sm text-gray-700">
 						<div className="flex items-center">
 							<span className="mr-2">📞</span>
-							<span>22327484</span>
+							<span>23234450</span>
 						</div>
 						<div className="flex items-center">
 							<span className="mr-2">✉️</span>
@@ -48,7 +48,7 @@ const Header = ({ activeSection, setActiveSection }: HeaderProps) => {
 						</div>
 						{/* WhatsApp */}
 						<a
-							href="https://wa.me/37122327484"
+							href="https://wa.me/37123234450"
 							target="_blank"
 							rel="noopener noreferrer"
 							className="flex items-center hover:text-green-600 transition-colors"
@@ -172,7 +172,7 @@ const Header = ({ activeSection, setActiveSection }: HeaderProps) => {
 							<div className="px-3 py-2 text-sm text-gray-700">
 								<div className="flex items-center mb-2">
 									<span className="mr-2">📞</span>
-									<span>22327484</span>
+									<span>23234450</span>
 								</div>
 								<div className="flex items-center mb-2">
 									<span className="mr-2">✉️</span>
@@ -180,7 +180,7 @@ const Header = ({ activeSection, setActiveSection }: HeaderProps) => {
 								</div>
 								<div className="flex items-center gap-4 mt-3">
 									<a
-										href="https://wa.me/37122327484"
+										href="https://wa.me/37123234450"
 										target="_blank"
 										rel="noopener noreferrer"
 										className="flex items-center text-green-600 hover:text-green-700 transition-colors"
