@@ -503,7 +503,29 @@ export default async function handler(req: any, res: any) {
         // Update time slot capacity
         await timeSlots.updateMany({ teacherId: teacher, date, time }, { $set: { groupSize: target, updatedAt: new Date() } })
 
-        // Recompute availability
+        // Automatically accept the booking that triggered this increase
+        if (booking && bookingId) {
+          // For group lessons, copy zoom/address from any already accepted booking for this slot
+          const existingAccepted = await bookings.findOne({ 
+            teacherId: teacher, 
+            date, 
+            time, 
+            status: 'accepted',
+            $or: [{ zoomLink: { $exists: true, $ne: null } }, { address: { $exists: true, $ne: null } }]
+          })
+          
+          const updateFields: any = { status: 'accepted', updatedAt: new Date() }
+          
+          // Copy zoom link or address if it exists from another accepted booking
+          if (existingAccepted) {
+            if (existingAccepted.zoomLink) updateFields.zoomLink = existingAccepted.zoomLink
+            if (existingAccepted.address) updateFields.address = existingAccepted.address
+          }
+          
+          await bookings.updateOne({ _id }, { $set: updateFields })
+        }
+
+        // Recompute availability (now includes the newly accepted booking)
         const acceptedCount = await bookings.countDocuments({ teacherId: teacher, date, time, status: 'accepted' })
         const available = acceptedCount < target
         await timeSlots.updateMany({ teacherId: teacher, date, time }, { $set: { available, updatedAt: new Date() } })
