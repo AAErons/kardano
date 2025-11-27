@@ -488,14 +488,27 @@ const CalendarSection = ({ initialTeacherId, initialLessonTypeFilter }: { initia
                                 </div>
                             </div>
 
-							{/* Weekday Headers */}
-							<div className="grid grid-cols-7 gap-1 mb-4">
-								{getWeekdayNames().map((day, index) => (
-									<div key={index} className="text-center font-semibold text-gray-600 py-2 text-sm lg:text-base">
-										{day}
-									</div>
-								))}
+						{/* Legend */}
+						<div className="flex flex-wrap items-center gap-3 text-xs bg-gray-50 p-3 rounded-lg border border-gray-200 mb-4">
+							<span className="font-semibold text-gray-700">Leģenda:</span>
+							<div className="flex items-center gap-1.5">
+								<div className="w-3 h-3 rounded-full border-2 border-green-600 bg-white"></div>
+								<span className="text-gray-700">Pieejams</span>
 							</div>
+							<div className="flex items-center gap-1.5">
+								<div className="w-3 h-3 rounded-full bg-green-600"></div>
+								<span className="text-gray-700">Rezervēts</span>
+							</div>
+						</div>
+
+						{/* Weekday Headers */}
+						<div className="grid grid-cols-7 gap-1 mb-4">
+							{getWeekdayNames().map((day, index) => (
+								<div key={index} className="text-center font-semibold text-gray-600 py-2 text-sm lg:text-base">
+									{day}
+								</div>
+							))}
+						</div>
 
 							{/* Calendar Grid */}
 							<div className="grid grid-cols-7 gap-1">
