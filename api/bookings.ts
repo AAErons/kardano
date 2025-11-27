@@ -176,6 +176,10 @@ export default async function handler(req: any, res: any) {
             const userName = user ? (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email) : 'Lietotājs'
             const teacherName = teacher ? (teacher.firstName && teacher.lastName ? `${teacher.firstName} ${teacher.lastName}` : teacher.email) : 'Pasniedzējs'
             
+            // Format date and time for notification
+            const formattedDate = new Date(expiredItem.date).toLocaleDateString('lv-LV')
+            const formattedTime = expiredItem.time
+            
             // Find all admin users
             const admins = await users.find({ role: 'admin' }).toArray()
             
@@ -184,7 +188,7 @@ export default async function handler(req: any, res: any) {
               await notifications.insertOne({
                 type: 'booking_expired',
                 title: 'Rezervācija noilgusi',
-                message: `Pasniedzējs ${teacherName} nav atbildējis uz rezervācijas pieprasījumu no ${userName} (${expiredItem.date} ${expiredItem.time}).`,
+                message: `Pasniedzējs ${teacherName} nav atbildējis uz rezervācijas pieprasījumu no ${userName}. Rezervācijas laiks: ${formattedDate} ${formattedTime}.`,
                 recipientRole: 'admin',
                 recipientUserId: String(admin._id),
                 actorUserId: expiredItem.teacherId,
