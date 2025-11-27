@@ -459,14 +459,6 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 							const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`
 							const daySlots = getSlotsForDate(dateStr)
 							
-							// Check if selected day is in the past
-							const isSelectedDayPast = (() => {
-								const dayDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDay)
-								const today = new Date()
-								today.setHours(0, 0, 0, 0)
-								return dayDate < today
-							})()
-							
 							return (
 								<div className="mt-4">
 									<h4 className="font-semibold text-black mb-2">Laiki {selectedDate.toLocaleDateString('lv-LV')}</h4>
