@@ -673,15 +673,21 @@ const CalendarSection = ({ initialTeacherId, initialLessonTypeFilter }: { initia
 							) : userRole === 'user' ? (
 								(userAccountType === 'children') ? (
 									(() => {
-										// For individual lessons: if ANY child has booked, show as booked
+										// For individual lessons: if ANY child has booked, show as booked with child's name
 										// For group lessons: if ALL children have booked, show as booked
-										const anyChildBooked = (parentChildren || []).some((c: any) => userHasBookingForChild(slot, String(c.id || c._id)))
+										const bookedChild = (parentChildren || []).find((c: any) => userHasBookingForChild(slot, String(c.id || c._id)))
 										const allBooked = (parentChildren || []).length > 0 && (parentChildren || []).every((c: any) => userHasBookingForChild(slot, String(c.id || c._id)))
 										
-										const isBooked = slot.lessonType === 'individual' ? anyChildBooked : allBooked
+										const isBooked = slot.lessonType === 'individual' ? bookedChild : allBooked
 										
 										return isBooked ? (
-											<div className="text-sm text-gray-700">Rezervācijas pieprasījums nosūtīts</div>
+											<div className="text-sm text-gray-700">
+												{slot.lessonType === 'individual' && bookedChild ? (
+													`Rezervācijas pieprasījums par ${bookedChild.name || `${bookedChild.firstName || ''} ${bookedChild.lastName || ''}`.trim()} nosūtīts`
+												) : (
+													'Rezervācijas pieprasījums nosūtīts'
+												)}
+											</div>
 										) : (
 											<button 
 												onClick={() => setBookingSlot(slot)}
