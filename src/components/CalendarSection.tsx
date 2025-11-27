@@ -632,10 +632,11 @@ const CalendarSection = ({ initialTeacherId, initialLessonTypeFilter }: { initia
 										return (
 											<div className="space-y-3">
 												{filteredSlots.map(slot => {
-													// Create lesson details display
-													const lessonTypeLabel = slot.lessonType === 'group' ? 'Grupu' : 'Individuāla'
-													const locationLabel = slot.location === 'teacher' ? 'Privāti' : 'Uz vietas'
-													const modalityLabel = slot.modality === 'zoom' ? 'Attālināti' : slot.modality === 'both' ? 'Klātienē vai attālināti' : 'Klātienē'
+												// Create lesson details display
+												const lessonTypeLabel = slot.lessonType === 'group' ? 'Grupu' : 'Individuāla'
+												const locationLabel = slot.location === 'teacher' ? 'Privāti' : 'Uz vietas'
+												// Group lessons should never show "both" option
+												const modalityLabel = slot.modality === 'zoom' ? 'Attālināti' : (slot.modality === 'both' && slot.lessonType === 'individual') ? 'Klātienē vai attālināti' : 'Klātienē'
 													
 													return (
 														<div key={slot.id} className="border border-gray-200 rounded-lg p-4 hover:border-yellow-400 transition-colors">
@@ -735,17 +736,17 @@ const CalendarSection = ({ initialTeacherId, initialLessonTypeFilter }: { initia
 									<div><span className="font-medium">Laiks:</span> {bookingSlot.time}</div>
 								</div>
 
-								{/* Modality selection if slot allows both */}
-								{bookingSlot.modality === 'both' && (
-									<div className="mt-4">
-										<label className="block text-xs font-medium text-gray-700 mb-1">Izvēlieties nodarbības veidu</label>
-										<select value={selectedModality} onChange={e => setSelectedModality(e.target.value as 'in_person' | 'zoom')} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-sm">
-											<option value="in_person">Klātienē</option>
-											<option value="zoom">Attālināti</option>
-										</select>
-										<p className="text-xs text-gray-500 mt-1">Šī nodarbība pieejama gan klātienē, gan attālināti.</p>
-									</div>
-								)}
+							{/* Modality selection if slot allows both (only for individual lessons) */}
+							{bookingSlot.modality === 'both' && bookingSlot.lessonType === 'individual' && (
+								<div className="mt-4">
+									<label className="block text-xs font-medium text-gray-700 mb-1">Izvēlieties nodarbības veidu</label>
+									<select value={selectedModality} onChange={e => setSelectedModality(e.target.value as 'in_person' | 'zoom')} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-sm">
+										<option value="in_person">Klātienē</option>
+										<option value="zoom">Attālināti</option>
+									</select>
+									<p className="text-xs text-gray-500 mt-1">Šī nodarbība pieejama gan klātienē, gan attālināti.</p>
+								</div>
+							)}
 
 								{/* Child selection for parents */}
 								{children.length > 0 && (
@@ -776,10 +777,11 @@ const CalendarSection = ({ initialTeacherId, initialLessonTypeFilter }: { initia
 															if (userHasBookingFor(bookingSlot)) { setBookingError('Jau iesniegts rezervācijas pieprasījums šim laikam'); return }
 														}
 										setBookingLoading(true)
-										setBookingError(null)
-										try {
-											// If slot has 'both' modality, use the user's choice; otherwise use the slot's modality
-											const finalModality = bookingSlot.modality === 'both' ? selectedModality : bookingSlot.modality
+									setBookingError(null)
+									try {
+										// If slot has 'both' modality AND is individual lesson, use the user's choice; otherwise use the slot's modality
+										// Group lessons should never have 'both' as an option
+										const finalModality = (bookingSlot.modality === 'both' && bookingSlot.lessonType === 'individual') ? selectedModality : bookingSlot.modality
 											const r = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
 												userId,
 												teacherId: String(bookingSlot.teacherId),

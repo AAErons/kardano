@@ -59,6 +59,13 @@ async function generateTimeSlotsFromAvailability(db: any, userId: string, availa
     const endHour = parseInt(rule.to?.split(':')[0] || '17')
     for (let hour = startHour; hour < endHour; hour++) {
       const timeStr = `${String(hour).padStart(2, '0')}:00`
+      const lessonType = rule.lessonType || 'individual'
+      let modality = rule.modality || 'in_person'
+      // Group lessons cannot have 'both' modality - default to 'in_person' if incorrectly set
+      if (lessonType === 'group' && modality === 'both') {
+        modality = 'in_person'
+      }
+      
       timeSlots.push({
         teacherId: userId,
         teacherName: teacherName,
@@ -68,9 +75,9 @@ async function generateTimeSlotsFromAvailability(db: any, userId: string, availa
         duration: 45,
         subject: 'Matemātika',
         available: true,
-        lessonType: rule.lessonType || 'individual',
+        lessonType: lessonType,
         location: rule.location || 'facility',
-        modality: rule.modality || 'in_person',
+        modality: modality,
         groupSize: typeof rule.groupSize === 'number' ? rule.groupSize : undefined,
         createdAt: new Date(),
         updatedAt: new Date()
