@@ -673,22 +673,48 @@ const CalendarSection = ({ initialTeacherId, initialLessonTypeFilter }: { initia
 							) : userRole === 'user' ? (
 								(userAccountType === 'children') ? (
 									(() => {
-										// For individual lessons: if ANY child has booked, show as booked with child's name
-										// For group lessons: if ALL children have booked, show as booked
-										const bookedChild = (parentChildren || []).find((c: any) => userHasBookingForChild(slot, String(c.id || c._id)))
+										// Get list of children who have bookings for this slot
+										const bookedChildren = (parentChildren || []).filter((c: any) => userHasBookingForChild(slot, String(c.id || c._id)))
 										const allBooked = (parentChildren || []).length > 0 && (parentChildren || []).every((c: any) => userHasBookingForChild(slot, String(c.id || c._id)))
 										
-										const isBooked = slot.lessonType === 'individual' ? bookedChild : allBooked
+										// For individual lessons: if ANY child has booked, show as fully booked
+										// For group lessons: show list of booked children and allow more bookings
+										if (slot.lessonType === 'individual' && bookedChildren.length > 0) {
+											return (
+												<div className="text-sm text-gray-700">
+													{`Rezervācijas pieprasījums par ${bookedChildren[0].name || `${bookedChildren[0].firstName || ''} ${bookedChildren[0].lastName || ''}`.trim()} nosūtīts`}
+												</div>
+											)
+										}
 										
-										return isBooked ? (
-											<div className="text-sm text-gray-700">
-												{slot.lessonType === 'individual' && bookedChild ? (
-													`Rezervācijas pieprasījums par ${bookedChild.name || `${bookedChild.firstName || ''} ${bookedChild.lastName || ''}`.trim()} nosūtīts`
-												) : (
-													'Rezervācijas pieprasījums nosūtīts'
-												)}
-											</div>
-										) : (
+										if (slot.lessonType === 'group' && bookedChildren.length > 0) {
+											return (
+												<div className="flex flex-col gap-2 items-end">
+													<div className="text-xs text-gray-700">
+														<div className="font-medium mb-1">Rezervēti:</div>
+														{bookedChildren.map((c: any) => (
+															<div key={c.id || c._id} className="text-gray-600">
+																• {c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim()}
+															</div>
+														))}
+													</div>
+													{!allBooked && (
+														<button 
+															onClick={() => setBookingSlot(slot)}
+															className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg transition-colors"
+														>
+															Rezervēt
+														</button>
+													)}
+													{allBooked && (
+														<div className="text-sm text-green-700 font-medium">Visi bērni rezervēti</div>
+													)}
+												</div>
+											)
+										}
+										
+										// No bookings yet - show regular button
+										return (
 											<button 
 												onClick={() => setBookingSlot(slot)}
 												className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg transition-colors"
@@ -737,19 +763,32 @@ const CalendarSection = ({ initialTeacherId, initialLessonTypeFilter }: { initia
 						</div>
 					</div>
 
-					{/* Booking Modal */}
-					{bookingSlot && userRole === 'user' && (
-						<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-							<div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
-							<h3 className="text-lg font-semibold text-black mb-4">Apstiprināt rezervāciju</h3>
-							<div className="space-y-3 text-sm text-gray-700">
-								<div><span className="font-medium">Pasniedzējs:</span> {bookingSlot.teacherName}</div>
-								<div><span className="font-medium">Datums:</span> {new Date(bookingSlot.date).toLocaleDateString('lv-LV')}</div>
-								<div><span className="font-medium">Laiks:</span> {bookingSlot.time}</div>
+				{/* Booking Modal */}
+				{bookingSlot && userRole === 'user' && (
+					<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+						<div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
+						<h3 className="text-lg font-semibold text-black mb-4">Apstiprināt rezervāciju</h3>
+						
+					{modalChildrenLoading ? (
+						<>
+							<div className="flex flex-col items-center justify-center py-8">
+								<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-400 mb-4"></div>
+								<p className="text-sm text-gray-600">Ielādē informāciju...</p>
 							</div>
+							<div className="mt-6 flex items-center justify-end">
+								<button onClick={() => { setBookingSlot(null); setBookingError(null); setBookingSuccess(null); setSelectedModality('in_person'); }} className="px-4 py-2 border border-gray-300 rounded-lg">Atcelt</button>
+							</div>
+						</>
+					) : (
+							<>
+								<div className="space-y-3 text-sm text-gray-700">
+									<div><span className="font-medium">Pasniedzējs:</span> {bookingSlot.teacherName}</div>
+									<div><span className="font-medium">Datums:</span> {new Date(bookingSlot.date).toLocaleDateString('lv-LV')}</div>
+									<div><span className="font-medium">Laiks:</span> {bookingSlot.time}</div>
+								</div>
 
-						{/* Show modality information if it's fixed (not 'both') */}
-						{bookingSlot.modality !== 'both' && (
+								{/* Show modality information if it's fixed (not 'both') */}
+								{bookingSlot.modality !== 'both' && (
 							<div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
 								<div className="flex items-start gap-2">
 									<svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -779,35 +818,54 @@ const CalendarSection = ({ initialTeacherId, initialLessonTypeFilter }: { initia
 								</div>
 							)}
 
-							{/* Child selection for parents */}
-							{children.length > 0 && (() => {
-								// For individual lessons, filter out children who already have this slot booked
-								// For group lessons, show all children
-								const availableChildren = bookingSlot.lessonType === 'individual' 
-									? children.filter((c: any) => !userHasBookingForChild(bookingSlot, String(c.id || c._id)))
-									: children
-								
-								return availableChildren.length > 0 ? (
-									<div className="mt-4">
-										<label className="block text-xs font-medium text-gray-700 mb-1">Izvēlieties bērnu</label>
-										<select value={selectedChildId} onChange={e => setSelectedChildId(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-sm">
-											<option value="">—</option>
-											{availableChildren.map((c: any) => (
-												<option key={c.id || c._id} value={String(c.id || c._id)}>{c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim()}</option>
-											))}
-										</select>
-										<p className="text-xs text-gray-500 mt-1">
-											{bookingSlot.lessonType === 'individual' 
-												? 'Individuālai nodarbībai var rezervēt tikai vienam bērnam.' 
-												: 'Ja rezervējat bērnam, izvēlieties to no saraksta.'}
-										</p>
-									</div>
-								) : (
-									<div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-gray-700">
-										Šis laiks jau rezervēts visiem jūsu bērniem.
-									</div>
-								)
-							})()}
+						{/* Child selection for parents */}
+						{children.length > 0 && (() => {
+							// Filter out children who already have this slot booked (for both individual and group)
+							const availableChildren = children.filter((c: any) => !userHasBookingForChild(bookingSlot, String(c.id || c._id)))
+							const bookedChildren = children.filter((c: any) => userHasBookingForChild(bookingSlot, String(c.id || c._id)))
+							
+							return (
+								<>
+									{/* Show which children have bookings */}
+									{bookedChildren.length > 0 && (
+										<div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+											<div className="text-xs font-medium text-gray-700 mb-1">Rezervācija nosūtīta:</div>
+											<div className="flex flex-wrap gap-2">
+												{bookedChildren.map((c: any) => (
+													<span key={c.id || c._id} className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full border border-green-200">
+														{c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim()}
+													</span>
+												))}
+											</div>
+										</div>
+									)}
+									
+									{/* Show dropdown for remaining children */}
+									{availableChildren.length > 0 ? (
+										<div className="mt-4">
+											<label className="block text-xs font-medium text-gray-700 mb-1">Izvēlieties bērnu</label>
+											<select value={selectedChildId} onChange={e => setSelectedChildId(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-sm">
+												<option value="">—</option>
+												{availableChildren.map((c: any) => (
+													<option key={c.id || c._id} value={String(c.id || c._id)}>{c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim()}</option>
+												))}
+											</select>
+											<p className="text-xs text-gray-500 mt-1">
+												{bookingSlot.lessonType === 'individual' 
+													? 'Individuālai nodarbībai var rezervēt tikai vienam bērnam.' 
+													: bookedChildren.length > 0 
+														? 'Jūs varat rezervēt šo grupu nodarbību arī citiem bērniem.'
+														: 'Ja rezervējat bērnam, izvēlieties to no saraksta.'}
+											</p>
+										</div>
+									) : bookedChildren.length > 0 ? (
+										<div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-gray-700">
+											Visi jūsu bērni ir rezervēti šim laikam.
+										</div>
+									) : null}
+								</>
+							)
+						})()}
 
 								{bookingError && <div className="mt-3 text-sm text-red-600">{bookingError}</div>}
 								{bookingSuccess && <div className="mt-3 text-sm text-green-700">{bookingSuccess}</div>}
@@ -817,24 +875,25 @@ const CalendarSection = ({ initialTeacherId, initialLessonTypeFilter }: { initia
 									<button disabled={bookingLoading || !userId || (userRole === 'user' && children.length > 0 && !selectedChildId) || (userRole === 'user' && modalChildrenLoading)} onClick={async () => {
 									if (!bookingSlot || !userId) return
 									if (userRole === 'user' && children.length > 0 && !selectedChildId) { setBookingError('Lūdzu izvēlieties bērnu pirms apstiprināšanas'); return }
-										// Prevent duplicate booking attempts for the same slot
-													if (userAccountType === 'children' && children.length > 0) {
-														// Check if this specific child already has a booking
-														if (userHasBookingForChild(bookingSlot, selectedChildId)) { 
-															setBookingError('Šim bērnam jau iesniegts pieprasījums šim laikam'); 
-															return 
-														}
-														// For individual lessons, check if ANY child has booked this slot
-														if (bookingSlot.lessonType === 'individual') {
-															const anyChildBooked = children.some((c: any) => userHasBookingForChild(bookingSlot, String(c.id || c._id)))
-															if (anyChildBooked) {
-																setBookingError('Šis laiks jau rezervēts citam bērnam (individuālā nodarbība)')
-																return
-															}
-														}
-													} else {
-														if (userHasBookingFor(bookingSlot)) { setBookingError('Jau iesniegts rezervācijas pieprasījums šim laikam'); return }
+									// Prevent duplicate booking attempts for the same slot
+												if (userAccountType === 'children' && children.length > 0) {
+													// Check if this specific child already has a booking
+													if (userHasBookingForChild(bookingSlot, selectedChildId)) { 
+														setBookingError('Šim bērnam jau iesniegts pieprasījums šim laikam'); 
+														return 
 													}
+													// For individual lessons only, check if ANY child has booked this slot
+													if (bookingSlot.lessonType === 'individual') {
+														const anyChildBooked = children.some((c: any) => userHasBookingForChild(bookingSlot, String(c.id || c._id)))
+														if (anyChildBooked) {
+															setBookingError('Šis laiks jau rezervēts citam bērnam (individuālā nodarbība)')
+															return
+														}
+													}
+													// For group lessons, multiple children from the same parent can book
+												} else {
+													if (userHasBookingFor(bookingSlot)) { setBookingError('Jau iesniegts rezervācijas pieprasījums šim laikam'); return }
+												}
 										setBookingLoading(true)
 									setBookingError(null)
 									try {
@@ -879,9 +938,11 @@ const CalendarSection = ({ initialTeacherId, initialLessonTypeFilter }: { initia
 										{bookingLoading ? 'Sūta...' : 'Apstiprināt'}
 									</button>
 								</div>
-							</div>
+							</>
+						)}
 						</div>
-					)}
+					</div>
+				)}
 				</div>
 			</div>
 		</div>
