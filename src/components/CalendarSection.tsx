@@ -729,12 +729,31 @@ const CalendarSection = ({ initialTeacherId, initialLessonTypeFilter }: { initia
 					{bookingSlot && userRole === 'user' && (
 						<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
 							<div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
-								<h3 className="text-lg font-semibold text-black mb-4">Apstiprināt rezervāciju</h3>
-								<div className="space-y-3 text-sm text-gray-700">
-									<div><span className="font-medium">Pasniedzējs:</span> {bookingSlot.teacherName}</div>
-									<div><span className="font-medium">Datums:</span> {new Date(bookingSlot.date).toLocaleDateString('lv-LV')}</div>
-									<div><span className="font-medium">Laiks:</span> {bookingSlot.time}</div>
+							<h3 className="text-lg font-semibold text-black mb-4">Apstiprināt rezervāciju</h3>
+							<div className="space-y-3 text-sm text-gray-700">
+								<div><span className="font-medium">Pasniedzējs:</span> {bookingSlot.teacherName}</div>
+								<div><span className="font-medium">Datums:</span> {new Date(bookingSlot.date).toLocaleDateString('lv-LV')}</div>
+								<div><span className="font-medium">Laiks:</span> {bookingSlot.time}</div>
+							</div>
+
+						{/* Show modality information if it's fixed (not 'both') */}
+						{bookingSlot.modality !== 'both' && (
+							<div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+								<div className="flex items-start gap-2">
+									<svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+									</svg>
+									<div className="text-sm text-gray-700">
+										<span className="font-medium">Nodarbības veids:</span> {bookingSlot.modality === 'zoom' ? 'Attālināti' : 'Klātienē'}
+										{bookingSlot.modality === 'zoom' ? (
+											<p className="text-xs text-gray-600 mt-1">Saņemsiet Zoom saiti pēc apstiprinājuma.</p>
+										) : (
+											<p className="text-xs text-gray-600 mt-1">Saņemsiet adresi pēc apstiprinājuma.</p>
+										)}
+									</div>
 								</div>
+							</div>
+						)}
 
 							{/* Modality selection if slot allows both (only for individual lessons) */}
 							{bookingSlot.modality === 'both' && bookingSlot.lessonType === 'individual' && (
