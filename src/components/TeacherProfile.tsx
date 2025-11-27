@@ -422,7 +422,7 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 					// Determine cell background color
 					let cellBgClass = ''
 					if (isDayPast) {
-						cellBgClass = 'bg-gray-50' // Past days are always grey
+						cellBgClass = 'bg-gray-50 hover:bg-gray-100' // Past days are always grey
 					} else if (displaySlots.length > 0) {
 						cellBgClass = 'bg-green-50 hover:bg-green-100' // Today/future with bookings
 					} else {
