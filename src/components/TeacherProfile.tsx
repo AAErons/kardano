@@ -358,6 +358,14 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 					const daySlots = getSlotsForDate(dateStr)
 					const nowTs = Date.now()
 					
+				// Check if this day is in the past
+				const isDayPast = (() => {
+					const dayDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)
+					const today = new Date()
+					today.setHours(0, 0, 0, 0)
+					return dayDate < today
+				})()
+				
 				// Categorize slots
 					const expiredSlots: any[] = []
 					const completedSlots: any[] = []
@@ -381,14 +389,13 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 						const isBooked = bookedCount >= capacity || s.available === false
 						
 						if (slotTs < nowTs) {
-							// Past slot - determine if expired or completed
+							// Past slot - only show if it had bookings (reserved)
 							if (hasExpired) {
 								expiredSlots.push(s)
 							} else if (acceptedRelated.length > 0 || related.length > 0) {
 								completedSlots.push(s)
-							} else {
-								completedSlots.push(s) // Default to completed for past slots
 							}
+							// Don't add unreserved past slots (no else clause for availableSlots)
 						} else if (isBooked) {
 							// Future booked slot - determine if accepted or pending
 							if (acceptedRelated.length > 0) {
@@ -403,14 +410,29 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 						}
 					})
 					
-					const totalSlots = daySlots.length
+					// For past days, we only show reserved slots (those with bookings)
+					const displaySlots = isDayPast 
+						? [...expiredSlots, ...completedSlots]
+						: [...expiredSlots, ...completedSlots, ...acceptedSlots, ...pendingSlots, ...availableSlots]
+					
+					const totalSlots = displaySlots.length
 					const circleSize = totalSlots > 50 ? 'w-1 h-1 lg:w-1.5 lg:h-1.5' : totalSlots > 30 ? 'w-1.5 h-1.5 lg:w-2 lg:h-2' : 'w-2 h-2 lg:w-2.5 lg:h-2.5'
 					const gapSize = totalSlots > 50 ? 'gap-0.5' : totalSlots > 30 ? 'gap-1' : 'gap-1.5'
 					
+					// Determine cell background color
+					let cellBgClass = ''
+					if (isDayPast) {
+						cellBgClass = 'bg-gray-50' // Past days are always grey
+					} else if (displaySlots.length > 0) {
+						cellBgClass = 'bg-green-50 hover:bg-green-100' // Today/future with bookings
+					} else {
+						cellBgClass = 'bg-blue-50 hover:bg-blue-100' // Today/future free day
+					}
+					
 					return (
-						<div key={day} className={`h-20 lg:h-24 border p-1 cursor-pointer ${daySlots.length > 0 ? 'bg-green-50 hover:bg-green-100' : 'bg-blue-50 hover:bg-blue-100'}`} onClick={() => { setSelectedDay(day); setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)) }}>
+						<div key={day} className={`h-20 lg:h-24 border p-1 cursor-pointer ${cellBgClass}`} onClick={() => { setSelectedDay(day); setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)) }}>
 							<div className="text-xs font-medium mb-1">{day}</div>
-							{daySlots.length > 0 && (
+							{displaySlots.length > 0 && (
 								<div className={`flex flex-wrap ${gapSize}`}>
 									{expiredSlots.map((_, i) => (
 										<div key={`expired-${i}`} className={`${circleSize} rounded-full bg-gray-500`} title="Noilgusi" />
@@ -418,13 +440,13 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 									{completedSlots.map((_, i) => (
 										<div key={`completed-${i}`} className={`${circleSize} rounded-full bg-blue-500`} title="Notikusi" />
 									))}
-									{acceptedSlots.map((_, i) => (
+									{!isDayPast && acceptedSlots.map((_, i) => (
 										<div key={`accepted-${i}`} className={`${circleSize} rounded-full bg-green-600`} title="Apstiprināts" />
 									))}
-									{pendingSlots.map((_, i) => (
+									{!isDayPast && pendingSlots.map((_, i) => (
 										<div key={`pending-${i}`} className={`${circleSize} rounded-full bg-yellow-500`} title="Gaida apstiprinājumu" />
 									))}
-									{availableSlots.map((_, i) => (
+									{!isDayPast && availableSlots.map((_, i) => (
 										<div key={`avail-${i}`} className={`${circleSize} rounded-full border-2 border-green-600 bg-white`} title="Pieejams" />
 									))}
 								</div>
@@ -436,6 +458,15 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 						{selectedDay && (() => {
 							const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`
 							const daySlots = getSlotsForDate(dateStr)
+							
+							// Check if selected day is in the past
+							const isSelectedDayPast = (() => {
+								const dayDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDay)
+								const today = new Date()
+								today.setHours(0, 0, 0, 0)
+								return dayDate < today
+							})()
+							
 							return (
 								<div className="mt-4">
 									<h4 className="font-semibold text-black mb-2">Laiki {selectedDate.toLocaleDateString('lv-LV')}</h4>
@@ -499,6 +530,11 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 													statusClass = 'bg-yellow-100 text-yellow-800 border-yellow-200'
 													cardClass = 'bg-yellow-50 border-yellow-200'
 												}
+											}
+											
+											// For past days, don't show unreserved slots
+											if (isPast && related.length === 0) {
+												return null
 											}
 											
 											return (
