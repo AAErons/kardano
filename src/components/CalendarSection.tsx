@@ -746,9 +746,9 @@ const CalendarSection = ({ initialTeacherId, initialLessonTypeFilter }: { initia
 									<div className="text-sm text-gray-700">
 										<span className="font-medium">Nodarbības veids:</span> {bookingSlot.modality === 'zoom' ? 'Attālināti' : 'Klātienē'}
 										{bookingSlot.modality === 'zoom' ? (
-											<p className="text-xs text-gray-600 mt-1">Saņemsiet Zoom saiti pēc apstiprinājuma.</p>
+											<p className="text-xs text-gray-600 mt-1">Saņemsiet Zoom saiti pēc skolotāja apstiprinājuma.</p>
 										) : (
-											<p className="text-xs text-gray-600 mt-1">Saņemsiet adresi pēc apstiprinājuma.</p>
+											<p className="text-xs text-gray-600 mt-1">Saņemsiet adresi pēc skolotāja apstiprinājuma.</p>
 										)}
 									</div>
 								</div>
