@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 const AdminProfile = () => {
-	const [tab, setTab] = useState<'calendar' | 'teachers' | 'students' | 'notifications' | 'users' | 'data' | 'reviews'>('calendar')
+	const [tab, setTab] = useState<'calendar' | 'teachers' | 'students' | 'notifications' | 'users' | 'data' | 'reviews' | 'questions'>('calendar')
 	const [unreadCount, setUnreadCount] = useState(0)
 
 	useEffect(() => {
@@ -41,18 +41,20 @@ const AdminProfile = () => {
 					<button onClick={() => setTab('notifications')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'notifications' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>
 						Paziņojumi {unreadCount > 0 && <span className="ml-2 inline-block text-xs bg-red-500 text-white rounded-full px-2 py-0.5">{unreadCount}</span>}
 					</button>
-				<button onClick={() => setTab('users')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'users' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Lietotāji</button>
-					<button onClick={() => setTab('data')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'data' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Dati</button>
-					<button onClick={() => setTab('reviews')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'reviews' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Atsauksmes</button>
+			<button onClick={() => setTab('users')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'users' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Lietotāji</button>
+				<button onClick={() => setTab('questions')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'questions' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Jautājumi</button>
+				<button onClick={() => setTab('data')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'data' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Dati</button>
+				<button onClick={() => setTab('reviews')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'reviews' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>Atsauksmes</button>
 				</div>
 			</div>
-			{tab === 'calendar' && <AdminCalendar />}
-			{tab === 'teachers' && <AdminTeachers />}
-			{tab === 'students' && <AdminStudents />}
-			{tab === 'notifications' && <AdminNotifications onCountChange={setUnreadCount} />}
-			{tab === 'users' && <AdminUsers />}
-			{tab === 'data' && <AdminData />}
-			{tab === 'reviews' && <AdminReviews />}
+		{tab === 'calendar' && <AdminCalendar />}
+		{tab === 'teachers' && <AdminTeachers />}
+		{tab === 'students' && <AdminStudents />}
+		{tab === 'notifications' && <AdminNotifications onCountChange={setUnreadCount} />}
+		{tab === 'users' && <AdminUsers />}
+		{tab === 'questions' && <AdminQuestions />}
+		{tab === 'data' && <AdminData />}
+		{tab === 'reviews' && <AdminReviews />}
 		</div>
 	)
 }
@@ -1857,7 +1859,179 @@ const AdminCalendar = () => {
 							</div>
 						)
 					})()}
-				</>
+			</>
+		)}
+	</div>
+)
+}
+
+// Admin Questions Component
+const AdminQuestions = () => {
+	const [loading, setLoading] = useState(false)
+	const [questions, setQuestions] = useState<Array<{ _id: string; name: string; email: string; message: string; status: string; createdAt: string }>>([])
+	const [expandedId, setExpandedId] = useState<string | null>(null)
+
+	const loadQuestions = async () => {
+		setLoading(true)
+		try {
+			const response = await fetch('/api/help-questions')
+			const data = await response.json()
+			if (data.success) {
+				setQuestions(data.questions)
+			}
+		} catch (error) {
+			console.error('Error loading questions:', error)
+		} finally {
+			setLoading(false)
+		}
+	}
+
+	useEffect(() => {
+		loadQuestions()
+	}, [])
+
+	const updateStatus = async (questionId: string, status: string) => {
+		try {
+			const response = await fetch('/api/help-questions', {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ questionId, status })
+			})
+			if (response.ok) {
+				loadQuestions()
+			}
+		} catch (error) {
+			console.error('Error updating status:', error)
+		}
+	}
+
+	const deleteQuestion = async (questionId: string) => {
+		if (!confirm('Vai tiešām dzēst šo jautājumu?')) return
+		try {
+			const response = await fetch('/api/help-questions', {
+				method: 'DELETE',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ questionId })
+			})
+			if (response.ok) {
+				loadQuestions()
+			}
+		} catch (error) {
+			console.error('Error deleting question:', error)
+		}
+	}
+
+	const getStatusBadge = (status: string) => {
+		switch (status) {
+			case 'new':
+				return <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200">Jauns</span>
+			case 'read':
+				return <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 border border-blue-200">Lasīts</span>
+			case 'resolved':
+				return <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 border border-green-200">Atrisināts</span>
+			default:
+				return null
+		}
+	}
+
+	return (
+		<div className="bg-white rounded-2xl shadow p-6">
+			<div className="flex items-center justify-between mb-6">
+				<h2 className="text-2xl font-bold text-black">Jautājumi</h2>
+				<button
+					onClick={loadQuestions}
+					disabled={loading}
+					className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+				>
+					{loading ? 'Ielādē...' : 'Atjaunot'}
+				</button>
+			</div>
+
+			{loading ? (
+				<div className="text-center py-8 text-gray-500">Ielādē...</div>
+			) : questions.length === 0 ? (
+				<div className="text-center py-8 text-gray-500">Nav jautājumu</div>
+			) : (
+				<div className="space-y-4">
+					{questions.map((question) => (
+						<div key={question._id} className="border border-gray-200 rounded-lg p-4 hover:border-yellow-400 transition-colors">
+							<div className="flex items-start justify-between mb-3">
+								<div className="flex-1">
+									<div className="flex items-center gap-3 mb-2">
+										<h3 className="font-semibold text-black">{question.name}</h3>
+										{getStatusBadge(question.status)}
+									</div>
+									<div className="text-sm text-gray-600 mb-1">
+										<span className="font-medium">E-pasts:</span>{' '}
+										<a href={`mailto:${question.email}`} className="text-blue-600 hover:underline">
+											{question.email}
+										</a>
+									</div>
+									<div className="text-xs text-gray-500">
+										{new Date(question.createdAt).toLocaleString('lv-LV')}
+									</div>
+								</div>
+								<button
+									onClick={() => setExpandedId(expandedId === question._id ? null : question._id)}
+									className="text-gray-500 hover:text-black transition-colors"
+								>
+									<svg
+										className={`w-5 h-5 transition-transform ${expandedId === question._id ? 'rotate-180' : ''}`}
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24"
+									>
+										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+									</svg>
+								</button>
+							</div>
+
+							{expandedId === question._id && (
+								<div className="mt-4 pt-4 border-t border-gray-200">
+									<div className="mb-4">
+										<div className="text-sm font-medium text-gray-700 mb-2">Ziņojums:</div>
+										<div className="bg-gray-50 p-3 rounded-lg text-sm text-gray-800 whitespace-pre-wrap">
+											{question.message}
+										</div>
+									</div>
+
+									<div className="flex flex-wrap gap-2">
+										{question.status !== 'read' && (
+											<button
+												onClick={() => updateStatus(question._id, 'read')}
+												className="px-3 py-1.5 text-sm bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 transition-colors"
+											>
+												Atzīmēt kā lasītu
+											</button>
+										)}
+										{question.status !== 'resolved' && (
+											<button
+												onClick={() => updateStatus(question._id, 'resolved')}
+												className="px-3 py-1.5 text-sm bg-green-100 text-green-800 rounded-lg hover:bg-green-200 transition-colors"
+											>
+												Atzīmēt kā atrisinātu
+											</button>
+										)}
+										{question.status !== 'new' && (
+											<button
+												onClick={() => updateStatus(question._id, 'new')}
+												className="px-3 py-1.5 text-sm bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200 transition-colors"
+											>
+												Atzīmēt kā jaunu
+											</button>
+										)}
+										<button
+											onClick={() => deleteQuestion(question._id)}
+											className="px-3 py-1.5 text-sm bg-red-100 text-red-800 rounded-lg hover:bg-red-200 transition-colors"
+										>
+											Dzēst
+										</button>
+									</div>
+								</div>
+							)}
+						</div>
+					))}
+				</div>
 			)}
 		</div>
 	)

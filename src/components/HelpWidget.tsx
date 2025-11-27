@@ -2,6 +2,50 @@ import { useState } from 'react'
 
 const HelpWidget = () => {
 	const [isOpen, setIsOpen] = useState(false)
+	const [formData, setFormData] = useState({ name: '', email: '', message: '' })
+	const [loading, setLoading] = useState(false)
+	const [error, setError] = useState<string | null>(null)
+	const [success, setSuccess] = useState(false)
+
+	const handleSubmit = async (e: React.FormEvent) => {
+		e.preventDefault()
+		setError(null)
+		setSuccess(false)
+
+		if (!formData.name || !formData.email || !formData.message) {
+			setError('Lūdzu aizpildiet visus laukus')
+			return
+		}
+
+		setLoading(true)
+
+		try {
+			const response = await fetch('/api/help-questions', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(formData)
+			})
+
+			const data = await response.json()
+
+			if (!response.ok) {
+				throw new Error(data.error || 'Kļūda nosūtot ziņojumu')
+			}
+
+			setSuccess(true)
+			setFormData({ name: '', email: '', message: '' })
+			
+			// Close modal after 2 seconds
+			setTimeout(() => {
+				setIsOpen(false)
+				setSuccess(false)
+			}, 2000)
+		} catch (err: any) {
+			setError(err.message || 'Kļūda nosūtot ziņojumu')
+		} finally {
+			setLoading(false)
+		}
+	}
 
 	return (
 		<>
@@ -79,9 +123,16 @@ const HelpWidget = () => {
 							</button>
 						</div>
 
-						{/* Body */}
-						<div className="p-6">
-							<form className="space-y-4">
+					{/* Body */}
+					<div className="p-6">
+						{success ? (
+							<div className="text-center py-8">
+								<div className="text-6xl mb-4">✅</div>
+								<h3 className="text-xl font-bold text-green-600 mb-2">Ziņojums nosūtīts!</h3>
+								<p className="text-gray-600">Mēs drīz ar Jums sazināsimies.</p>
+							</div>
+						) : (
+							<form onSubmit={handleSubmit} className="space-y-4">
 								{/* Name Input */}
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-2">
@@ -90,7 +141,10 @@ const HelpWidget = () => {
 									<input
 										type="text"
 										placeholder="Jūsu vārds"
-										className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent transition-all"
+										value={formData.name}
+										onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+										disabled={loading}
+										className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent transition-all disabled:opacity-50"
 									/>
 								</div>
 
@@ -102,7 +156,10 @@ const HelpWidget = () => {
 									<input
 										type="email"
 										placeholder="jusu@epasts.lv"
-										className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent transition-all"
+										value={formData.email}
+										onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+										disabled={loading}
+										className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent transition-all disabled:opacity-50"
 									/>
 								</div>
 
@@ -114,18 +171,30 @@ const HelpWidget = () => {
 									<textarea
 										rows={4}
 										placeholder="Jūsu jautājums vai komentārs..."
-										className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent transition-all resize-none"
+										value={formData.message}
+										onChange={(e) => setFormData(prev => ({ ...prev, message: e.target.value }))}
+										disabled={loading}
+										className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent transition-all resize-none disabled:opacity-50"
 									></textarea>
 								</div>
+
+								{/* Error Message */}
+								{error && (
+									<div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+										{error}
+									</div>
+								)}
 
 								{/* Submit Button */}
 								<button
 									type="submit"
-									className="w-full bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-3 px-4 rounded-lg transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg"
+									disabled={loading}
+									className="w-full bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-3 px-4 rounded-lg transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
 								>
-									Nosūtīt ziņojumu
+									{loading ? 'Sūta...' : 'Nosūtīt ziņojumu'}
 								</button>
 							</form>
+						)}
 
 							{/* Quick Contact Options */}
 							<div className="mt-4 pt-4 border-t border-gray-200">
