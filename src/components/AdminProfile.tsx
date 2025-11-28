@@ -1461,9 +1461,13 @@ const AdminCalendar = () => {
 					const cellDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)
 					const isPast = cellDate.getTime() < new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime()
 					const dateStr = `${cellDate.getFullYear()}-${String(cellDate.getMonth() + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
-					const dayBookings = bookings.filter((b: any) => b.date === dateStr && (b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable') && (!childFilter || String(b.studentId || b.userId || '') === childFilter))
-					const nowTs = Date.now()
-					
+				const dayBookings = bookings.filter((b: any) => 
+					b.date === dateStr && 
+					(b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable' || b.status === 'expired') && 
+					(!childFilter || String(b.studentId || b.userId || '') === childFilter)
+				)
+				const nowTs = Date.now()
+				
 				// Categorize bookings
 				const attendedBookings: any[] = []
 				const acceptedBookings: any[] = []
@@ -1475,11 +1479,11 @@ const AdminCalendar = () => {
 					if (b.status === 'expired') {
 						expiredBookings.push(b)
 					} else if (isPast || bookingTs < nowTs) {
+						// For past bookings, only show attended ones
 						if (b.attended === true) {
 							attendedBookings.push(b)
-						} else if (b.status === 'accepted') {
-							acceptedBookings.push(b)
 						}
+						// Past accepted bookings without attended=true are not shown as circles
 					} else {
 						if (b.status === 'accepted') {
 							acceptedBookings.push(b)
@@ -1526,19 +1530,23 @@ const AdminCalendar = () => {
 				})}
 			</div>
 
-				{selectedDay && (() => {
-					const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`
-					const dayBookings = bookings
-						.filter((b: any) => b.date === dateStr && (b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable') && (!childFilter || String(b.studentId || b.userId || '') === childFilter))
-						.sort((a: any, b: any) => String(a.time).localeCompare(String(b.time)))
-					return (
-						<div className="mt-4">
-							<h4 className="font-semibold text-black mb-2">Rezervācijas {new Date(dateStr).toLocaleDateString('lv-LV')}</h4>
-							<div className="space-y-2">
-								{dayBookings.length === 0 ? (
-									<div className="text-sm text-gray-600">Nav rezervāciju šajā dienā</div>
-								) : dayBookings.map((b: any) => {
-									const statusClass = b.status === 'accepted' ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
+			{selectedDay && (() => {
+				const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`
+				const dayBookings = bookings
+					.filter((b: any) => 
+						b.date === dateStr && 
+						(b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable' || b.status === 'expired') && 
+						(!childFilter || String(b.studentId || b.userId || '') === childFilter)
+					)
+					.sort((a: any, b: any) => String(a.time).localeCompare(String(b.time)))
+				return (
+					<div className="mt-4">
+						<h4 className="font-semibold text-black mb-2">Rezervācijas {new Date(dateStr).toLocaleDateString('lv-LV')}</h4>
+						<div className="space-y-2">
+							{dayBookings.length === 0 ? (
+								<div className="text-sm text-gray-600">Nav rezervāciju šajā dienā</div>
+							) : dayBookings.map((b: any) => {
+								const statusClass = b.status === 'expired' ? 'bg-gray-50 border-gray-200' : b.status === 'accepted' ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
 									return (
 										<div key={String(b._id)} className={`border rounded-md p-3 text-sm ${statusClass}`}>
 											<div className="flex items-start justify-between">
@@ -1863,8 +1871,14 @@ const AdminCalendar = () => {
 				let daySlots = getSlotsForDate(dateStr)
 				if (teacherFilter) daySlots = daySlots.filter((s: any) => String(s.teacherId) === teacherFilter)
 				
-				// Also get bookings for this day (including those without slots)
-				const dayBookings = bookings.filter((b: any) => b.date === dateStr && (!teacherFilter || String(b.teacherId) === teacherFilter))
+			// Also get bookings for this day (including those without slots)
+			// Exclude cancelled and declined bookings
+			const dayBookings = bookings.filter((b: any) => 
+				b.date === dateStr && 
+				(!teacherFilter || String(b.teacherId) === teacherFilter) &&
+				b.status !== 'cancelled' && 
+				b.status !== 'declined'
+			)
 				
 				const has = daySlots.length > 0 || dayBookings.length > 0
 				const nowTs = Date.now()
@@ -1880,30 +1894,37 @@ const AdminCalendar = () => {
 				const processedBookings = new Set<string>()
 				
 				// First, process slots with their bookings
-				daySlots.forEach((s: any) => {
-					const slotTs = new Date(`${s.date}T${s.time}:00`).getTime()
-					const related = bookings.filter((b: any) => b.date === s.date && b.time === s.time && String(b.teacherId) === String(s.teacherId) && (!teacherFilter || String(b.teacherId) === teacherFilter))
+			daySlots.forEach((s: any) => {
+				const slotTs = new Date(`${s.date}T${s.time}:00`).getTime()
+				const related = bookings.filter((b: any) => 
+					b.date === s.date && 
+					b.time === s.time && 
+					String(b.teacherId) === String(s.teacherId) && 
+					(!teacherFilter || String(b.teacherId) === teacherFilter) &&
+					b.status !== 'cancelled' && 
+					b.status !== 'declined'
+				)
+				
+				// Mark these bookings as processed
+				related.forEach((b: any) => processedBookings.add(String(b._id)))
+				
+				const expiredRelated = related.filter((b: any) => b.status === 'expired')
+				const acceptedRelated = related.filter((b: any) => b.status === 'accepted')
+				const pendingRelated = related.filter((b: any) => b.status === 'pending' || b.status === 'pending_unavailable')
+				const attendedRelated = acceptedRelated.filter((b: any) => b.attended === true)
+				const capacity = s.lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
+				const isBooked = acceptedRelated.length >= capacity || pendingRelated.length > 0
 					
-					// Mark these bookings as processed
-					related.forEach((b: any) => processedBookings.add(String(b._id)))
-					
-					const expiredRelated = related.filter((b: any) => b.status === 'expired')
-					const acceptedRelated = related.filter((b: any) => b.status === 'accepted')
-					const pendingRelated = related.filter((b: any) => b.status === 'pending' || b.status === 'pending_unavailable')
-					const attendedRelated = acceptedRelated.filter((b: any) => b.attended === true)
-					const capacity = s.lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
-					const isBooked = acceptedRelated.length >= capacity || pendingRelated.length > 0
-					
-					// Check for expired bookings first
-					if (expiredRelated.length > 0) {
-						expiredSlots.push(s)
-					} else if (isPast || slotTs < nowTs) {
-						if (attendedRelated.length > 0) {
-							attendedSlots.push(s)
-						} else if (acceptedRelated.length > 0) {
-							acceptedSlots.push(s)
-						}
-					} else if (isBooked) {
+			// Check for expired bookings first
+			if (expiredRelated.length > 0) {
+				expiredSlots.push(s)
+			} else if (isPast || slotTs < nowTs) {
+				// For past slots, only show if there are attended bookings
+				if (attendedRelated.length > 0) {
+					attendedSlots.push(s)
+				}
+				// Past accepted bookings without attended=true are not shown as circles
+			} else if (isBooked) {
 						if (acceptedRelated.length > 0) {
 							acceptedSlots.push(s)
 						} else {
@@ -1914,29 +1935,29 @@ const AdminCalendar = () => {
 					}
 				})
 				
-				// Then, process bookings without corresponding slots
-				dayBookings.forEach((b: any) => {
-					if (processedBookings.has(String(b._id))) return // Already processed
-					
-					const bookingTs = new Date(`${b.date}T${b.time}:00`).getTime()
-					
-					// Treat standalone bookings as slots
-					if (b.status === 'expired') {
-						expiredSlots.push({ date: b.date, time: b.time })
-					} else if (isPast || bookingTs < nowTs) {
-						if (b.attended === true) {
-							attendedSlots.push({ date: b.date, time: b.time })
-						} else if (b.status === 'accepted') {
-							acceptedSlots.push({ date: b.date, time: b.time })
-						}
-					} else {
-						if (b.status === 'accepted') {
-							acceptedSlots.push({ date: b.date, time: b.time })
-						} else if (b.status === 'pending' || b.status === 'pending_unavailable') {
-							pendingSlots.push({ date: b.date, time: b.time })
-						}
+			// Then, process bookings without corresponding slots
+			dayBookings.forEach((b: any) => {
+				if (processedBookings.has(String(b._id))) return // Already processed
+				
+				const bookingTs = new Date(`${b.date}T${b.time}:00`).getTime()
+				
+				// Treat standalone bookings as slots
+				if (b.status === 'expired') {
+					expiredSlots.push({ date: b.date, time: b.time })
+				} else if (isPast || bookingTs < nowTs) {
+					// For past bookings, only show attended ones
+					if (b.attended === true) {
+						attendedSlots.push({ date: b.date, time: b.time })
 					}
-				})
+					// Past accepted bookings without attended=true are not shown as circles
+				} else {
+					if (b.status === 'accepted') {
+						acceptedSlots.push({ date: b.date, time: b.time })
+					} else if (b.status === 'pending' || b.status === 'pending_unavailable') {
+						pendingSlots.push({ date: b.date, time: b.time })
+					}
+				}
+			})
 				
 				const totalSlots = daySlots.length + (dayBookings.length - processedBookings.size)
 						const circleSize = totalSlots > 50 ? 'w-1 h-1 lg:w-1.5 lg:h-1.5' : totalSlots > 30 ? 'w-1.5 h-1.5 lg:w-2 lg:h-2' : 'w-2 h-2 lg:w-2.5 lg:h-2.5'
@@ -1983,26 +2004,43 @@ const AdminCalendar = () => {
 					let daySlots = getSlotsForDate(dateStr)
 					if (teacherFilter) daySlots = daySlots.filter((s: any) => String(s.teacherId) === teacherFilter)
 					
-					// Filter to only show slots that have bookings
-					daySlots = daySlots.filter((s: any) => {
-						const related = bookings.filter((b: any) => b.date === s.date && b.time === s.time && String(b.teacherId) === String(s.teacherId))
-						return related.length > 0
-					})
-					
-					const dayBookings = bookings.filter((b: any) => b.date === dateStr && (!teacherFilter || String(b.teacherId) === teacherFilter)).sort((a: any, b: any) => String(a.time).localeCompare(String(b.time)))
+			// Filter to only show slots that have bookings (excluding cancelled/declined)
+			daySlots = daySlots.filter((s: any) => {
+				const related = bookings.filter((b: any) => 
+					b.date === s.date && 
+					b.time === s.time && 
+					String(b.teacherId) === String(s.teacherId) &&
+					b.status !== 'cancelled' && 
+					b.status !== 'declined'
+				)
+				return related.length > 0
+			})
+			
+			const dayBookings = bookings.filter((b: any) => 
+				b.date === dateStr && 
+				(!teacherFilter || String(b.teacherId) === teacherFilter) &&
+				b.status !== 'cancelled' && 
+				b.status !== 'declined'
+			).sort((a: any, b: any) => String(a.time).localeCompare(String(b.time)))
 					return (
 						<div className="mt-4">
 							<h4 className="font-semibold text-black mb-2">Laiki {new Date(dateStr).toLocaleDateString('lv-LV')}</h4>
 							{daySlots.length > 0 ? (
 								<div className="space-y-2">
 									{daySlots.map(s => {
-											const lessonTypeLabel = s.lessonType === 'group' ? 'Grupu' : 'Individuāla'
-											const locationLabel = s.location === 'teacher' ? 'Privāti' : 'Uz vietas'
-											const modalityLabel = s.modality === 'zoom' ? 'Attālināti' : s.modality === 'both' ? 'Klātienē vai attālināti' : 'Klātienē'
-											const capacity = s.lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
-											const related = bookings.filter((b: any) => b.date === s.date && b.time === s.time && String(b.teacherId) === String(s.teacherId))
-											const acceptedRelated = related.filter((b: any) => b.status === 'accepted')
-											const bookedCount = related.length
+										const lessonTypeLabel = s.lessonType === 'group' ? 'Grupu' : 'Individuāla'
+										const locationLabel = s.location === 'teacher' ? 'Privāti' : 'Uz vietas'
+										const modalityLabel = s.modality === 'zoom' ? 'Attālināti' : s.modality === 'both' ? 'Klātienē vai attālināti' : 'Klātienē'
+										const capacity = s.lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
+										const related = bookings.filter((b: any) => 
+											b.date === s.date && 
+											b.time === s.time && 
+											String(b.teacherId) === String(s.teacherId) &&
+											b.status !== 'cancelled' && 
+											b.status !== 'declined'
+										)
+										const acceptedRelated = related.filter((b: any) => b.status === 'accepted')
+										const bookedCount = related.length
 											const isAvailable = s.available !== false && bookedCount < capacity
 											const slotTs = new Date(`${s.date}T${s.time || '00:00'}:00`).getTime()
 											const isPastSlot = slotTs < Date.now()
