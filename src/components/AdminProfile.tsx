@@ -2005,7 +2005,12 @@ const AdminCalendar = () => {
 					if (teacherFilter) daySlots = daySlots.filter((s: any) => String(s.teacherId) === teacherFilter)
 					
 			// Filter to only show slots that have bookings (excluding cancelled/declined)
+			// For past dates, only show slots with attended bookings
+			const isPastDate = new Date(dateStr).getTime() < new Date(new Date().setHours(0,0,0,0)).getTime()
 			daySlots = daySlots.filter((s: any) => {
+				const slotTs = new Date(`${s.date}T${s.time}:00`).getTime()
+				const isPastSlot = slotTs < Date.now()
+				
 				const related = bookings.filter((b: any) => 
 					b.date === s.date && 
 					b.time === s.time && 
@@ -2013,7 +2018,15 @@ const AdminCalendar = () => {
 					b.status !== 'cancelled' && 
 					b.status !== 'declined'
 				)
-				return related.length > 0
+				
+				if (related.length === 0) return false
+				
+				// For past slots, only show if there are attended bookings
+				if (isPastSlot) {
+					return related.some((b: any) => b.attended === true)
+				}
+				
+				return true
 			})
 			
 			const dayBookings = bookings.filter((b: any) => 
