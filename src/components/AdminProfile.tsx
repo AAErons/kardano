@@ -1859,50 +1859,86 @@ const AdminCalendar = () => {
 						const day = idx + 1
 						const cellDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)
 						const isPast = cellDate.getTime() < new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime()
-						const dateStr = toDateStr(cellDate)
-						let daySlots = getSlotsForDate(dateStr)
-						if (teacherFilter) daySlots = daySlots.filter((s: any) => String(s.teacherId) === teacherFilter)
-						const has = daySlots.length > 0
-						const nowTs = Date.now()
-						
-					// Categorize slots
-					const expiredSlots: any[] = []
-					const attendedSlots: any[] = []
-					const acceptedSlots: any[] = []
-					const pendingSlots: any[] = []
-					const availableSlots: any[] = []
+				const dateStr = toDateStr(cellDate)
+				let daySlots = getSlotsForDate(dateStr)
+				if (teacherFilter) daySlots = daySlots.filter((s: any) => String(s.teacherId) === teacherFilter)
+				
+				// Also get bookings for this day (including those without slots)
+				const dayBookings = bookings.filter((b: any) => b.date === dateStr && (!teacherFilter || String(b.teacherId) === teacherFilter))
+				
+				const has = daySlots.length > 0 || dayBookings.length > 0
+				const nowTs = Date.now()
+				
+				// Categorize slots
+				const expiredSlots: any[] = []
+				const attendedSlots: any[] = []
+				const acceptedSlots: any[] = []
+				const pendingSlots: any[] = []
+				const availableSlots: any[] = []
+				
+				// Track which bookings we've processed (to avoid duplicates)
+				const processedBookings = new Set<string>()
+				
+				// First, process slots with their bookings
+				daySlots.forEach((s: any) => {
+					const slotTs = new Date(`${s.date}T${s.time}:00`).getTime()
+					const related = bookings.filter((b: any) => b.date === s.date && b.time === s.time && String(b.teacherId) === String(s.teacherId) && (!teacherFilter || String(b.teacherId) === teacherFilter))
 					
-					daySlots.forEach((s: any) => {
-						const slotTs = new Date(`${s.date}T${s.time}:00`).getTime()
-						const related = bookings.filter((b: any) => b.date === s.date && b.time === s.time && String(b.teacherId) === String(s.teacherId) && (!teacherFilter || String(b.teacherId) === teacherFilter))
-						const expiredRelated = related.filter((b: any) => b.status === 'expired')
-						const acceptedRelated = related.filter((b: any) => b.status === 'accepted')
-						const pendingRelated = related.filter((b: any) => b.status === 'pending' || b.status === 'pending_unavailable')
-						const attendedRelated = acceptedRelated.filter((b: any) => b.attended === true)
-						const capacity = s.lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
-						const isBooked = acceptedRelated.length >= capacity || pendingRelated.length > 0
-						
-						// Check for expired bookings first
-						if (expiredRelated.length > 0) {
-							expiredSlots.push(s)
-						} else if (isPast || slotTs < nowTs) {
-							if (attendedRelated.length > 0) {
-								attendedSlots.push(s)
-							} else if (acceptedRelated.length > 0) {
-								acceptedSlots.push(s)
-							}
-						} else if (isBooked) {
-							if (acceptedRelated.length > 0) {
-								acceptedSlots.push(s)
-							} else {
-								pendingSlots.push(s)
-							}
-						} else {
-							availableSlots.push(s)
+					// Mark these bookings as processed
+					related.forEach((b: any) => processedBookings.add(String(b._id)))
+					
+					const expiredRelated = related.filter((b: any) => b.status === 'expired')
+					const acceptedRelated = related.filter((b: any) => b.status === 'accepted')
+					const pendingRelated = related.filter((b: any) => b.status === 'pending' || b.status === 'pending_unavailable')
+					const attendedRelated = acceptedRelated.filter((b: any) => b.attended === true)
+					const capacity = s.lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
+					const isBooked = acceptedRelated.length >= capacity || pendingRelated.length > 0
+					
+					// Check for expired bookings first
+					if (expiredRelated.length > 0) {
+						expiredSlots.push(s)
+					} else if (isPast || slotTs < nowTs) {
+						if (attendedRelated.length > 0) {
+							attendedSlots.push(s)
+						} else if (acceptedRelated.length > 0) {
+							acceptedSlots.push(s)
 						}
-					})
-						
-						const totalSlots = daySlots.length
+					} else if (isBooked) {
+						if (acceptedRelated.length > 0) {
+							acceptedSlots.push(s)
+						} else {
+							pendingSlots.push(s)
+						}
+					} else {
+						availableSlots.push(s)
+					}
+				})
+				
+				// Then, process bookings without corresponding slots
+				dayBookings.forEach((b: any) => {
+					if (processedBookings.has(String(b._id))) return // Already processed
+					
+					const bookingTs = new Date(`${b.date}T${b.time}:00`).getTime()
+					
+					// Treat standalone bookings as slots
+					if (b.status === 'expired') {
+						expiredSlots.push({ date: b.date, time: b.time })
+					} else if (isPast || bookingTs < nowTs) {
+						if (b.attended === true) {
+							attendedSlots.push({ date: b.date, time: b.time })
+						} else if (b.status === 'accepted') {
+							acceptedSlots.push({ date: b.date, time: b.time })
+						}
+					} else {
+						if (b.status === 'accepted') {
+							acceptedSlots.push({ date: b.date, time: b.time })
+						} else if (b.status === 'pending' || b.status === 'pending_unavailable') {
+							pendingSlots.push({ date: b.date, time: b.time })
+						}
+					}
+				})
+				
+				const totalSlots = daySlots.length + (dayBookings.length - processedBookings.size)
 						const circleSize = totalSlots > 50 ? 'w-1 h-1 lg:w-1.5 lg:h-1.5' : totalSlots > 30 ? 'w-1.5 h-1.5 lg:w-2 lg:h-2' : 'w-2 h-2 lg:w-2.5 lg:h-2.5'
 						const gapSize = totalSlots > 50 ? 'gap-0.5' : totalSlots > 30 ? 'gap-1' : 'gap-1.5'
 						
