@@ -1037,16 +1037,18 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 							const existing = firstByParticipant[k]
 							if (!existing || ts < new Date(`${existing.date}T${existing.time}:00`).getTime()) firstByParticipant[k] = b
 						})
-						const allFirsts = Object.values(firstByParticipant).filter((b: any) => new Date(`${b.date}T${b.time}:00`).getTime() < nowTs)
-						const items = allFirsts.filter((b: any) => (typeof b.attended === 'undefined' || typeof b.extendPreferred === 'undefined'))
-						const decided = allFirsts
-							.filter((b: any) => (typeof b.attended !== 'undefined' && typeof b.extendPreferred !== 'undefined'))
-							.sort((a: any, b: any) => new Date(`${b.date}T${b.time}:00`).getTime() - new Date(`${a.date}T${a.time}:00`).getTime())
-						if (items.length === 0) return <div className="text-center py-8 text-gray-500">Nav pirmo nodarbību, kurām jāziņo</div>
-						return (
-							<div className="space-y-6">
-								<div className="flex items-center justify-between">
-									<div className="text-sm text-gray-700">Nepabeigti: {items.length}</div>
+					const allFirsts = Object.values(firstByParticipant).filter((b: any) => new Date(`${b.date}T${b.time}:00`).getTime() < nowTs)
+					const items = allFirsts.filter((b: any) => (typeof b.attended === 'undefined' || typeof b.extendPreferred === 'undefined'))
+					const decided = allFirsts
+						.filter((b: any) => (typeof b.attended !== 'undefined' && typeof b.extendPreferred !== 'undefined'))
+						.sort((a: any, b: any) => new Date(`${b.date}T${b.time}:00`).getTime() - new Date(`${a.date}T${a.time}:00`).getTime())
+					if (items.length === 0 && decided.length === 0) return <div className="text-center py-8 text-gray-500">Nav pirmo nodarbību</div>
+					return (
+						<div className="space-y-6">
+							{items.length > 0 && (
+							<div>
+							<div className="flex items-center justify-between mb-3">
+								<div className="text-sm font-semibold text-gray-800">Nepabeigti apmeklējumi <span className="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">{items.length}</span></div>
 									<div className="flex items-center gap-2">
 										{attendanceMsg && <div className={`text-xs ${attendanceMsg === 'Saglabāts' ? 'text-green-700' : 'text-red-600'}`}>{attendanceMsg}</div>}
 										<button onClick={async () => {
@@ -1112,14 +1114,19 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 										)
 									})}
 								</div>
-								{decided.length > 0 && (
-									<div className="pt-4 border-t border-gray-200">
-								<h4 className="text-sm font-semibold text-gray-800 mb-2">
-									Iepriekšējie lēmumi
+							</div>
+							)}
+							{decided.length > 0 && (
+								<div className="border-t border-gray-200 pt-4">
+							<div className="flex items-center justify-between mb-3">
+								<div className="text-sm font-semibold text-gray-800">
+									Pabeigti apmeklējumi
+									<span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">{decided.length}</span>
 									<span className="ml-2 text-xs text-gray-500">
 										{loadingReviews ? 'Ielādē novērtējumus…' : `Novērtējumi: ${(reviews || []).filter((r: any) => r.status === 'submitted').length}`}
 									</span>
-								</h4>
+								</div>
+							</div>
 										<div className="space-y-2">
 									{decided.map((b: any) => {
 												const dateStr = new Date(b.date).toLocaleDateString('lv-LV')
