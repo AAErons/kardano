@@ -2006,7 +2006,6 @@ const AdminCalendar = () => {
 					
 			// Filter to only show slots that have bookings (excluding cancelled/declined)
 			// For past dates, only show slots with attended bookings
-			const isPastDate = new Date(dateStr).getTime() < new Date(new Date().setHours(0,0,0,0)).getTime()
 			daySlots = daySlots.filter((s: any) => {
 				const slotTs = new Date(`${s.date}T${s.time}:00`).getTime()
 				const isPastSlot = slotTs < Date.now()
