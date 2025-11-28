@@ -213,7 +213,7 @@ export default async function handler(req: any, res: any) {
           let teacherName: string | null = null
           try {
             const userDoc = await db.collection('users').findOne({ _id: new ObjectId(String(userId)) })
-            teacherName = (userDoc && (userDoc.name || userDoc.username)) || null
+            teacherName = (userDoc && userDoc.firstName && userDoc.lastName) ? `${userDoc.firstName} ${userDoc.lastName}` : (userDoc && userDoc.email) || null
           } catch {}
           await notifications.insertOne({
             type: 'teacher_profile_submitted',

@@ -28,6 +28,9 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 	const [reviews, setReviews] = useState<any[]>([])
 	const [loadingReviews, setLoadingReviews] = useState(false)
 	const [reviewForm, setReviewForm] = useState<Record<string, { rating: number; comment: string; submitting?: boolean }>>({})
+	
+	// Count pending reviews (reviews that user needs to complete - requested but not yet submitted)
+	const pendingReviewsCount = reviews.filter(r => r.status === 'requested').length
 
 	const loadUserInfo = async () => {
 		if (!userId) return
@@ -95,7 +98,10 @@ const UserProfile = ({ userId }: UserProfileProps) => {
 		setLoadingReviews(false)
 	}
 
-	useEffect(() => { loadUserInfo() }, [userId])
+	useEffect(() => { 
+		loadUserInfo()
+		loadReviews() // Load reviews on mount to show badge count immediately
+	}, [userId])
 // Ensure children count loads early for parent accounts
 useEffect(() => {
     if (userId && userInfo?.accountType === 'children') {
@@ -185,9 +191,9 @@ useEffect(() => {
 							</button>
 						) : null
 					})()}
-					<button onClick={() => setActiveTab('reviews')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'reviews' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>
-						Nodarbību vērtējumi
-					</button>
+				<button onClick={() => setActiveTab('reviews')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'reviews' ? 'bg-yellow-400 text-black' : 'text-gray-700 hover:bg-yellow-100'}`}>
+					Nodarbību vērtējumi {pendingReviewsCount > 0 && <span className="ml-2 inline-block text-xs bg-red-500 text-white rounded-full px-2 py-0.5">{pendingReviewsCount}</span>}
+				</button>
 				</div>
 			</div>
 
@@ -446,30 +452,33 @@ useEffect(() => {
 						<div className="text-center py-8 text-gray-500">Nav pieprasījumu vai novērtējumu</div>
 					) : (
 						<div className="space-y-3">
-							{reviews.map((r: any) => {
-								const isApproved = r.status === 'approved'
-								const isPending = r.status === 'pending'
-								return (
-									<div key={String(r._id)} className="border border-gray-200 rounded-lg p-4">
-										<div className="flex items-center justify-between mb-2">
-											<div className="text-sm text-gray-700">
-												<strong>Pasniedzējs:</strong> {r.teacherName || '—'}
-												{r.lesson && (
-													<span className="ml-2 text-xs text-gray-600">({new Date(r.lesson.date).toLocaleDateString('lv-LV')} {r.lesson.time})</span>
-												)}
-											</div>
-									<span className={`px-2 py-0.5 text-xs rounded-full border ${isApproved ? 'bg-green-50 text-green-800 border-green-200' : isPending ? 'bg-yellow-50 text-yellow-800 border-yellow-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
-										{isApproved ? 'Apstiprināts' : isPending ? 'Gaida apstiprinājumu' : (r.status === 'denied' ? 'Noraidīts' : 'Pieprasīts')}
-											</span>
+						{reviews.map((r: any) => {
+							const isApproved = r.status === 'approved'
+							const isPending = r.status === 'pending'
+							const isSubmitted = isPending && r.rating // User has submitted the review
+							const isRequestedOnly = r.status === 'requested' // Just requested, not yet filled out
+							return (
+								<div key={String(r._id)} className="border border-gray-200 rounded-lg p-4">
+									<div className="flex items-center justify-between mb-2">
+										<div className="text-sm text-gray-700">
+											<strong>Pasniedzējs:</strong> {r.teacherName || '—'}
+											{r.lesson && (
+												<span className="ml-2 text-xs text-gray-600">({new Date(r.lesson.date).toLocaleDateString('lv-LV')} {r.lesson.time})</span>
+											)}
 										</div>
-								{isApproved ? (
-											<div className="text-sm text-gray-700">
-												<strong>Vērtējums:</strong> {r.rating} / 5
-												{r.comment && <div className="mt-1 whitespace-pre-line">{r.comment}</div>}
-											</div>
-								) : isPending ? (
-									<div className="text-sm text-gray-600">Atsauksme nosūtīta un gaida apstiprinājumu.</div>
-								) : (
+								<span className={`px-2 py-0.5 text-xs rounded-full border ${isApproved ? 'bg-green-50 text-green-800 border-green-200' : isSubmitted ? 'bg-blue-50 text-blue-800 border-blue-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
+									{isApproved ? 'Apstiprināts' : isSubmitted ? 'Nosūtīts' : (r.status === 'denied' ? 'Noraidīts' : 'Pieprasīts')}
+										</span>
+									</div>
+							{isApproved || isSubmitted ? (
+										<div className="text-sm text-gray-700">
+											<strong>Vērtējums:</strong> {r.rating} / 5
+											{r.comment && <div className="mt-1 whitespace-pre-line">{r.comment}</div>}
+											{isSubmitted && (
+												<div className="mt-2 text-green-700 font-medium">✓ Paldies, jūsu atsauksme ir nosūtīta!</div>
+											)}
+										</div>
+							) : isRequestedOnly ? (
 											<div className="text-sm">
 												<div className="flex items-center gap-2 mb-2">
 													<label className="text-xs text-gray-700">Vērtējums</label>
@@ -499,6 +508,10 @@ useEffect(() => {
 														}
 													}} className="text-sm bg-yellow-400 hover:bg-yellow-500 text-black rounded-md px-3 py-1">Iesniegt vērtējumu</button>
 												</div>
+											</div>
+										) : (
+											<div className="text-sm text-gray-600">
+												{r.status === 'denied' ? 'Atsauksme noraidīta.' : r.status === 'cancelled' ? 'Atsauksme atcelta.' : ''}
 											</div>
 										)}
 									</div>

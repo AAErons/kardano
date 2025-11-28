@@ -96,7 +96,7 @@ export default async function handler(req: any, res: any) {
       // Notify teacher
       try {
         const user = await users.findOne({ _id: new (await import('mongodb')).ObjectId(userId) }).catch(() => null as any)
-        const actorName = (user && (user.name || user.username || user.email)) || null
+        const actorName = (user && user.firstName && user.lastName) ? `${user.firstName} ${user.lastName}` : (user && user.email) || null
         await notifications.insertOne({
           type: 'booking_request',
           title: 'Jauns rezervācijas pieprasījums',
@@ -420,7 +420,7 @@ export default async function handler(req: any, res: any) {
         try {
           if (cancelledBy === 'user') {
             const actor = await users.findOne({ _id: new (await import('mongodb')).ObjectId(String(booking.userId)) }).catch(() => null as any)
-            const actorName = (actor && (actor.name || actor.username || actor.email)) || null
+            const actorName = (actor && actor.firstName && actor.lastName) ? `${actor.firstName} ${actor.lastName}` : (actor && actor.email) || null
             await notifications.insertOne({
               type: 'booking_cancelled',
               title: 'Rezervācija atcelta',
