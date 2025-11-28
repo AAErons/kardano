@@ -459,16 +459,13 @@ useEffect(() => {
 							const isRequestedOnly = r.status === 'requested' // Just requested, not yet filled out
 							return (
 								<div key={String(r._id)} className="border border-gray-200 rounded-lg p-4">
-									<div className="flex items-center justify-between mb-2">
+									<div className="mb-2">
 										<div className="text-sm text-gray-700">
 											<strong>Pasniedzējs:</strong> {r.teacherName || '—'}
 											{r.lesson && (
 												<span className="ml-2 text-xs text-gray-600">({new Date(r.lesson.date).toLocaleDateString('lv-LV')} {r.lesson.time})</span>
 											)}
 										</div>
-								<span className={`px-2 py-0.5 text-xs rounded-full border ${isApproved ? 'bg-green-50 text-green-800 border-green-200' : isSubmitted ? 'bg-blue-50 text-blue-800 border-blue-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
-									{isApproved ? 'Apstiprināts' : isSubmitted ? 'Nosūtīts' : (r.status === 'denied' ? 'Noraidīts' : 'Pieprasīts')}
-										</span>
 									</div>
 							{isApproved || isSubmitted ? (
 										<div className="text-sm text-gray-700">
