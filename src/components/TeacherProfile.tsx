@@ -149,9 +149,13 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 				const d = await r.json().catch(() => null)
 				if (d && Array.isArray(d.items)) {
 					setReviews(d.items)
-					// Precompute sent map
+					// Precompute sent map - include all active review statuses (requested, pending, approved)
 					const m: Record<string, boolean> = {}
-					d.items.forEach((x: any) => { if (x && x.userId && (x.status === 'requested' || x.status === 'submitted')) m[String(x.userId)] = true })
+					d.items.forEach((x: any) => { 
+						if (x && x.userId && (x.status === 'requested' || x.status === 'pending' || x.status === 'approved')) {
+							m[String(x.userId)] = true 
+						}
+					})
 					setSentReviewReqByUser(m)
 				}
 			}
@@ -1123,7 +1127,7 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 									Pabeigti apmeklējumi
 									<span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">{decided.length}</span>
 									<span className="ml-2 text-xs text-gray-500">
-										{loadingReviews ? 'Ielādē novērtējumus…' : `Novērtējumi: ${(reviews || []).filter((r: any) => r.status === 'submitted').length}`}
+										{loadingReviews ? 'Ielādē novērtējumus…' : `Novērtējumi saņemti: ${(reviews || []).filter((r: any) => r.status === 'pending' || r.status === 'approved').length}`}
 									</span>
 								</div>
 							</div>
@@ -1132,6 +1136,9 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 												const dateStr = new Date(b.date).toLocaleDateString('lv-LV')
 										const userKey = String(b.userId || '')
 										const requestAlreadySent = Boolean(sentReviewReqByUser[userKey])
+										// Check if review is completed (pending or approved)
+										const existingReview = reviews.find((r: any) => String(r.userId) === userKey)
+										const isReviewCompleted = existingReview && (existingReview.status === 'pending' || existingReview.status === 'approved')
 										return (
 													<div key={`${b._id}-dec`} className="border border-gray-100 rounded-lg p-3 bg-gray-50">
 														<div className="flex flex-wrap items-center gap-3 text-xs text-gray-700">
@@ -1146,10 +1153,13 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 																const r = await fetch('/api/reviews', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teacherId, userId: userKey, bookingId: String(b._id) }) })
 																if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās nosūtīt pieprasījumu'); return }
 																setSentReviewReqByUser(prev => ({ ...prev, [userKey]: true }))
+																loadReviews() // Reload to update the status display
 															} catch { alert('Kļūda') }
 														}} className="text-xs bg-yellow-400 hover:bg-yellow-500 text-black rounded-md px-3 py-1">Palūgt novērtējumu</button>
+													) : userKey && isReviewCompleted ? (
+														<span className="text-xs text-green-700 font-medium">✓ Novērtējums saņemts</span>
 													) : userKey ? (
-														<span className="text-xs text-green-700">Pieprasījums nosūtīts</span>
+														<span className="text-xs text-blue-700">Pieprasījums nosūtīts</span>
 													) : null}
 														</div>
 													</div>
