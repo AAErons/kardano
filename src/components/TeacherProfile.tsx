@@ -724,8 +724,9 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
  																		alert('Visas rezervācijas ir noilgušas')
  																		return
  																	}
- 																	const needsZoom = validBookings.some((x: any) => (slots.find(s => String(s.teacherId) === tid && s.date === x.date && s.time === x.time)?.modality || x.modality) === 'zoom')
- 																	const needsTeacherAddress = validBookings.some((x: any) => (slots.find(s => String(s.teacherId) === tid && s.date === x.date && s.time === x.time)?.location || x.location) === 'teacher')
+																// Use booking's modality first (user's choice), then fall back to slot's modality
+																const needsZoom = validBookings.some((x: any) => (x.modality || slots.find(s => String(s.teacherId) === tid && s.date === x.date && s.time === x.time)?.modality) === 'zoom')
+																const needsTeacherAddress = validBookings.some((x: any) => (x.location || slots.find(s => String(s.teacherId) === tid && s.date === x.date && s.time === x.time)?.location) === 'teacher')
  																	let zoomLink = ''
  																	let address = ''
  																	if (needsZoom) { zoomLink = prompt('Ievadiet Zoom saiti') || '' }
@@ -755,17 +756,18 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 																	) : (
 																		<div className="flex gap-2">
 																			<button onClick={async () => {
-																				try {
-																					const mod = (slots.find(s => String(s.teacherId) === tid && s.date === bi.date && s.time === bi.time)?.modality || bi.modality)
-																					const loc = (slots.find(s => String(s.teacherId) === tid && s.date === bi.date && s.time === bi.time)?.location || bi.location)
-																					let zoomLink = ''
-																					let address = ''
-																					if (mod === 'zoom') { zoomLink = prompt('Ievadiet Zoom saiti') || '' }
-																					if (mod !== 'zoom' && loc === 'teacher') { address = prompt('Ievadiet adresi') || '' }
-																					const r = await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'accept', bookingId: String(bi._id), teacherId: tid, zoomLink, address }) })
-																					if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās apstiprināt'); return }
-																					loadBookings()
-																				} catch { alert('Kļūda') }
+																try {
+																	// Use booking's modality first (user's choice), then fall back to slot's modality
+																	const mod = bi.modality || slots.find(s => String(s.teacherId) === tid && s.date === bi.date && s.time === bi.time)?.modality
+																	const loc = bi.location || slots.find(s => String(s.teacherId) === tid && s.date === bi.date && s.time === bi.time)?.location
+																	let zoomLink = ''
+																	let address = ''
+																	if (mod === 'zoom') { zoomLink = prompt('Ievadiet Zoom saiti') || '' }
+																	if (mod !== 'zoom' && loc === 'teacher') { address = prompt('Ievadiet adresi') || '' }
+																	const r = await fetch('/api/bookings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'accept', bookingId: String(bi._id), teacherId: tid, zoomLink, address }) })
+																	if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Neizdevās apstiprināt'); return }
+																	loadBookings()
+																} catch { alert('Kļūda') }
 																		}} className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded">Apstiprināt</button>
 																			<button onClick={async () => {
 																				try {
@@ -793,8 +795,9 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
         const effectiveStatus = (isPending || isPendingUnavailable) && isBookingPast ? 'expired' : b.status
         const tid = String(teacherId)
         const slot = slots.find(s => String(s.teacherId) === tid && s.date === b.date && s.time === b.time)
-        const mod = (slot?.modality || b.modality)
-        const loc = (slot?.location || b.location)
+        // Use booking's modality first (user's choice), then fall back to slot's modality
+        const mod = (b.modality || slot?.modality)
+        const loc = (b.location || slot?.location)
         const needsZoom = mod === 'zoom'
         const needsAddress = mod !== 'zoom' && loc === 'teacher'
         const lessonType = (slot?.lessonType || b.lessonType)
