@@ -226,9 +226,10 @@ export default async function handler(req: any, res: any) {
         if (lessonType && lessonType === 'group') {
           // ok
         }
-        if ((slot && slot.modality) || booking.modality) {
-          const modality = (slot && slot.modality) || booking.modality
-          const location = (slot && slot.location) || booking.location
+        if (booking.modality || (slot && slot.modality)) {
+          // Use booking's modality first (user's choice), then fall back to slot's modality
+          const modality = booking.modality || (slot && slot.modality)
+          const location = booking.location || (slot && slot.location)
           if (modality === 'zoom') {
             if (!zoomLink || typeof zoomLink !== 'string' || !zoomLink.trim()) {
               return res.status(400).json({ error: 'Missing zoomLink' })
@@ -317,8 +318,9 @@ export default async function handler(req: any, res: any) {
 
         const lessonType = slot.lessonType || booking.lessonType || 'individual'
         const groupSize = Number(slot.groupSize || booking.groupSize || 1)
-        const modality = slot.modality || booking.modality || 'in_person'
-        const location = slot.location || booking.location || 'facility'
+        // Use booking's modality first (user's choice), then fall back to slot's modality
+        const modality = booking.modality || slot.modality || 'in_person'
+        const location = booking.location || slot.location || 'facility'
 
         // Validate and build meeting fields
         let meetingFields2: any = {}
@@ -551,8 +553,9 @@ export default async function handler(req: any, res: any) {
           const key = `${b.date}|${b.time}`
           if (!slotMap[key]) slotMap[key] = await timeSlots.findOne({ teacherId: teacherIdEffective2, date: b.date, time: b.time })
         }
-        const needsZoom = list.some((b: any) => (slotMap[`${b.date}|${b.time}`]?.modality || b.modality) === 'zoom')
-        const locations = list.map((b: any) => slotMap[`${b.date}|${b.time}`]?.location || b.location)
+        // Use booking's modality first (user's choice), then fall back to slot's modality
+        const needsZoom = list.some((b: any) => (b.modality || slotMap[`${b.date}|${b.time}`]?.modality) === 'zoom')
+        const locations = list.map((b: any) => b.location || slotMap[`${b.date}|${b.time}`]?.location)
         const needsTeacherAddress = locations.some((l: any) => l === 'teacher')
         if (needsZoom && (!zoomLink || !String(zoomLink).trim())) return res.status(400).json({ error: 'Missing zoomLink' })
         if (!needsZoom && needsTeacherAddress && (!address || !String(address).trim())) return res.status(400).json({ error: 'Missing address' })
@@ -562,8 +565,9 @@ export default async function handler(req: any, res: any) {
           const slot = slotMap[`${b.date}|${b.time}`]
           const lessonType = (slot && slot.lessonType) || b.lessonType || 'individual'
           const groupSize2 = Number((slot && slot.groupSize) || b.groupSize || 1)
-          const modality2 = (slot && slot.modality) || b.modality || 'in_person'
-          const location2 = (slot && slot.location) || b.location || 'facility'
+          // Use booking's modality first (user's choice), then fall back to slot's modality
+          const modality2 = b.modality || (slot && slot.modality) || 'in_person'
+          const location2 = b.location || (slot && slot.location) || 'facility'
           const meetingFieldsAny: any = {}
           if (modality2 === 'zoom') {
             meetingFieldsAny.zoomLink = String(zoomLink).trim()
