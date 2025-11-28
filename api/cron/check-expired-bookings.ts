@@ -29,22 +29,25 @@ export default async function handler(req: any, res: any) {
     const users = db.collection('users')
     const notifications = db.collection('notifications')
 
-    // Get the current time
+    // Get the current time in Latvia timezone (Europe/Riga)
     const now = new Date()
-    const currentHour = now.getHours()
-    const currentMinute = now.getMinutes()
     
-    // We're checking for bookings from the previous hour
-    // If it's 15:01, we check for 15:00 bookings
+    // Convert to Latvia time (Europe/Riga = UTC+2, or UTC+3 during DST)
+    const latviaTime = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Riga' }))
+    const currentHour = latviaTime.getHours()
+    const currentMinute = latviaTime.getMinutes()
+    
+    // We're checking for bookings from the current hour at XX:00
+    // If it's 15:01 in Latvia, we check for 15:00 bookings
     // Since we run at minute 1, bookings at 15:00 would have just passed
     const checkHour = currentHour
     const checkTime = `${String(checkHour).padStart(2, '0')}:00`
     
-    // Get today's date in YYYY-MM-DD format
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    // Get today's date in YYYY-MM-DD format (in Latvia timezone)
+    const dateStr = `${latviaTime.getFullYear()}-${String(latviaTime.getMonth() + 1).padStart(2, '0')}-${String(latviaTime.getDate()).padStart(2, '0')}`
     
+    console.log(`[Cron] Running at server time: ${now.toISOString()}`)
+    console.log(`[Cron] Latvia time: ${latviaTime.toISOString()}`)
     console.log(`[Cron] Checking for expired bookings at ${dateStr} ${checkTime}`)
 
     // Find all pending bookings for this specific time slot
