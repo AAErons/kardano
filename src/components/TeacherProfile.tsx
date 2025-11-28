@@ -1139,6 +1139,7 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 										// Check if review is completed (pending or approved)
 										const existingReview = reviews.find((r: any) => String(r.userId) === userKey)
 										const isReviewCompleted = existingReview && (existingReview.status === 'pending' || existingReview.status === 'approved')
+										const isReviewApproved = existingReview && existingReview.status === 'approved'
 										return (
 													<div key={`${b._id}-dec`} className="border border-gray-100 rounded-lg p-3 bg-gray-50">
 														<div className="flex flex-wrap items-center gap-3 text-xs text-gray-700">
@@ -1162,6 +1163,16 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 														<span className="text-xs text-blue-700">Pieprasījums nosūtīts</span>
 													) : null}
 														</div>
+														{isReviewApproved && existingReview && (
+															<div className="mt-2 pt-2 border-t border-gray-200">
+																<div className="text-xs text-gray-700">
+																	<strong className="text-gray-800">Novērtējums:</strong> {existingReview.rating} / 5
+																	{existingReview.comment && (
+																		<div className="mt-1 text-xs text-gray-600 whitespace-pre-line italic">"{existingReview.comment}"</div>
+																	)}
+																</div>
+															</div>
+														)}
 													</div>
 												)
 											})}
