@@ -1422,22 +1422,26 @@ const AdminCalendar = () => {
 					</div>
 			</div>
 
-			{/* Legend */}
-			<div className="flex flex-wrap items-center gap-3 text-xs bg-gray-50 p-3 rounded-lg border border-gray-200 mb-4">
-				<span className="font-semibold text-gray-700">Leģenda:</span>
-				<div className="flex items-center gap-1.5">
-					<div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-					<span className="text-gray-700">Gaida apstiprinājumu</span>
-				</div>
-				<div className="flex items-center gap-1.5">
-					<div className="w-3 h-3 rounded-full bg-green-600"></div>
-					<span className="text-gray-700">Apstiprināts</span>
-				</div>
-				<div className="flex items-center gap-1.5">
-					<div className="w-3 h-3 rounded-full bg-blue-500"></div>
-					<span className="text-gray-700">Apmeklēts</span>
-				</div>
+		{/* Legend */}
+		<div className="flex flex-wrap items-center gap-3 text-xs bg-gray-50 p-3 rounded-lg border border-gray-200 mb-4">
+			<span className="font-semibold text-gray-700">Leģenda:</span>
+			<div className="flex items-center gap-1.5">
+				<div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+				<span className="text-gray-700">Gaida apstiprinājumu</span>
 			</div>
+			<div className="flex items-center gap-1.5">
+				<div className="w-3 h-3 rounded-full bg-green-600"></div>
+				<span className="text-gray-700">Apstiprināts</span>
+			</div>
+			<div className="flex items-center gap-1.5">
+				<div className="w-3 h-3 rounded-full bg-blue-500"></div>
+				<span className="text-gray-700">Apmeklēts</span>
+			</div>
+			<div className="flex items-center gap-1.5">
+				<div className="w-3 h-3 rounded-full bg-gray-500"></div>
+				<span className="text-gray-700">Noilgusi</span>
+			</div>
+		</div>
 
 			{/* Weekday Headers */}
 			<div className="grid grid-cols-7 gap-1 mb-2">
@@ -1460,31 +1464,34 @@ const AdminCalendar = () => {
 					const dayBookings = bookings.filter((b: any) => b.date === dateStr && (b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable') && (!childFilter || String(b.studentId || b.userId || '') === childFilter))
 					const nowTs = Date.now()
 					
-					// Categorize bookings
-					const attendedBookings: any[] = []
-					const acceptedBookings: any[] = []
-					const pendingBookings: any[] = []
-					
-					dayBookings.forEach((b: any) => {
-						const bookingTs = new Date(`${b.date}T${b.time}:00`).getTime()
-						if (isPast || bookingTs < nowTs) {
-							if (b.attended === true) {
-								attendedBookings.push(b)
-							} else if (b.status === 'accepted') {
-								acceptedBookings.push(b)
-							}
-						} else {
-							if (b.status === 'accepted') {
-								acceptedBookings.push(b)
-							} else {
-								pendingBookings.push(b)
-							}
+				// Categorize bookings
+				const attendedBookings: any[] = []
+				const acceptedBookings: any[] = []
+				const pendingBookings: any[] = []
+				const expiredBookings: any[] = []
+				
+				dayBookings.forEach((b: any) => {
+					const bookingTs = new Date(`${b.date}T${b.time}:00`).getTime()
+					if (b.status === 'expired') {
+						expiredBookings.push(b)
+					} else if (isPast || bookingTs < nowTs) {
+						if (b.attended === true) {
+							attendedBookings.push(b)
+						} else if (b.status === 'accepted') {
+							acceptedBookings.push(b)
 						}
-					})
-					
-					const totalBookings = dayBookings.length
-					const circleSize = totalBookings > 20 ? 'w-1.5 h-1.5 lg:w-2 lg:h-2' : 'w-2 h-2 lg:w-2.5 lg:h-2.5'
-					const gapSize = totalBookings > 20 ? 'gap-1' : 'gap-1.5'
+					} else {
+						if (b.status === 'accepted') {
+							acceptedBookings.push(b)
+						} else {
+							pendingBookings.push(b)
+						}
+					}
+				})
+				
+				const totalBookings = dayBookings.length
+				const circleSize = totalBookings > 20 ? 'w-1.5 h-1.5 lg:w-2 lg:h-2' : 'w-2 h-2 lg:w-2.5 lg:h-2.5'
+				const gapSize = totalBookings > 20 ? 'gap-1' : 'gap-1.5'
 					
 					let cellBgClass = ''
 					if (isPast) {
@@ -1497,20 +1504,23 @@ const AdminCalendar = () => {
 					
 					return (
 						<div key={day} className={`h-20 lg:h-24 border p-1 cursor-pointer ${cellBgClass}`} onClick={() => { setSelectedDay(day); setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)) }}>
-							<div className="text-xs font-medium mb-1">{day}</div>
-							{totalBookings > 0 && (
-								<div className={`flex flex-wrap ${gapSize}`}>
-									{attendedBookings.map((_, i) => (
-										<div key={`attended-${i}`} className={`${circleSize} rounded-full bg-blue-500`} title="Apmeklēts" />
-									))}
-									{acceptedBookings.map((_, i) => (
-										<div key={`accepted-${i}`} className={`${circleSize} rounded-full bg-green-600`} title="Apstiprināts" />
-									))}
-									{pendingBookings.map((_, i) => (
-										<div key={`pending-${i}`} className={`${circleSize} rounded-full bg-yellow-500`} title="Gaida apstiprinājumu" />
-									))}
-								</div>
-							)}
+					<div className="text-xs font-medium mb-1">{day}</div>
+					{totalBookings > 0 && (
+						<div className={`flex flex-wrap ${gapSize}`}>
+							{expiredBookings.map((_, i) => (
+								<div key={`expired-${i}`} className={`${circleSize} rounded-full bg-gray-500`} title="Noilgusi" />
+							))}
+							{attendedBookings.map((_, i) => (
+								<div key={`attended-${i}`} className={`${circleSize} rounded-full bg-blue-500`} title="Apmeklēts" />
+							))}
+							{acceptedBookings.map((_, i) => (
+								<div key={`accepted-${i}`} className={`${circleSize} rounded-full bg-green-600`} title="Apstiprināts" />
+							))}
+							{pendingBookings.map((_, i) => (
+								<div key={`pending-${i}`} className={`${circleSize} rounded-full bg-yellow-500`} title="Gaida apstiprinājumu" />
+							))}
+						</div>
+					)}
 						</div>
 					)
 				})}
@@ -1807,26 +1817,30 @@ const AdminCalendar = () => {
 			<div className="text-gray-600">Ielādē...</div>
 		) : (
 			<>
-			{/* Legend */}
-			<div className="flex flex-wrap items-center gap-3 text-xs bg-gray-50 p-3 rounded-lg border border-gray-200 mb-4">
-				<span className="font-semibold text-gray-700">Leģenda:</span>
-				<div className="flex items-center gap-1.5">
-					<div className="w-3 h-3 rounded-full border-2 border-green-600 bg-white"></div>
-					<span className="text-gray-700">Pieejams</span>
-				</div>
-				<div className="flex items-center gap-1.5">
-					<div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-					<span className="text-gray-700">Gaida apstiprinājumu</span>
-				</div>
-				<div className="flex items-center gap-1.5">
-					<div className="w-3 h-3 rounded-full bg-green-600"></div>
-					<span className="text-gray-700">Apstiprināts</span>
-				</div>
-				<div className="flex items-center gap-1.5">
-					<div className="w-3 h-3 rounded-full bg-blue-500"></div>
-					<span className="text-gray-700">Apmeklēts</span>
-				</div>
+		{/* Legend */}
+		<div className="flex flex-wrap items-center gap-3 text-xs bg-gray-50 p-3 rounded-lg border border-gray-200 mb-4">
+			<span className="font-semibold text-gray-700">Leģenda:</span>
+			<div className="flex items-center gap-1.5">
+				<div className="w-3 h-3 rounded-full border-2 border-green-600 bg-white"></div>
+				<span className="text-gray-700">Pieejams</span>
 			</div>
+			<div className="flex items-center gap-1.5">
+				<div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+				<span className="text-gray-700">Gaida apstiprinājumu</span>
+			</div>
+			<div className="flex items-center gap-1.5">
+				<div className="w-3 h-3 rounded-full bg-green-600"></div>
+				<span className="text-gray-700">Apstiprināts</span>
+			</div>
+			<div className="flex items-center gap-1.5">
+				<div className="w-3 h-3 rounded-full bg-blue-500"></div>
+				<span className="text-gray-700">Apmeklēts</span>
+			</div>
+			<div className="flex items-center gap-1.5">
+				<div className="w-3 h-3 rounded-full bg-gray-500"></div>
+				<span className="text-gray-700">Noilgusi</span>
+			</div>
+		</div>
 
 			{/* Weekday Headers */}
 			<div className="grid grid-cols-7 gap-1 mb-2">
@@ -1851,37 +1865,42 @@ const AdminCalendar = () => {
 						const has = daySlots.length > 0
 						const nowTs = Date.now()
 						
-						// Categorize slots
-						const attendedSlots: any[] = []
-						const acceptedSlots: any[] = []
-						const pendingSlots: any[] = []
-						const availableSlots: any[] = []
+					// Categorize slots
+					const expiredSlots: any[] = []
+					const attendedSlots: any[] = []
+					const acceptedSlots: any[] = []
+					const pendingSlots: any[] = []
+					const availableSlots: any[] = []
+					
+					daySlots.forEach((s: any) => {
+						const slotTs = new Date(`${s.date}T${s.time}:00`).getTime()
+						const related = bookings.filter((b: any) => b.date === s.date && b.time === s.time && String(b.teacherId) === String(s.teacherId) && (!teacherFilter || String(b.teacherId) === teacherFilter))
+						const expiredRelated = related.filter((b: any) => b.status === 'expired')
+						const acceptedRelated = related.filter((b: any) => b.status === 'accepted')
+						const pendingRelated = related.filter((b: any) => b.status === 'pending' || b.status === 'pending_unavailable')
+						const attendedRelated = acceptedRelated.filter((b: any) => b.attended === true)
+						const capacity = s.lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
+						const isBooked = acceptedRelated.length >= capacity || pendingRelated.length > 0
 						
-						daySlots.forEach((s: any) => {
-							const slotTs = new Date(`${s.date}T${s.time}:00`).getTime()
-							const related = bookings.filter((b: any) => b.date === s.date && b.time === s.time && String(b.teacherId) === String(s.teacherId) && (!teacherFilter || String(b.teacherId) === teacherFilter))
-							const acceptedRelated = related.filter((b: any) => b.status === 'accepted')
-							const pendingRelated = related.filter((b: any) => b.status === 'pending' || b.status === 'pending_unavailable')
-							const attendedRelated = acceptedRelated.filter((b: any) => b.attended === true)
-							const capacity = s.lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
-							const isBooked = acceptedRelated.length >= capacity || pendingRelated.length > 0
-							
-							if (isPast || slotTs < nowTs) {
-								if (attendedRelated.length > 0) {
-									attendedSlots.push(s)
-								} else if (acceptedRelated.length > 0) {
-									acceptedSlots.push(s)
-								}
-							} else if (isBooked) {
-								if (acceptedRelated.length > 0) {
-									acceptedSlots.push(s)
-								} else {
-									pendingSlots.push(s)
-								}
-							} else {
-								availableSlots.push(s)
+						// Check for expired bookings first
+						if (expiredRelated.length > 0) {
+							expiredSlots.push(s)
+						} else if (isPast || slotTs < nowTs) {
+							if (attendedRelated.length > 0) {
+								attendedSlots.push(s)
+							} else if (acceptedRelated.length > 0) {
+								acceptedSlots.push(s)
 							}
-						})
+						} else if (isBooked) {
+							if (acceptedRelated.length > 0) {
+								acceptedSlots.push(s)
+							} else {
+								pendingSlots.push(s)
+							}
+						} else {
+							availableSlots.push(s)
+						}
+					})
 						
 						const totalSlots = daySlots.length
 						const circleSize = totalSlots > 50 ? 'w-1 h-1 lg:w-1.5 lg:h-1.5' : totalSlots > 30 ? 'w-1.5 h-1.5 lg:w-2 lg:h-2' : 'w-2 h-2 lg:w-2.5 lg:h-2.5'
@@ -1898,23 +1917,26 @@ const AdminCalendar = () => {
 						
 						return (
 							<div key={day} className={`h-20 lg:h-24 border p-1 cursor-pointer ${cellBgClass}`} onClick={() => { setSelectedDay(day); setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)) }}>
-								<div className="text-xs font-medium mb-1">{day}</div>
-								{totalSlots > 0 && (
-									<div className={`flex flex-wrap ${gapSize}`}>
-										{attendedSlots.map((_, i) => (
-											<div key={`attended-${i}`} className={`${circleSize} rounded-full bg-blue-500`} title="Apmeklēts" />
-										))}
-										{acceptedSlots.map((_, i) => (
-											<div key={`accepted-${i}`} className={`${circleSize} rounded-full bg-green-600`} title="Apstiprināts" />
-										))}
-										{pendingSlots.map((_, i) => (
-											<div key={`pending-${i}`} className={`${circleSize} rounded-full bg-yellow-500`} title="Gaida apstiprinājumu" />
-										))}
-										{availableSlots.map((_, i) => (
-											<div key={`avail-${i}`} className={`${circleSize} rounded-full border-2 border-green-600 bg-white`} title="Pieejams" />
-										))}
-									</div>
-								)}
+					<div className="text-xs font-medium mb-1">{day}</div>
+					{totalSlots > 0 && (
+						<div className={`flex flex-wrap ${gapSize}`}>
+							{expiredSlots.map((_, i) => (
+								<div key={`expired-${i}`} className={`${circleSize} rounded-full bg-gray-500`} title="Noilgusi" />
+							))}
+							{attendedSlots.map((_, i) => (
+								<div key={`attended-${i}`} className={`${circleSize} rounded-full bg-blue-500`} title="Apmeklēts" />
+							))}
+							{acceptedSlots.map((_, i) => (
+								<div key={`accepted-${i}`} className={`${circleSize} rounded-full bg-green-600`} title="Apstiprināts" />
+							))}
+							{pendingSlots.map((_, i) => (
+								<div key={`pending-${i}`} className={`${circleSize} rounded-full bg-yellow-500`} title="Gaida apstiprinājumu" />
+							))}
+							{availableSlots.map((_, i) => (
+								<div key={`avail-${i}`} className={`${circleSize} rounded-full border-2 border-green-600 bg-white`} title="Pieejams" />
+							))}
+						</div>
+					)}
 							</div>
 						)
 					})}
