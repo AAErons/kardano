@@ -1420,35 +1420,101 @@ const AdminCalendar = () => {
 						}} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Lejupielādēt statistiku</button>
 						</div>
 					</div>
-				</div>
+			</div>
 
-				<div className="grid grid-cols-7 gap-1">
-					{Array.from({ length: startingDay }, (_, i) => (
-						<div key={`empty-${i}`} className="h-16" />
-					))}
-					{Array.from({ length: daysInMonth }, (_, idx) => {
-						const day = idx + 1
-						const cellDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)
-						const isPast = cellDate.getTime() < new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime()
-						const dateStr = `${cellDate.getFullYear()}-${String(cellDate.getMonth() + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
-						const hasBookings = bookings.some((b: any) => b.date === dateStr && (b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable') && (!childFilter || String(b.studentId || b.userId || '') === childFilter))
-						let counterText = ''
-						if (isPast) {
-							const booked = bookings.filter((b: any) => b.date === dateStr && (b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable') && (!childFilter || String(b.studentId || b.userId || '') === childFilter))
-							const attended = booked.filter((b: any) => b.attended === true)
-							counterText = `${attended.length}/${booked.length}`
-						} else {
-							const booked = bookings.filter((b: any) => b.date === dateStr && (b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable') && (!childFilter || String(b.studentId || b.userId || '') === childFilter))
-							counterText = `${booked.length}`
-						}
-						return (
-							<div key={day} className={`h-16 border p-1 cursor-pointer ${isPast ? 'bg-gray-100 text-gray-500' : hasBookings ? 'bg-green-50' : 'bg-blue-50'}`} onClick={() => { setSelectedDay(day); setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)) }}>
-								<div className="text-xs font-medium">{day}</div>
-								<div className={`text-[10px] mt-1 ${isPast ? 'text-gray-600' : 'text-gray-700'}`}>{counterText}</div>
-							</div>
-						)
-					})}
+			{/* Legend */}
+			<div className="flex flex-wrap items-center gap-3 text-xs bg-gray-50 p-3 rounded-lg border border-gray-200 mb-4">
+				<span className="font-semibold text-gray-700">Leģenda:</span>
+				<div className="flex items-center gap-1.5">
+					<div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+					<span className="text-gray-700">Gaida apstiprinājumu</span>
 				</div>
+				<div className="flex items-center gap-1.5">
+					<div className="w-3 h-3 rounded-full bg-green-600"></div>
+					<span className="text-gray-700">Apstiprināts</span>
+				</div>
+				<div className="flex items-center gap-1.5">
+					<div className="w-3 h-3 rounded-full bg-blue-500"></div>
+					<span className="text-gray-700">Apmeklēts</span>
+				</div>
+			</div>
+
+			{/* Weekday Headers */}
+			<div className="grid grid-cols-7 gap-1 mb-2">
+				{['P', 'O', 'T', 'C', 'Pk', 'S', 'Sv'].map((day, index) => (
+					<div key={index} className="text-center font-semibold text-gray-600 text-xs lg:text-sm">
+						{day}
+					</div>
+				))}
+			</div>
+
+			<div className="grid grid-cols-7 gap-1">
+				{Array.from({ length: startingDay }, (_, i) => (
+					<div key={`empty-${i}`} className="h-20 lg:h-24" />
+				))}
+				{Array.from({ length: daysInMonth }, (_, idx) => {
+					const day = idx + 1
+					const cellDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)
+					const isPast = cellDate.getTime() < new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime()
+					const dateStr = `${cellDate.getFullYear()}-${String(cellDate.getMonth() + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+					const dayBookings = bookings.filter((b: any) => b.date === dateStr && (b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable') && (!childFilter || String(b.studentId || b.userId || '') === childFilter))
+					const nowTs = Date.now()
+					
+					// Categorize bookings
+					const attendedBookings: any[] = []
+					const acceptedBookings: any[] = []
+					const pendingBookings: any[] = []
+					
+					dayBookings.forEach((b: any) => {
+						const bookingTs = new Date(`${b.date}T${b.time}:00`).getTime()
+						if (isPast || bookingTs < nowTs) {
+							if (b.attended === true) {
+								attendedBookings.push(b)
+							} else if (b.status === 'accepted') {
+								acceptedBookings.push(b)
+							}
+						} else {
+							if (b.status === 'accepted') {
+								acceptedBookings.push(b)
+							} else {
+								pendingBookings.push(b)
+							}
+						}
+					})
+					
+					const totalBookings = dayBookings.length
+					const circleSize = totalBookings > 20 ? 'w-1.5 h-1.5 lg:w-2 lg:h-2' : 'w-2 h-2 lg:w-2.5 lg:h-2.5'
+					const gapSize = totalBookings > 20 ? 'gap-1' : 'gap-1.5'
+					
+					let cellBgClass = ''
+					if (isPast) {
+						cellBgClass = 'bg-gray-50 hover:bg-gray-100'
+					} else if (totalBookings > 0) {
+						cellBgClass = 'bg-green-50 hover:bg-green-100'
+					} else {
+						cellBgClass = 'bg-blue-50 hover:bg-blue-100'
+					}
+					
+					return (
+						<div key={day} className={`h-20 lg:h-24 border p-1 cursor-pointer ${cellBgClass}`} onClick={() => { setSelectedDay(day); setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)) }}>
+							<div className="text-xs font-medium mb-1">{day}</div>
+							{totalBookings > 0 && (
+								<div className={`flex flex-wrap ${gapSize}`}>
+									{attendedBookings.map((_, i) => (
+										<div key={`attended-${i}`} className={`${circleSize} rounded-full bg-blue-500`} title="Apmeklēts" />
+									))}
+									{acceptedBookings.map((_, i) => (
+										<div key={`accepted-${i}`} className={`${circleSize} rounded-full bg-green-600`} title="Apstiprināts" />
+									))}
+									{pendingBookings.map((_, i) => (
+										<div key={`pending-${i}`} className={`${circleSize} rounded-full bg-yellow-500`} title="Gaida apstiprinājumu" />
+									))}
+								</div>
+							)}
+						</div>
+					)
+				})}
+			</div>
 
 				{selectedDay && (() => {
 					const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`
@@ -1738,41 +1804,121 @@ const AdminCalendar = () => {
 			</div>
 
 			{loading ? (
-				<div className="text-gray-600">Ielādē...</div>
-			) : (
-				<>
-					<div className="grid grid-cols-7 gap-1">
-						{Array.from({ length: startingDay }, (_, i) => (
-							<div key={`empty-${i}`} className="h-16" />
-						))}
-						{Array.from({ length: daysInMonth }, (_, idx) => {
-							const day = idx + 1
-							const cellDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)
-							const isPast = cellDate.getTime() < new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime()
-							const dateStr = toDateStr(cellDate)
-							let daySlots = getSlotsForDate(dateStr)
-							if (teacherFilter) daySlots = daySlots.filter((s: any) => String(s.teacherId) === teacherFilter)
-							const has = daySlots.length > 0
-							let counterText = ''
-							if (isPast) {
-								const accepted = bookings.filter((b: any) => b.date === dateStr && b.status === 'accepted' && (!teacherFilter || String(b.teacherId) === teacherFilter))
-								const attended = accepted.filter((b: any) => b.attended === true)
-								counterText = `${attended.length}/${accepted.length}`
-							} else {
-								const bookedSlots = daySlots.reduce((acc: number, s: any) => {
-									const rel = bookings.filter((b: any) => b.date === s.date && b.time === s.time && String(b.teacherId) === String(s.teacherId) && (b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable') && (!teacherFilter || String(b.teacherId) === teacherFilter))
-									return acc + (rel.length > 0 ? 1 : 0)
-								}, 0)
-								counterText = `${bookedSlots}/${daySlots.length}`
-							}
-							return (
-								<div key={day} className={`h-16 border p-1 cursor-pointer ${isPast ? 'bg-gray-100 text-gray-500' : has ? 'bg-green-50' : 'bg-blue-50'}`} onClick={() => { setSelectedDay(day); setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)) }}>
-									<div className="text-xs font-medium">{day}</div>
-									<div className={`text-[10px] mt-1 ${isPast ? 'text-gray-600' : 'text-gray-700'}`}>{counterText}</div>
-								</div>
-							)
-						})}
+			<div className="text-gray-600">Ielādē...</div>
+		) : (
+			<>
+			{/* Legend */}
+			<div className="flex flex-wrap items-center gap-3 text-xs bg-gray-50 p-3 rounded-lg border border-gray-200 mb-4">
+				<span className="font-semibold text-gray-700">Leģenda:</span>
+				<div className="flex items-center gap-1.5">
+					<div className="w-3 h-3 rounded-full border-2 border-green-600 bg-white"></div>
+					<span className="text-gray-700">Pieejams</span>
+				</div>
+				<div className="flex items-center gap-1.5">
+					<div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+					<span className="text-gray-700">Gaida apstiprinājumu</span>
+				</div>
+				<div className="flex items-center gap-1.5">
+					<div className="w-3 h-3 rounded-full bg-green-600"></div>
+					<span className="text-gray-700">Apstiprināts</span>
+				</div>
+				<div className="flex items-center gap-1.5">
+					<div className="w-3 h-3 rounded-full bg-blue-500"></div>
+					<span className="text-gray-700">Apmeklēts</span>
+				</div>
+			</div>
+
+			{/* Weekday Headers */}
+			<div className="grid grid-cols-7 gap-1 mb-2">
+				{['P', 'O', 'T', 'C', 'Pk', 'S', 'Sv'].map((day, index) => (
+					<div key={index} className="text-center font-semibold text-gray-600 text-xs lg:text-sm">
+						{day}
 					</div>
+				))}
+			</div>
+
+			<div className="grid grid-cols-7 gap-1">
+					{Array.from({ length: startingDay }, (_, i) => (
+						<div key={`empty-${i}`} className="h-20 lg:h-24" />
+					))}
+					{Array.from({ length: daysInMonth }, (_, idx) => {
+						const day = idx + 1
+						const cellDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)
+						const isPast = cellDate.getTime() < new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime()
+						const dateStr = toDateStr(cellDate)
+						let daySlots = getSlotsForDate(dateStr)
+						if (teacherFilter) daySlots = daySlots.filter((s: any) => String(s.teacherId) === teacherFilter)
+						const has = daySlots.length > 0
+						const nowTs = Date.now()
+						
+						// Categorize slots
+						const attendedSlots: any[] = []
+						const acceptedSlots: any[] = []
+						const pendingSlots: any[] = []
+						const availableSlots: any[] = []
+						
+						daySlots.forEach((s: any) => {
+							const slotTs = new Date(`${s.date}T${s.time}:00`).getTime()
+							const related = bookings.filter((b: any) => b.date === s.date && b.time === s.time && String(b.teacherId) === String(s.teacherId) && (!teacherFilter || String(b.teacherId) === teacherFilter))
+							const acceptedRelated = related.filter((b: any) => b.status === 'accepted')
+							const pendingRelated = related.filter((b: any) => b.status === 'pending' || b.status === 'pending_unavailable')
+							const attendedRelated = acceptedRelated.filter((b: any) => b.attended === true)
+							const capacity = s.lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
+							const isBooked = acceptedRelated.length >= capacity || pendingRelated.length > 0
+							
+							if (isPast || slotTs < nowTs) {
+								if (attendedRelated.length > 0) {
+									attendedSlots.push(s)
+								} else if (acceptedRelated.length > 0) {
+									acceptedSlots.push(s)
+								}
+							} else if (isBooked) {
+								if (acceptedRelated.length > 0) {
+									acceptedSlots.push(s)
+								} else {
+									pendingSlots.push(s)
+								}
+							} else {
+								availableSlots.push(s)
+							}
+						})
+						
+						const totalSlots = daySlots.length
+						const circleSize = totalSlots > 50 ? 'w-1 h-1 lg:w-1.5 lg:h-1.5' : totalSlots > 30 ? 'w-1.5 h-1.5 lg:w-2 lg:h-2' : 'w-2 h-2 lg:w-2.5 lg:h-2.5'
+						const gapSize = totalSlots > 50 ? 'gap-0.5' : totalSlots > 30 ? 'gap-1' : 'gap-1.5'
+						
+						let cellBgClass = ''
+						if (isPast) {
+							cellBgClass = 'bg-gray-50 hover:bg-gray-100'
+						} else if (has) {
+							cellBgClass = 'bg-green-50 hover:bg-green-100'
+						} else {
+							cellBgClass = 'bg-blue-50 hover:bg-blue-100'
+						}
+						
+						return (
+							<div key={day} className={`h-20 lg:h-24 border p-1 cursor-pointer ${cellBgClass}`} onClick={() => { setSelectedDay(day); setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)) }}>
+								<div className="text-xs font-medium mb-1">{day}</div>
+								{totalSlots > 0 && (
+									<div className={`flex flex-wrap ${gapSize}`}>
+										{attendedSlots.map((_, i) => (
+											<div key={`attended-${i}`} className={`${circleSize} rounded-full bg-blue-500`} title="Apmeklēts" />
+										))}
+										{acceptedSlots.map((_, i) => (
+											<div key={`accepted-${i}`} className={`${circleSize} rounded-full bg-green-600`} title="Apstiprināts" />
+										))}
+										{pendingSlots.map((_, i) => (
+											<div key={`pending-${i}`} className={`${circleSize} rounded-full bg-yellow-500`} title="Gaida apstiprinājumu" />
+										))}
+										{availableSlots.map((_, i) => (
+											<div key={`avail-${i}`} className={`${circleSize} rounded-full border-2 border-green-600 bg-white`} title="Pieejams" />
+										))}
+									</div>
+								)}
+							</div>
+						)
+					})}
+				</div>
 
 					{selectedDay && (() => {
 						const dateStr = toDateStr(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDay))
