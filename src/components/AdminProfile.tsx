@@ -1978,17 +1978,24 @@ const AdminCalendar = () => {
 					})}
 				</div>
 
-					{selectedDay && (() => {
-						const dateStr = toDateStr(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDay))
-						let daySlots = getSlotsForDate(dateStr)
-						if (teacherFilter) daySlots = daySlots.filter((s: any) => String(s.teacherId) === teacherFilter)
-						const dayBookings = bookings.filter((b: any) => b.date === dateStr && (!teacherFilter || String(b.teacherId) === teacherFilter)).sort((a: any, b: any) => String(a.time).localeCompare(String(b.time)))
-						return (
-							<div className="mt-4">
-								<h4 className="font-semibold text-black mb-2">Laiki {new Date(dateStr).toLocaleDateString('lv-LV')}</h4>
-								{daySlots.length > 0 ? (
-									<div className="space-y-2">
-										{daySlots.map(s => {
+				{selectedDay && (() => {
+					const dateStr = toDateStr(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDay))
+					let daySlots = getSlotsForDate(dateStr)
+					if (teacherFilter) daySlots = daySlots.filter((s: any) => String(s.teacherId) === teacherFilter)
+					
+					// Filter to only show slots that have bookings
+					daySlots = daySlots.filter((s: any) => {
+						const related = bookings.filter((b: any) => b.date === s.date && b.time === s.time && String(b.teacherId) === String(s.teacherId))
+						return related.length > 0
+					})
+					
+					const dayBookings = bookings.filter((b: any) => b.date === dateStr && (!teacherFilter || String(b.teacherId) === teacherFilter)).sort((a: any, b: any) => String(a.time).localeCompare(String(b.time)))
+					return (
+						<div className="mt-4">
+							<h4 className="font-semibold text-black mb-2">Laiki {new Date(dateStr).toLocaleDateString('lv-LV')}</h4>
+							{daySlots.length > 0 ? (
+								<div className="space-y-2">
+									{daySlots.map(s => {
 											const lessonTypeLabel = s.lessonType === 'group' ? 'Grupu' : 'Individuāla'
 											const locationLabel = s.location === 'teacher' ? 'Privāti' : 'Uz vietas'
 											const modalityLabel = s.modality === 'zoom' ? 'Attālināti' : s.modality === 'both' ? 'Klātienē vai attālināti' : 'Klātienē'
