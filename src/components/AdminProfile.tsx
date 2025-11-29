@@ -1200,15 +1200,36 @@ const AdminCalendar = () => {
 						{selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })}
 					</div>
 					<div className="flex items-center gap-2">
-						<select value={childFilter} onChange={e => setChildFilter(e.target.value)} className="p-2 border border-gray-300 rounded-lg text-sm min-w-[12rem]">
+						<select value={childFilter} onChange={e => { setChildFilter(e.target.value); setSelectedDay(null) }} className="p-2 border border-gray-300 rounded-lg text-sm min-w-[12rem]">
 							<option value="">Visi bērni</option>
 							{Array.from(new Map(bookings.map((b: any) => [String(b.studentId || b.userId || ''), (b.studentName || b.userName || '—')])).entries())
 								.filter(([id]) => id)
 								.sort((a, b) => a[1].localeCompare(b[1]))
 								.map(([id, name]) => (<option key={id} value={id}>{name}</option>))}
 						</select>
-						<button onClick={() => setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Iepriekšējais</button>
-						<button onClick={() => setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Nākamais</button>
+						<button onClick={() => { setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)); setSelectedDay(null) }} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Iepriekšējais</button>
+						<button onClick={() => { setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)); setSelectedDay(null) }} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Nākamais</button>
+					</div>
+				</div>
+				
+				{/* Legend */}
+				<div className="flex flex-wrap items-center gap-3 text-xs bg-gray-50 p-3 rounded-lg border border-gray-200 mt-3">
+					<span className="font-semibold text-gray-700">Leģenda:</span>
+					<div className="flex items-center gap-1.5">
+						<div className="w-3 h-3 rounded-full bg-gray-500"></div>
+						<span className="text-gray-700">Noilgusi</span>
+					</div>
+					<div className="flex items-center gap-1.5">
+						<div className="w-3 h-3 rounded-full bg-blue-500"></div>
+						<span className="text-gray-700">Apmeklēts</span>
+					</div>
+					<div className="flex items-center gap-1.5">
+						<div className="w-3 h-3 rounded-full bg-green-600"></div>
+						<span className="text-gray-700">Apstiprināts</span>
+					</div>
+					<div className="flex items-center gap-1.5">
+						<div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+						<span className="text-gray-700">Gaida apstiprinājumu</span>
 					</div>
 				</div>
 
@@ -1585,7 +1606,7 @@ const AdminCalendar = () => {
 					{selectedDate.toLocaleString('lv-LV', { month: 'long', year: 'numeric' })}
 				</div>
 				<div className="flex items-center gap-2">
-					<select value={teacherFilter} onChange={e => setTeacherFilter(e.target.value)} className="p-2 border border-gray-300 rounded-lg text-sm min-w-[12rem]">
+					<select value={teacherFilter} onChange={e => { setTeacherFilter(e.target.value); setSelectedDay(null) }} className="p-2 border border-gray-300 rounded-lg text-sm min-w-[12rem]">
  						<option value="">Visi pasniedzēji</option>
 						{(() => {
 							const pairs: Array<{ id: string; name: string }> = []
@@ -1601,9 +1622,34 @@ const AdminCalendar = () => {
 								.map(([id, name]) => (<option key={id} value={id}>{name}</option>))
 						})()}
 					</select>
-					<button onClick={() => setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Iepriekšējais</button>
-					<button onClick={() => setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Nākamais</button>
+					<button onClick={() => { setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)); setSelectedDay(null) }} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Iepriekšējais</button>
+					<button onClick={() => { setSelectedDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)); setSelectedDay(null) }} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Nākamais</button>
 					<button onClick={() => setRefreshKey(k => k + 1)} className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50">Atjaunot</button>
+				</div>
+			</div>
+			
+			{/* Legend */}
+			<div className="flex flex-wrap items-center gap-3 text-xs bg-gray-50 p-3 rounded-lg border border-gray-200 mt-3">
+				<span className="font-semibold text-gray-700">Leģenda:</span>
+				<div className="flex items-center gap-1.5">
+					<div className="w-3 h-3 rounded-full border-2 border-green-600 bg-white"></div>
+					<span className="text-gray-700">Pieejams</span>
+				</div>
+				<div className="flex items-center gap-1.5">
+					<div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+					<span className="text-gray-700">Gaida apstiprinājumu</span>
+				</div>
+				<div className="flex items-center gap-1.5">
+					<div className="w-3 h-3 rounded-full bg-green-600"></div>
+					<span className="text-gray-700">Apstiprināts</span>
+				</div>
+				<div className="flex items-center gap-1.5">
+					<div className="w-3 h-3 rounded-full bg-blue-500"></div>
+					<span className="text-gray-700">Apmeklēts</span>
+				</div>
+				<div className="flex items-center gap-1.5">
+					<div className="w-3 h-3 rounded-full bg-gray-500"></div>
+					<span className="text-gray-700">Noilgusi</span>
 				</div>
 			</div>
 

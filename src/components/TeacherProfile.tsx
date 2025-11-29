@@ -1127,7 +1127,7 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 									Pabeigti apmeklējumi
 									<span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">{decided.length}</span>
 									<span className="ml-2 text-xs text-gray-500">
-										{loadingReviews ? 'Ielādē novērtējumus…' : `Novērtējumi saņemti: ${(reviews || []).filter((r: any) => r.status === 'pending' || r.status === 'approved').length}`}
+										{loadingReviews ? 'Ielādē novērtējumus…' : `Novērtējumi saņemti: ${(reviews || []).filter((r: any) => r.status === 'approved').length}`}
 									</span>
 								</div>
 							</div>
@@ -1136,10 +1136,10 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 												const dateStr = new Date(b.date).toLocaleDateString('lv-LV')
 										const userKey = String(b.userId || '')
 										const requestAlreadySent = Boolean(sentReviewReqByUser[userKey])
-										// Check if review is completed (pending or approved)
+										// Check if review exists and its status
 										const existingReview = reviews.find((r: any) => String(r.userId) === userKey)
-										const isReviewCompleted = existingReview && (existingReview.status === 'pending' || existingReview.status === 'approved')
 										const isReviewApproved = existingReview && existingReview.status === 'approved'
+										const isReviewPending = existingReview && existingReview.status === 'pending'
 										return (
 													<div key={`${b._id}-dec`} className="border border-gray-100 rounded-lg p-3 bg-gray-50">
 														<div className="flex flex-wrap items-center gap-3 text-xs text-gray-700">
@@ -1157,9 +1157,9 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 																loadReviews() // Reload to update the status display
 															} catch { alert('Kļūda') }
 														}} className="text-xs bg-yellow-400 hover:bg-yellow-500 text-black rounded-md px-3 py-1">Palūgt novērtējumu</button>
-													) : userKey && isReviewCompleted ? (
+													) : userKey && isReviewApproved ? (
 														<span className="text-xs text-green-700 font-medium">✓ Novērtējums saņemts</span>
-													) : userKey ? (
+													) : userKey && (isReviewPending || requestAlreadySent) ? (
 														<span className="text-xs text-blue-700">Pieprasījums nosūtīts</span>
 													) : null}
 														</div>
