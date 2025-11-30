@@ -2053,7 +2053,7 @@ const AdminCalendar = () => {
 					<div className="text-xs font-medium mb-1">{day}</div>
 					{totalSlots > 0 && (
 						<div className={`flex flex-wrap ${gapSize}`}>
-							{[...expiredSlots, ...attendedSlots, ...acceptedSlots, ...pendingSlots, ...availableSlots].reduce((acc: any[], slot: any, i: number) => {
+							{[...expiredSlots, ...attendedSlots, ...acceptedSlots, ...pendingSlots, ...availableSlots].reduce((acc: any[], slot: any) => {
 								const isGroup = slot.lessonType === 'group'
 								const slotKey = `${slot.date}-${slot.time}-${slot.teacherId}`
 								
