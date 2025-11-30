@@ -1538,7 +1538,7 @@ const AdminCalendar = () => {
 							<div className="text-xs font-medium mb-1">{day}</div>
 							{totalCircles > 0 && (
 						<div className={`flex flex-wrap ${gapSize}`}>
-							{expiredSlots.map((slot, i) => (
+							{expiredSlots.map((_, i) => (
 								<div key={`expired-${i}`} className={`${circleSize} rounded-full bg-gray-500`} title="Noilgusi" />
 							))}
 							{attendedSlots.map((slot, i) => {
