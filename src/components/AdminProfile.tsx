@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 
 const AdminProfile = () => {
 	const [tab, setTab] = useState<'calendar' | 'teachers' | 'students' | 'notifications' | 'users' | 'data' | 'reviews' | 'questions'>('calendar')
@@ -1160,34 +1160,52 @@ const AdminCalendar = () => {
 	const getSlotsForDate = (dateStr: string) => (slots || []).filter((s: any) => s?.date === dateStr)
 	const { daysInMonth, startingDay } = getDaysInMonth(selectedDate)
 
-	useEffect(() => {
-		let cancelled = false
-		const load = async () => {
-			setLoading(true)
-			try {
-				const [slotsRes, bookingsRes] = await Promise.all([
-					fetch('/api/time-slots'),
-					fetch('/api/bookings?role=admin')
-				])
-				let s: any[] = []
-				if (slotsRes.ok) {
-					const d = await slotsRes.json().catch(() => null)
-					s = (d && d.timeSlots) || []
-				}
-				let b: any[] = []
-				if (bookingsRes.ok) {
-					const d = await bookingsRes.json().catch(() => null)
-					b = (d && d.items) || []
-				}
-				if (!cancelled) { setSlots(s); setBookings(b) }
-			} catch {
-			} finally {
-				if (!cancelled) setLoading(false)
+	// Load slots and bookings
+	const loadCalendarData = useCallback(async (silent = false) => {
+		if (!silent) setLoading(true)
+		try {
+			const [slotsRes, bookingsRes] = await Promise.all([
+				fetch('/api/time-slots'),
+				fetch('/api/bookings?role=admin')
+			])
+			let s: any[] = []
+			if (slotsRes.ok) {
+				const d = await slotsRes.json().catch(() => null)
+				s = (d && d.timeSlots) || []
 			}
+			let b: any[] = []
+			if (bookingsRes.ok) {
+				const d = await bookingsRes.json().catch(() => null)
+				b = (d && d.items) || []
+			}
+			setSlots(s)
+			setBookings(b)
+		} catch {
+		} finally {
+			if (!silent) setLoading(false)
 		}
-		load()
-		return () => { cancelled = true }
-	}, [refreshKey])
+	}, [])
+
+	useEffect(() => {
+		loadCalendarData()
+	}, [refreshKey, loadCalendarData])
+
+	// Background refresh for calendar data (slots and bookings)
+	useEffect(() => {
+		let timer: any
+		const tick = async () => {
+			try {
+				await loadCalendarData(true) // Silent refresh
+			} catch {}
+		}
+		timer = setInterval(tick, 15000) // Refresh every 15 seconds
+		const onFocus = () => { tick() }
+		window.addEventListener('focus', onFocus)
+		return () => { 
+			if (timer) clearInterval(timer)
+			window.removeEventListener('focus', onFocus)
+		}
+	}, [loadCalendarData])
 
 	if (calendarView === 'children') {
 		return (
