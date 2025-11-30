@@ -2128,7 +2128,7 @@ const AdminCalendar = () => {
 											if (isAvailable) {
 												statusText = 'Pieejams'
 												statusClass = 'bg-white text-green-800 border-2 border-green-600'
-												cardClass = 'bg-green-50 border-green-200'
+												cardClass = 'bg-white border-2 border-green-600'
 											} else if (acceptedRelated.length > 0) {
 												statusText = 'Apstiprināts'
 												statusClass = 'bg-green-100 text-green-800 border border-green-200'
