@@ -497,13 +497,31 @@ export default async function handler(req: any, res: any) {
         const time = String(groupTime || booking.time)
         const teacher = String(teacherId || booking.teacherId)
         const slot = await timeSlots.findOne({ teacherId: teacher, date, time })
-        if (!slot) return res.status(404).json({ error: 'Time slot not found' })
-        const currentSize = Number(slot.groupSize || booking.groupSize || 1)
+        
+        // Determine current and target size
+        const currentSize = slot ? Number(slot.groupSize || 1) : Number(booking.groupSize || 1)
         const delta = typeof amount === 'number' && amount > 0 ? amount : 1
         const target = typeof newSize === 'number' && newSize > currentSize ? newSize : currentSize + delta
 
-        // Update time slot capacity
-        await timeSlots.updateMany({ teacherId: teacher, date, time }, { $set: { groupSize: target, updatedAt: new Date() } })
+        // Update or create time slot
+        if (slot) {
+          // Update existing time slot capacity
+          await timeSlots.updateMany({ teacherId: teacher, date, time }, { $set: { groupSize: target, updatedAt: new Date() } })
+        } else {
+          // Create time slot if it doesn't exist
+          await timeSlots.insertOne({
+            teacherId: teacher,
+            date,
+            time,
+            lessonType: booking.lessonType || 'group',
+            groupSize: target,
+            modality: booking.modality || 'in_person',
+            location: booking.location || 'facility',
+            available: true,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          })
+        }
 
         // Automatically accept the booking that triggered this increase
         if (booking && bookingId) {
