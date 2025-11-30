@@ -622,14 +622,10 @@ const TeacherProfileView = ({ profile, isActive, onEdit }: { profile: any; isAct
 												}
 											})()
                                         
-                                        const acceptedRelated = related.filter(b => b.status === 'accepted')
                                         const expiredRelated = related.filter(b => b.status === 'expired')
-                                        // Also treat past pending/pending_unavailable as expired
-                                        const pastPendingRelated = related.filter(b => (b.status === 'pending' || b.status === 'pending_unavailable') && isPast)
-                                        const hasExpired = expiredRelated.length > 0 || pastPendingRelated.length > 0
+                                        const acceptedRelated = related.filter(b => b.status === 'accepted')
                                         const pendingRelated = related.filter(b => (b.status === 'pending' || b.status === 'pending_unavailable') && !isPast)
-                                        const effectiveRelated = related.filter(b => b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable')
-                                        const bookedCount = effectiveRelated.length
+                                        const bookedCount = related.filter(b => b.status === 'accepted' || b.status === 'pending' || b.status === 'pending_unavailable').length
                                         const isAvailable = s.available !== false && bookedCount < capacity
 											const slotKey = `${s.date}|${s.time}`
 											
