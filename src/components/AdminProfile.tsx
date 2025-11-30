@@ -2096,25 +2096,59 @@ const AdminCalendar = () => {
 											b.status !== 'cancelled' && 
 											b.status !== 'declined'
 										)
+										const expiredRelated = related.filter((b: any) => b.status === 'expired')
 										const acceptedRelated = related.filter((b: any) => b.status === 'accepted')
+										const pendingRelated = related.filter((b: any) => b.status === 'pending' || b.status === 'pending_unavailable')
+										const attendedRelated = acceptedRelated.filter((b: any) => b.attended === true)
 										const bookedCount = related.length
-											const isAvailable = s.available !== false && bookedCount < capacity
-											const slotTs = new Date(`${s.date}T${s.time || '00:00'}:00`).getTime()
-											const isPastSlot = slotTs < Date.now()
-											let cardClass = isAvailable ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
-											if (isPastSlot) {
-												const anyAttendedPaid = acceptedRelated.some((x: any) => x.attended === true && x.paid === true)
-												const anyAttended = acceptedRelated.some((x: any) => x.attended === true)
-												cardClass = anyAttendedPaid ? 'bg-green-50 border-green-200' : anyAttended ? 'bg-yellow-50 border-yellow-200' : 'bg-gray-50 border-gray-200'
+										const capacity = s.lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
+										const isAvailable = s.available !== false && bookedCount < capacity
+										const slotTs = new Date(`${s.date}T${s.time || '00:00'}:00`).getTime()
+										const isPastSlot = slotTs < Date.now()
+										
+										// Determine status and styling
+										let statusText = ''
+										let statusClass = ''
+										let cardClass = ''
+										
+										if (expiredRelated.length > 0) {
+											statusText = 'Noilgusi'
+											statusClass = 'bg-gray-100 text-gray-800 border border-gray-300'
+											cardClass = 'bg-gray-50 border-gray-200'
+										} else if (isPastSlot) {
+											if (attendedRelated.length > 0) {
+												statusText = 'Apmeklēts'
+												statusClass = 'bg-blue-100 text-blue-800 border border-blue-200'
+												cardClass = 'bg-blue-50 border-blue-200'
+											} else {
+												statusText = ''
+												cardClass = 'bg-gray-50 border-gray-200'
 											}
+										} else {
+											// Future slot
+											if (isAvailable) {
+												statusText = 'Pieejams'
+												statusClass = 'bg-green-100 text-green-800 border border-green-200'
+												cardClass = 'bg-green-50 border-green-200'
+											} else if (acceptedRelated.length > 0) {
+												statusText = 'Apstiprināts'
+												statusClass = 'bg-green-100 text-green-800 border border-green-200'
+												cardClass = 'bg-green-50 border-green-200'
+											} else if (pendingRelated.length > 0) {
+												statusText = 'Gaida apstiprinājumu'
+												statusClass = 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+												cardClass = 'bg-yellow-50 border-yellow-200'
+											}
+										}
+										
 											return (
 												<div key={s.id} className={`border rounded-lg p-3 ${cardClass}`}>
 													<div className="flex items-center justify-between mb-1">
 														<div className="text-lg font-semibold text-black">{s.time}</div>
 														<div className="text-sm text-gray-700">{s.teacherName || 'Pasniedzējs'}</div>
-														{!isPastSlot ? (
-															<span className={`text-xs px-2 py-0.5 rounded-full ${isAvailable ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-yellow-100 text-yellow-800 border border-yellow-200'}`}>{isAvailable ? 'Pieejams' : 'Rezervēts'}</span>
-														) : null}
+														{statusText && (
+															<span className={`text-xs px-2 py-0.5 rounded-full ${statusClass}`}>{statusText}</span>
+														)}
 													</div>
 													<div className="flex flex-wrap gap-2 text-xs">
 														<span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full border border-blue-200">{lessonTypeLabel}</span>
