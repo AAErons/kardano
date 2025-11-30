@@ -1480,22 +1480,8 @@ const AdminCalendar = () => {
 						const cellDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day)
 						const isPast = cellDate.getTime() < new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime()
 				const dateStr = toDateStr(cellDate)
-				let daySlots = getSlotsForDate(dateStr)
-				if (childFilter) {
-					// Filter bookings for this child
-					const childBookings = bookings.filter((b: any) => 
-						b.date === dateStr && 
-						String(b.studentId || b.userId || '') === childFilter &&
-						b.status !== 'cancelled' && 
-						b.status !== 'declined'
-					)
-					// Only show slots that have bookings for this child
-					daySlots = daySlots.filter((s: any) => 
-						childBookings.some((b: any) => b.date === s.date && b.time === s.time && String(b.teacherId) === String(s.teacherId))
-					)
-				}
 				
-			// Get bookings for this day where children are involved
+			// Get ONLY bookings for this day where children are involved (no slots!)
 			// Exclude cancelled and declined bookings
 			const dayBookings = bookings.filter((b: any) => 
 				b.date === dateStr && 
