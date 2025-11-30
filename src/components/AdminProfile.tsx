@@ -1145,6 +1145,7 @@ const AdminCalendar = () => {
 	const [childFilter, setChildFilter] = useState<string>('')
 	const [exportFrom, setExportFrom] = useState<string>('')
 	const [exportTo, setExportTo] = useState<string>('')
+	const [expandedSlots, setExpandedSlots] = useState<Set<string>>(new Set())
 
 	const getDaysInMonth = (date: Date) => {
 		const year = date.getFullYear()
@@ -1894,6 +1895,14 @@ const AdminCalendar = () => {
 				<div className="w-3 h-3 rounded-full bg-gray-500"></div>
 				<span className="text-gray-700">Noilgusi</span>
 			</div>
+			<div className="h-3 w-px bg-gray-300"></div>
+			<div className="flex items-center gap-1.5">
+				<div className="w-5 h-4 rounded border border-gray-400 bg-gray-100 flex items-center justify-center gap-0.5 p-0.5">
+					<div className="w-1 h-1 rounded-full bg-green-600"></div>
+					<div className="w-1 h-1 rounded-full bg-green-600"></div>
+				</div>
+				<span className="text-gray-700">Grupu nodarbība</span>
+			</div>
 		</div>
 
 			{/* Weekday Headers */}
@@ -1959,27 +1968,48 @@ const AdminCalendar = () => {
 				const pendingRelated = related.filter((b: any) => b.status === 'pending' || b.status === 'pending_unavailable')
 				const attendedRelated = acceptedRelated.filter((b: any) => b.attended === true)
 				const capacity = s.lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
-				const isBooked = acceptedRelated.length >= capacity || pendingRelated.length > 0
-					
-			// Check for expired bookings first
-			if (expiredRelated.length > 0) {
-				expiredSlots.push(s)
-			} else if (isPast || slotTs < nowTs) {
-				// For past slots, only show if there are attended bookings
-				if (attendedRelated.length > 0) {
-					attendedSlots.push(s)
-				}
-				// Past accepted bookings without attended=true are not shown as circles
-			} else if (isBooked) {
-						if (acceptedRelated.length > 0) {
-							acceptedSlots.push(s)
+				const isGroup = s.lessonType === 'group'
+				
+				// For group lessons, add one entry per spot
+				if (isGroup) {
+					for (let spotIdx = 0; spotIdx < capacity; spotIdx++) {
+						const booking = related[spotIdx]
+						if (isPast || slotTs < nowTs) {
+							if (booking && booking.attended === true) {
+								attendedSlots.push({ ...s, spotIdx, booking })
+							}
 						} else {
-							pendingSlots.push(s)
+							if (booking) {
+								if (booking.status === 'expired') {
+									expiredSlots.push({ ...s, spotIdx, booking })
+								} else if (booking.status === 'accepted') {
+									acceptedSlots.push({ ...s, spotIdx, booking })
+								} else if (booking.status === 'pending' || booking.status === 'pending_unavailable') {
+									pendingSlots.push({ ...s, spotIdx, booking })
+								}
+							} else {
+								// Available spot
+								availableSlots.push({ ...s, spotIdx, booking: null })
+							}
 						}
+					}
+				} else {
+					// Individual lesson - one circle
+					if (expiredRelated.length > 0) {
+						expiredSlots.push(s)
+					} else if (isPast || slotTs < nowTs) {
+						if (attendedRelated.length > 0) {
+							attendedSlots.push(s)
+						}
+					} else if (acceptedRelated.length > 0) {
+						acceptedSlots.push(s)
+					} else if (pendingRelated.length > 0) {
+						pendingSlots.push(s)
 					} else {
 						availableSlots.push(s)
 					}
-				})
+				}
+			})
 				
 			// Then, process bookings without corresponding slots
 			dayBookings.forEach((b: any) => {
@@ -2023,21 +2053,64 @@ const AdminCalendar = () => {
 					<div className="text-xs font-medium mb-1">{day}</div>
 					{totalSlots > 0 && (
 						<div className={`flex flex-wrap ${gapSize}`}>
-							{expiredSlots.map((_, i) => (
-								<div key={`expired-${i}`} className={`${circleSize} rounded-full bg-gray-500`} title="Noilgusi" />
-							))}
-							{attendedSlots.map((_, i) => (
-								<div key={`attended-${i}`} className={`${circleSize} rounded-full bg-blue-500`} title="Apmeklēts" />
-							))}
-							{acceptedSlots.map((_, i) => (
-								<div key={`accepted-${i}`} className={`${circleSize} rounded-full bg-green-600`} title="Apstiprināts" />
-							))}
-							{pendingSlots.map((_, i) => (
-								<div key={`pending-${i}`} className={`${circleSize} rounded-full bg-yellow-500`} title="Gaida apstiprinājumu" />
-							))}
-							{availableSlots.map((_, i) => (
-								<div key={`avail-${i}`} className={`${circleSize} rounded-full border-2 border-green-600 bg-white`} title="Pieejams" />
-							))}
+							{[...expiredSlots, ...attendedSlots, ...acceptedSlots, ...pendingSlots, ...availableSlots].reduce((acc: any[], slot: any, i: number) => {
+								const isGroup = slot.lessonType === 'group'
+								const slotKey = `${slot.date}-${slot.time}-${slot.teacherId}`
+								
+								// Group consecutive spots from the same group lesson
+								if (isGroup && typeof slot.spotIdx === 'number') {
+									const existingGroup = acc.find((g: any) => g.type === 'group' && g.key === slotKey)
+									if (existingGroup) {
+										existingGroup.spots.push(slot)
+										return acc
+									} else if (slot.spotIdx === 0) {
+										acc.push({ type: 'group', key: slotKey, spots: [slot] })
+										return acc
+									}
+								}
+								
+								// Individual or standalone circle
+								let circleClass = ''
+								let title = ''
+								if (expiredSlots.includes(slot)) {
+									circleClass = 'bg-gray-500'; title = 'Noilgusi'
+								} else if (attendedSlots.includes(slot)) {
+									circleClass = 'bg-blue-500'; title = 'Apmeklēts'
+								} else if (acceptedSlots.includes(slot)) {
+									circleClass = 'bg-green-600'; title = 'Apstiprināts'
+								} else if (pendingSlots.includes(slot)) {
+									circleClass = 'bg-yellow-500'; title = 'Gaida apstiprinājumu'
+								} else if (availableSlots.includes(slot)) {
+									circleClass = 'border-2 border-green-600 bg-white'; title = 'Pieejams'
+								}
+								
+								acc.push({ type: 'single', slot, circleClass, title })
+								return acc
+							}, []).map((item: any, idx: number) => {
+								if (item.type === 'group') {
+									return (
+										<div key={`group-${idx}`} className="flex gap-0.5 p-0.5 bg-gray-200 rounded" title="Grupu nodarbība">
+											{item.spots.map((spot: any, spotIdx: number) => {
+												let circleClass = ''
+												if (expiredSlots.some((s: any) => s.spotIdx === spot.spotIdx && s.date === spot.date && s.time === spot.time)) {
+													circleClass = 'bg-gray-500'
+												} else if (attendedSlots.some((s: any) => s.spotIdx === spot.spotIdx && s.date === spot.date && s.time === spot.time)) {
+													circleClass = 'bg-blue-500'
+												} else if (acceptedSlots.some((s: any) => s.spotIdx === spot.spotIdx && s.date === spot.date && s.time === spot.time)) {
+													circleClass = 'bg-green-600'
+												} else if (pendingSlots.some((s: any) => s.spotIdx === spot.spotIdx && s.date === spot.date && s.time === spot.time)) {
+													circleClass = 'bg-yellow-500'
+												} else {
+													circleClass = 'border-2 border-green-600 bg-white'
+												}
+												return <div key={`spot-${spotIdx}`} className={`${circleSize} rounded-full ${circleClass}`} />
+											})}
+										</div>
+									)
+								} else {
+									return <div key={`single-${idx}`} className={`${circleSize} rounded-full ${item.circleClass}`} title={item.title} />
+								}
+							})}
 						</div>
 					)}
 							</div>
@@ -2140,25 +2213,92 @@ const AdminCalendar = () => {
 											}
 										}
 										
+										const slotKey = `${s.date}-${s.time}-${s.teacherId}`
+										const isExpanded = expandedSlots.has(slotKey)
+										const isGroupLesson = s.lessonType === 'group'
+										
 											return (
-												<div key={s.id} className={`border rounded-lg p-3 ${cardClass}`}>
-													<div className="flex items-center justify-between mb-1">
-														<div className="text-lg font-semibold text-black">{s.time}</div>
-														<div className="text-sm text-gray-700">{s.teacherName || 'Pasniedzējs'}</div>
-														{statusText && (
-															<span className={`text-xs px-2 py-0.5 rounded-full ${statusClass}`}>{statusText}</span>
+												<div key={s.id} className={`border rounded-lg ${cardClass}`}>
+													<div 
+														className={`p-3 ${isGroupLesson ? 'cursor-pointer hover:bg-opacity-80' : ''}`}
+														onClick={() => {
+															if (isGroupLesson) {
+																setExpandedSlots(prev => {
+																	const newSet = new Set(prev)
+																	if (newSet.has(slotKey)) {
+																		newSet.delete(slotKey)
+																	} else {
+																		newSet.add(slotKey)
+																	}
+																	return newSet
+																})
+															}
+														}}
+													>
+														<div className="flex items-center justify-between mb-1">
+															<div className="flex items-center gap-2">
+																<div className="text-lg font-semibold text-black">{s.time}</div>
+																{isGroupLesson && (
+																	<svg className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+																		<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+																	</svg>
+																)}
+															</div>
+															<div className="text-sm text-gray-700">{s.teacherName || 'Pasniedzējs'}</div>
+															{statusText && !isGroupLesson && (
+																<span className={`text-xs px-2 py-0.5 rounded-full ${statusClass}`}>{statusText}</span>
+															)}
+														</div>
+														<div className="flex flex-wrap gap-2 text-xs">
+															<span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full border border-blue-200">{lessonTypeLabel}</span>
+															<span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full border border-purple-200">{modalityLabel}</span>
+															<span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-full border border-gray-200">{locationLabel}</span>
+															{s.lessonType === 'group' && (
+																<span className="px-2 py-1 bg-teal-100 text-teal-800 rounded-full border border-teal-200">{bookedCount}/{capacity}</span>
+															)}
+														</div>
+														{!isAvailable && s.lessonType !== 'group' && related.length > 0 && (
+															<div className="text-xs text-gray-700 mt-1">Skolēns: {(acceptedRelated[0]?.studentName || acceptedRelated[0]?.userName || related[0]?.studentName || related[0]?.userName || '—')}</div>
 														)}
 													</div>
-													<div className="flex flex-wrap gap-2 text-xs">
-														<span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full border border-blue-200">{lessonTypeLabel}</span>
-														<span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full border border-purple-200">{modalityLabel}</span>
-														<span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-full border border-gray-200">{locationLabel}</span>
-														{s.lessonType === 'group' && (
-															<span className="px-2 py-1 bg-teal-100 text-teal-800 rounded-full border border-teal-200">{bookedCount}/{capacity}</span>
-														)}
-													</div>
-													{!isAvailable && s.lessonType !== 'group' && related.length > 0 && (
-														<div className="text-xs text-gray-700 mt-1">Skolēns: {(acceptedRelated[0]?.studentName || acceptedRelated[0]?.userName || related[0]?.studentName || related[0]?.userName || '—')}</div>
+													
+													{/* Expanded group lesson spots */}
+													{isGroupLesson && isExpanded && (
+														<div className="border-t border-gray-300 bg-gray-50 p-3 space-y-2">
+															{Array.from({ length: capacity }).map((_, spotIdx) => {
+																const booking = related[spotIdx]
+																let spotStatus = 'Pieejams'
+																let spotClass = 'bg-white border-2 border-green-600'
+																
+																if (booking) {
+																	if (booking.status === 'expired') {
+																		spotStatus = 'Noilgusi'
+																		spotClass = 'bg-gray-100 border-gray-300'
+																	} else if (isPastSlot && booking.attended === true) {
+																		spotStatus = 'Apmeklēts'
+																		spotClass = 'bg-blue-100 border-blue-200'
+																	} else if (booking.status === 'accepted') {
+																		spotStatus = 'Apstiprināts'
+																		spotClass = 'bg-green-100 border-green-200'
+																	} else if (booking.status === 'pending' || booking.status === 'pending_unavailable') {
+																		spotStatus = 'Gaida apstiprinājumu'
+																		spotClass = 'bg-yellow-100 border-yellow-200'
+																	}
+																}
+																
+																return (
+																	<div key={`spot-${spotIdx}`} className={`flex items-center justify-between p-2 rounded border ${spotClass}`}>
+																		<div className="flex items-center gap-2">
+																			<span className="text-xs font-medium text-gray-700">Vieta {spotIdx + 1}</span>
+																			{booking && (
+																				<span className="text-xs text-gray-600">{booking.studentName || booking.userName || '—'}</span>
+																			)}
+																		</div>
+																		<span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-300">{spotStatus}</span>
+																	</div>
+																)
+															})}
+														</div>
 													)}
 												</div>
 											)
