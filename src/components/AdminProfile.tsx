@@ -1552,9 +1552,12 @@ const AdminCalendar = () => {
 							{expiredBookings.map((_, i) => (
 								<div key={`expired-${i}`} className={`${circleSize} rounded-full bg-gray-500`} title="Noilgusi" />
 							))}
-							{attendedBookings.map((_, i) => (
-								<div key={`attended-${i}`} className={`${circleSize} rounded-full bg-blue-500`} title="Apmeklēts" />
-							))}
+							{attendedBookings.map((b, i) => {
+								const paymentInfo = b.paid ? ' • Apmaksāts' : ' • Nav apmaksāts'
+								return (
+									<div key={`attended-${i}`} className={`${circleSize} rounded-full bg-blue-500`} title={`Apmeklēts${paymentInfo}`} />
+								)
+							})}
 							{acceptedBookings.map((_, i) => (
 								<div key={`accepted-${i}`} className={`${circleSize} rounded-full bg-green-600`} title="Apstiprināts" />
 							))}
@@ -1995,15 +1998,15 @@ const AdminCalendar = () => {
 				} else {
 					// Individual lesson - one circle
 					if (expiredRelated.length > 0) {
-						expiredSlots.push(s)
+						expiredSlots.push({ ...s, booking: expiredRelated[0] })
 					} else if (isPast || slotTs < nowTs) {
 						if (attendedRelated.length > 0) {
-							attendedSlots.push(s)
+							attendedSlots.push({ ...s, booking: attendedRelated[0] })
 						}
 					} else if (acceptedRelated.length > 0) {
-						acceptedSlots.push(s)
+						acceptedSlots.push({ ...s, booking: acceptedRelated[0] })
 					} else if (pendingRelated.length > 0) {
-						pendingSlots.push(s)
+						pendingSlots.push({ ...s, booking: pendingRelated[0] })
 					} else {
 						availableSlots.push(s)
 					}
@@ -2018,18 +2021,18 @@ const AdminCalendar = () => {
 				
 				// Treat standalone bookings as slots
 				if (b.status === 'expired') {
-					expiredSlots.push({ date: b.date, time: b.time })
+					expiredSlots.push({ date: b.date, time: b.time, booking: b })
 				} else if (isPast || bookingTs < nowTs) {
 					// For past bookings, only show attended ones
 					if (b.attended === true) {
-						attendedSlots.push({ date: b.date, time: b.time })
+						attendedSlots.push({ date: b.date, time: b.time, booking: b })
 					}
 					// Past accepted bookings without attended=true are not shown as circles
 				} else {
 					if (b.status === 'accepted') {
-						acceptedSlots.push({ date: b.date, time: b.time })
+						acceptedSlots.push({ date: b.date, time: b.time, booking: b })
 					} else if (b.status === 'pending' || b.status === 'pending_unavailable') {
-						pendingSlots.push({ date: b.date, time: b.time })
+						pendingSlots.push({ date: b.date, time: b.time, booking: b })
 					}
 				}
 			})
@@ -2075,7 +2078,9 @@ const AdminCalendar = () => {
 								if (expiredSlots.includes(slot)) {
 									circleClass = 'bg-gray-500'; title = 'Noilgusi'
 								} else if (attendedSlots.includes(slot)) {
-									circleClass = 'bg-blue-500'; title = 'Apmeklēts'
+									circleClass = 'bg-blue-500'
+									const paymentInfo = slot.booking?.paid ? ' • Apmaksāts' : ' • Nav apmaksāts'
+									title = `Apmeklēts${paymentInfo}`
 								} else if (acceptedSlots.includes(slot)) {
 									circleClass = 'bg-green-600'; title = 'Apstiprināts'
 								} else if (pendingSlots.includes(slot)) {
@@ -2097,18 +2102,32 @@ const AdminCalendar = () => {
 											)}
 											{item.spots.map((spot: any, spotIdx: number) => {
 												let circleClass = ''
-												if (expiredSlots.some((s: any) => s.spotIdx === spot.spotIdx && s.date === spot.date && s.time === spot.time)) {
+												let spotTitle = ''
+												
+												const isExpired = expiredSlots.some((s: any) => s.spotIdx === spot.spotIdx && s.date === spot.date && s.time === spot.time)
+												const isAttended = attendedSlots.some((s: any) => s.spotIdx === spot.spotIdx && s.date === spot.date && s.time === spot.time)
+												const isAccepted = acceptedSlots.some((s: any) => s.spotIdx === spot.spotIdx && s.date === spot.date && s.time === spot.time)
+												const isPending = pendingSlots.some((s: any) => s.spotIdx === spot.spotIdx && s.date === spot.date && s.time === spot.time)
+												
+												if (isExpired) {
 													circleClass = 'bg-gray-500'
-												} else if (attendedSlots.some((s: any) => s.spotIdx === spot.spotIdx && s.date === spot.date && s.time === spot.time)) {
+													spotTitle = 'Noilgusi'
+												} else if (isAttended) {
 													circleClass = 'bg-blue-500'
-												} else if (acceptedSlots.some((s: any) => s.spotIdx === spot.spotIdx && s.date === spot.date && s.time === spot.time)) {
+													const paymentInfo = spot.booking?.paid ? ' • Apmaksāts' : ' • Nav apmaksāts'
+													spotTitle = `Apmeklēts${paymentInfo}`
+												} else if (isAccepted) {
 													circleClass = 'bg-green-600'
-												} else if (pendingSlots.some((s: any) => s.spotIdx === spot.spotIdx && s.date === spot.date && s.time === spot.time)) {
+													spotTitle = 'Apstiprināts'
+												} else if (isPending) {
 													circleClass = 'bg-yellow-500'
+													spotTitle = 'Gaida apstiprinājumu'
 												} else {
 													circleClass = 'border-2 border-green-600 bg-white'
+													spotTitle = 'Pieejams'
 												}
-												return <div key={`spot-${spotIdx}`} className={`${circleSize} rounded-full ${circleClass}`} />
+												
+												return <div key={`spot-${spotIdx}`} className={`${circleSize} rounded-full ${circleClass}`} title={spotTitle} />
 											})}
 										</div>
 									)
@@ -2252,9 +2271,16 @@ const AdminCalendar = () => {
 																)}
 															</div>
 															<div className="text-sm text-gray-700">{s.teacherName || 'Pasniedzējs'}</div>
-															{statusText && !isGroupLesson && (
-																<span className={`text-xs px-2 py-0.5 rounded-full ${statusClass}`}>{statusText}</span>
-															)}
+															<div className="flex items-center gap-2">
+																{statusText && !isGroupLesson && (
+																	<span className={`text-xs px-2 py-0.5 rounded-full ${statusClass}`}>{statusText}</span>
+																)}
+																{statusText === 'Apmeklēts' && !isGroupLesson && attendedRelated.length > 0 && (
+																	<span className={`text-xs px-2 py-0.5 rounded-full border ${attendedRelated[0]?.paid ? 'bg-green-100 text-green-800 border-green-300' : 'bg-orange-100 text-orange-800 border-orange-300'}`}>
+																		{attendedRelated[0]?.paid ? '✓ Apmaksāts' : 'Nav apmaksāts'}
+																	</span>
+																)}
+															</div>
 														</div>
 														<div className="flex flex-wrap gap-2 text-xs">
 															<span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full border border-blue-200">{lessonTypeLabel}</span>
@@ -2322,7 +2348,14 @@ const AdminCalendar = () => {
 																				<span className="text-xs text-gray-600">{booking.studentName || booking.userName || '—'}</span>
 																			)}
 																		</div>
-																		<span className={`text-xs px-2 py-0.5 rounded-full ${isExtraSpot ? 'bg-red-100 text-red-800 border border-red-300' : 'bg-gray-100 text-gray-700 border border-gray-300'}`}>{spotStatus}</span>
+																		<div className="flex items-center gap-2">
+																			<span className={`text-xs px-2 py-0.5 rounded-full ${isExtraSpot ? 'bg-red-100 text-red-800 border border-red-300' : 'bg-gray-100 text-gray-700 border border-gray-300'}`}>{spotStatus}</span>
+																			{booking && isPastSlot && booking.attended === true && (
+																				<span className={`text-xs px-2 py-0.5 rounded-full border ${booking.paid ? 'bg-green-100 text-green-800 border-green-300' : 'bg-orange-100 text-orange-800 border-orange-300'}`}>
+																					{booking.paid ? '✓ Apmaksāts' : 'Nav apmaksāts'}
+																				</span>
+																			)}
+																		</div>
 																	</div>
 																)
 															})}
