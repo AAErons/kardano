@@ -2101,7 +2101,6 @@ const AdminCalendar = () => {
 										const pendingRelated = related.filter((b: any) => b.status === 'pending' || b.status === 'pending_unavailable')
 										const attendedRelated = acceptedRelated.filter((b: any) => b.attended === true)
 										const bookedCount = related.length
-										const capacity = s.lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
 										const isAvailable = s.available !== false && bookedCount < capacity
 										const slotTs = new Date(`${s.date}T${s.time || '00:00'}:00`).getTime()
 										const isPastSlot = slotTs < Date.now()
