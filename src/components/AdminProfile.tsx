@@ -2050,8 +2050,8 @@ const AdminCalendar = () => {
 					let daySlots = getSlotsForDate(dateStr)
 					if (teacherFilter) daySlots = daySlots.filter((s: any) => String(s.teacherId) === teacherFilter)
 					
-			// Filter to only show slots that have bookings (excluding cancelled/declined)
 			// For past dates, only show slots with attended bookings
+			// For future dates, show all slots (available and booked)
 			daySlots = daySlots.filter((s: any) => {
 				const slotTs = new Date(`${s.date}T${s.time}:00`).getTime()
 				const isPastSlot = slotTs < Date.now()
@@ -2064,13 +2064,12 @@ const AdminCalendar = () => {
 					b.status !== 'declined'
 				)
 				
-				if (related.length === 0) return false
-				
 				// For past slots, only show if there are attended bookings
 				if (isPastSlot) {
 					return related.some((b: any) => b.attended === true)
 				}
 				
+				// For future slots, show all (available and booked)
 				return true
 			})
 			
@@ -2135,7 +2134,7 @@ const AdminCalendar = () => {
 								) : (
 									<div className="space-y-2">
 										{dayBookings.length === 0 ? (
-											<div className="text-sm text-gray-600">Nav rezervāciju šajā dienā</div>
+											<div className="text-sm text-gray-600">Nav laiku šajā dienā</div>
 										) : dayBookings.map((b: any) => {
 											const bTs = new Date(`${b.date}T${b.time || '00:00'}:00`).getTime()
 											const isPastBooking = bTs < Date.now()
