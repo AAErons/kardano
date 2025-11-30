@@ -1903,6 +1903,12 @@ const AdminCalendar = () => {
 				</div>
 				<span className="text-gray-700">Grupu nodarbība</span>
 			</div>
+			<div className="flex items-center gap-1.5">
+				<svg className="w-3 h-3 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+					<path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+				</svg>
+				<span className="text-gray-700">Pārrezervēts</span>
+			</div>
 		</div>
 
 			{/* Weekday Headers */}
@@ -1969,6 +1975,8 @@ const AdminCalendar = () => {
 				const attendedRelated = acceptedRelated.filter((b: any) => b.attended === true)
 				const capacity = s.lessonType === 'group' && typeof s.groupSize === 'number' ? s.groupSize : 1
 				const isGroup = s.lessonType === 'group'
+				const totalPendingAndAccepted = acceptedRelated.length + pendingRelated.length
+				const isOverbooked = isGroup && totalPendingAndAccepted > capacity
 				
 				// For group lessons, add one entry per spot
 				if (isGroup) {
@@ -1976,20 +1984,20 @@ const AdminCalendar = () => {
 						const booking = related[spotIdx]
 						if (isPast || slotTs < nowTs) {
 							if (booking && booking.attended === true) {
-								attendedSlots.push({ ...s, spotIdx, booking })
+								attendedSlots.push({ ...s, spotIdx, booking, isOverbooked })
 							}
 						} else {
 							if (booking) {
 								if (booking.status === 'expired') {
-									expiredSlots.push({ ...s, spotIdx, booking })
+									expiredSlots.push({ ...s, spotIdx, booking, isOverbooked })
 								} else if (booking.status === 'accepted') {
-									acceptedSlots.push({ ...s, spotIdx, booking })
+									acceptedSlots.push({ ...s, spotIdx, booking, isOverbooked })
 								} else if (booking.status === 'pending' || booking.status === 'pending_unavailable') {
-									pendingSlots.push({ ...s, spotIdx, booking })
+									pendingSlots.push({ ...s, spotIdx, booking, isOverbooked })
 								}
 							} else {
 								// Available spot
-								availableSlots.push({ ...s, spotIdx, booking: null })
+								availableSlots.push({ ...s, spotIdx, booking: null, isOverbooked })
 							}
 						}
 					}
@@ -2062,9 +2070,10 @@ const AdminCalendar = () => {
 									const existingGroup = acc.find((g: any) => g.type === 'group' && g.key === slotKey)
 									if (existingGroup) {
 										existingGroup.spots.push(slot)
+										existingGroup.isOverbooked = existingGroup.isOverbooked || slot.isOverbooked
 										return acc
 									} else if (slot.spotIdx === 0) {
-										acc.push({ type: 'group', key: slotKey, spots: [slot] })
+										acc.push({ type: 'group', key: slotKey, spots: [slot], isOverbooked: slot.isOverbooked })
 										return acc
 									}
 								}
@@ -2089,7 +2098,12 @@ const AdminCalendar = () => {
 							}, []).map((item: any, idx: number) => {
 								if (item.type === 'group') {
 									return (
-										<div key={`group-${idx}`} className="flex gap-0.5 p-0.5 bg-gray-200 rounded" title="Grupu nodarbība">
+										<div key={`group-${idx}`} className={`flex gap-0.5 p-0.5 rounded relative ${item.isOverbooked ? 'bg-red-200' : 'bg-gray-200'}`} title={item.isOverbooked ? 'Pārrezervēts - Vairāk pieprasījumu nekā vietu!' : 'Grupu nodarbība'}>
+											{item.isOverbooked && (
+												<svg className="absolute -top-1 -right-1 w-3 h-3 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+													<path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+												</svg>
+											)}
 											{item.spots.map((spot: any, spotIdx: number) => {
 												let circleClass = ''
 												if (expiredSlots.some((s: any) => s.spotIdx === spot.spotIdx && s.date === spot.date && s.time === spot.time)) {
@@ -2216,6 +2230,8 @@ const AdminCalendar = () => {
 										const slotKey = `${s.date}-${s.time}-${s.teacherId}`
 										const isExpanded = expandedSlots.has(slotKey)
 										const isGroupLesson = s.lessonType === 'group'
+										const totalPendingAndAccepted = acceptedRelated.length + pendingRelated.length
+										const isOverbooked = isGroupLesson && totalPendingAndAccepted > capacity
 										
 											return (
 												<div key={s.id} className={`border rounded-lg ${cardClass}`}>
@@ -2254,7 +2270,15 @@ const AdminCalendar = () => {
 															<span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full border border-purple-200">{modalityLabel}</span>
 															<span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-full border border-gray-200">{locationLabel}</span>
 															{s.lessonType === 'group' && (
-																<span className="px-2 py-1 bg-teal-100 text-teal-800 rounded-full border border-teal-200">{bookedCount}/{capacity}</span>
+																<span className={`px-2 py-1 rounded-full border ${isOverbooked ? 'bg-red-100 text-red-800 border-red-300' : 'bg-teal-100 text-teal-800 border-teal-200'}`}>{bookedCount}/{capacity}</span>
+															)}
+															{isOverbooked && (
+																<span className="px-2 py-1 bg-red-100 text-red-800 rounded-full border border-red-300 flex items-center gap-1">
+																	<svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+																		<path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+																	</svg>
+																	Pārrezervēts! {totalPendingAndAccepted - capacity} papildus
+																</span>
 															)}
 														</div>
 														{!isAvailable && s.lessonType !== 'group' && related.length > 0 && (
@@ -2265,10 +2289,21 @@ const AdminCalendar = () => {
 													{/* Expanded group lesson spots */}
 													{isGroupLesson && isExpanded && (
 														<div className="border-t border-gray-300 bg-gray-50 p-3 space-y-2">
-															{Array.from({ length: capacity }).map((_, spotIdx) => {
+															{isOverbooked && (
+																<div className="flex items-center gap-2 p-2 bg-red-50 border border-red-300 rounded-lg mb-3">
+																	<svg className="w-4 h-4 text-red-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+																		<path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+																	</svg>
+																	<span className="text-xs text-red-800 font-medium">
+																		Brīdinājums: {totalPendingAndAccepted} pieprasījumi, bet tikai {capacity} vietas! Apstiprinot vienus, pārējie tiks automātiski noraidīti.
+																	</span>
+																</div>
+															)}
+															{Array.from({ length: Math.max(capacity, totalPendingAndAccepted) }).map((_, spotIdx) => {
 																const booking = related[spotIdx]
-																let spotStatus = 'Pieejams'
-																let spotClass = 'bg-white border-2 border-green-600'
+																const isExtraSpot = spotIdx >= capacity
+																let spotStatus = isExtraSpot ? 'Nav vietas' : 'Pieejams'
+																let spotClass = isExtraSpot ? 'bg-red-50 border-red-300' : 'bg-white border-2 border-green-600'
 																
 																if (booking) {
 																	if (booking.status === 'expired') {
@@ -2281,20 +2316,22 @@ const AdminCalendar = () => {
 																		spotStatus = 'Apstiprināts'
 																		spotClass = 'bg-green-100 border-green-200'
 																	} else if (booking.status === 'pending' || booking.status === 'pending_unavailable') {
-																		spotStatus = 'Gaida apstiprinājumu'
-																		spotClass = 'bg-yellow-100 border-yellow-200'
+																		spotStatus = isExtraSpot ? 'Gaida (pārrezervēts)' : 'Gaida apstiprinājumu'
+																		spotClass = isExtraSpot ? 'bg-red-100 border-red-300' : 'bg-yellow-100 border-yellow-200'
 																	}
 																}
 																
 																return (
 																	<div key={`spot-${spotIdx}`} className={`flex items-center justify-between p-2 rounded border ${spotClass}`}>
 																		<div className="flex items-center gap-2">
-																			<span className="text-xs font-medium text-gray-700">Vieta {spotIdx + 1}</span>
+																			<span className={`text-xs font-medium ${isExtraSpot ? 'text-red-700' : 'text-gray-700'}`}>
+																				{isExtraSpot ? `Extra ${spotIdx - capacity + 1}` : `Vieta ${spotIdx + 1}`}
+																			</span>
 																			{booking && (
 																				<span className="text-xs text-gray-600">{booking.studentName || booking.userName || '—'}</span>
 																			)}
 																		</div>
-																		<span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-300">{spotStatus}</span>
+																		<span className={`text-xs px-2 py-0.5 rounded-full ${isExtraSpot ? 'bg-red-100 text-red-800 border border-red-300' : 'bg-gray-100 text-gray-700 border border-gray-300'}`}>{spotStatus}</span>
 																	</div>
 																)
 															})}
