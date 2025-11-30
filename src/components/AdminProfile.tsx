@@ -2127,7 +2127,7 @@ const AdminCalendar = () => {
 											// Future slot
 											if (isAvailable) {
 												statusText = 'Pieejams'
-												statusClass = 'bg-green-100 text-green-800 border border-green-200'
+												statusClass = 'bg-white text-green-800 border-2 border-green-600'
 												cardClass = 'bg-green-50 border-green-200'
 											} else if (acceptedRelated.length > 0) {
 												statusText = 'Apstiprināts'
