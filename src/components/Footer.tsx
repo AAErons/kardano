@@ -12,9 +12,7 @@ const Footer = () => {
 							<h3 className="text-2xl font-bold">KARDANO</h3>
 						</div>
 						<p className="text-gray-300 mb-4 max-w-md">
-							Profesionāla matemātikas mācīšana, kas palīdz skolēniem 
-							apgūt ne tikai pašreizējo vielu, bet arī aizpildīt 
-							iepriekšējās zināšanu trūkumus.
+							KARDANO — matemātikas skola, kur ar kvalitatīvu, pieredzē balstītu un individuālu mācību procesu, palīdzam Tev sasniegt augstākus rezultātus, stabilu zināšanu bāzi un izpratni par šo priekšmetu.
 						</p>
 						<div className="flex space-x-4">
 							<a href="#" className="text-gray-300 hover:text-yellow-400 transition-colors">

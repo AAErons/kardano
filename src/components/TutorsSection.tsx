@@ -67,8 +67,7 @@ const TutorsSection = () => {
 						</span>
 					</h1>
 					<p className="text-xl text-gray-700 max-w-3xl mx-auto">
-						Iepazīstieties ar mūsu pieredzējušajiem matemātikas pasniedzējiem, 
-						kas palīdzēs jums sasniegt izcilus rezultātus
+						Iepazīsties - mūsu komanda - tavs atbalsts ceļā uz izvirzītajiem mērķiem.
 					</p>
 				</div>
 
